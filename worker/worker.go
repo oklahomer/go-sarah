@@ -68,7 +68,15 @@ func (pool *Pool) runWorker(worker *pooledWorker) {
 			return
 		case job := <-pool.jobReceiver:
 			logrus.Infof("receiving job on worker: %d", worker.ID)
-			job()
+			// To avoid given job's panic affect later jobs, wrap them with recover.
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logrus.Warnf("panic in given job. recovered: %+v", r)
+					}
+				}()
+				job()
+			}()
 		}
 	}
 }

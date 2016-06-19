@@ -71,3 +71,14 @@ func TestStatus(t *testing.T) {
 		t.Errorf("error should be given on multiple Stop.")
 	}
 }
+
+func TestPanicSituation(t *testing.T) {
+	pool := NewPool(1)
+	pool.Run()
+
+	pool.EnqueueJob(func() {
+		panic("My house is on FIRE!!")
+	})
+
+	pool.Stop()
+}
