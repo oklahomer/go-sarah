@@ -59,7 +59,7 @@ func (eventType *EventType) MarshalText() ([]byte, error) {
 }
 
 /*
-Every event has a type property which describes the type of event.
+CommonEvent takes care of some common fields all incoming/outgoing event MUST have.
 https://api.slack.com/rtm#events
 */
 type CommonEvent struct {
