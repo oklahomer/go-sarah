@@ -11,6 +11,7 @@ func TestUnmarshalTimeStampText(t *testing.T) {
 	timeStamp := &TimeStamp{}
 	if err := timeStamp.UnmarshalText([]byte("1355517536.000001")); err != nil {
 		t.Errorf("error on unmarshal slack timestamp. %s.", err.Error())
+		return
 	}
 
 	expectedTime := time.Unix(1355517536, 0)
