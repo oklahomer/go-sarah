@@ -64,20 +64,33 @@ type Message struct {
 	TimeStamp TimeStamp `json:"ts"`
 }
 
-// Implement BotInput
+// Let Message implement BotInput
+
+/*
+GetSenderId returns sender's identifier.
+*/
 func (message *Message) GetSenderId() string {
 	return message.User
 }
 
+/*
+GetMessage returns sent message.
+*/
 func (message *Message) GetMessage() string {
 	return message.Text
 }
 
+/*
+GetSentAt returns message event's timestamp.
+*/
 func (message *Message) GetSentAt() time.Time {
 	return message.TimeStamp.Time
 }
 
-func (message *Message) GetRoomId() string {
+/*
+GetRoomID returns room identifier.
+*/
+func (message *Message) GetRoomID() string {
 	return message.Channel
 }
 
