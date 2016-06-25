@@ -72,7 +72,7 @@ func (pool *Pool) runWorker(worker *pooledWorker) {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						logrus.Warnf("panic in given job. recovered: %+v", r)
+						logrus.Warnf("panic in given job. recovered: %#v", r)
 					}
 				}()
 				job()
