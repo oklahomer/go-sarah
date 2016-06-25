@@ -39,6 +39,9 @@ func (eventType *EventType) UnmarshalText(b []byte) error {
 	return nil
 }
 
+/*
+String returns the stringified event name, which corresponds to the one sent from/to slack RTM endpoint.
+*/
 func (eventType EventType) String() string {
 	return string(eventType)
 }
