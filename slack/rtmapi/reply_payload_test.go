@@ -14,8 +14,8 @@ func TestDecodeReply(t *testing.T) {
 			return
 		}
 
-		if !reply.OK {
-			t.Error("expecting ok status of true, but wasn't.")
+		if reply.OK == nil || !*reply.OK {
+			t.Errorf("expecting ok status of true, but wasn't. %#v", reply)
 		}
 
 		if reply.ReplyTo != 1 {

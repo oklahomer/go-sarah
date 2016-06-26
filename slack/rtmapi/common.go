@@ -50,3 +50,25 @@ To ensure idempotence of marshal/unmarshal, this returns the original value give
 func (timeStamp *TimeStamp) MarshalText() ([]byte, error) {
 	return []byte(timeStamp.String()), nil
 }
+
+/*
+MalformedPayloadError represents an error that given JSON payload is not properly formatted.
+e.g. required fields are not given, or payload is not a valid JSON string.
+*/
+type MalformedPayloadError struct {
+	Err string
+}
+
+/*
+Error returns its error string.
+*/
+func (e *MalformedPayloadError) Error() string {
+	return e.Err
+}
+
+/*
+NewMalformedPayloadError creates new MalformedPayloadError instance with given arguments.
+*/
+func NewMalformedPayloadError(str string) *MalformedPayloadError {
+	return &MalformedPayloadError{Err: str}
+}

@@ -102,12 +102,12 @@ type DecodedEvent interface {
 }
 
 /*
-DecodeEvent decodes given event input and converts this to corresponding event structure.
+DecodeEvent decodes given payload and converts this to corresponding event structure.
 */
 func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 	event := &CommonEvent{}
 	if err := json.Unmarshal(input, event); err != nil {
-		return nil, err
+		return nil, NewMalformedPayloadError(err.Error())
 	}
 
 	var mapping DecodedEvent
@@ -121,7 +121,12 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 		mapping = &TeamMigrationStarted{}
 	case PONG:
 		mapping = &Pong{}
+	case "":
+		// type is not given and is filled with zero-value
+		// or empty string is given as type value
+		return nil, NewMalformedEventTypeError("type is not given. " + string(input))
 	default:
+		// What? New event type? Time to check latest update.
 		return nil, NewUnknownEventTypeError("received unknown event. " + string(input))
 	}
 
@@ -133,22 +138,44 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 }
 
 /*
-UnknownEventTypeError is returned when given event's type is undefined.
+MalformedEventTypeError represents an error that given payload can properly parsed as valid JSON string,
+but it is missing "type" field.
 */
-type UnknownEventTypeError struct {
-	error string
+type MalformedEventTypeError struct {
+	Err string
 }
 
 /*
-NewUnknownEventTypeError creates new instance of UnknownEventTypeError with given error string.
+NewMalformedEventTypeError creates new MalformedEventTypeError instance with given arguments.
 */
-func NewUnknownEventTypeError(e string) error {
-	return &UnknownEventTypeError{error: e}
+func NewMalformedEventTypeError(e string) *MalformedEventTypeError {
+	return &MalformedEventTypeError{Err: e}
 }
 
 /*
 Error returns its error string.
 */
-func (e UnknownEventTypeError) Error() string {
-	return e.error
+func (e *MalformedEventTypeError) Error() string {
+	return e.Err
+}
+
+/*
+UnknownEventTypeError is returned when given event's type is undefined.
+*/
+type UnknownEventTypeError struct {
+	Err string
+}
+
+/*
+NewUnknownEventTypeError creates new instance of UnknownEventTypeError with given error string.
+*/
+func NewUnknownEventTypeError(e string) *UnknownEventTypeError {
+	return &UnknownEventTypeError{Err: e}
+}
+
+/*
+Error returns its error string.
+*/
+func (e *UnknownEventTypeError) Error() string {
+	return e.Err
 }
