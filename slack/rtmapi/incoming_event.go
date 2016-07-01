@@ -69,7 +69,7 @@ type Message struct {
 /*
 GetSenderId returns sender's identifier.
 */
-func (message *Message) GetSenderId() string {
+func (message *Message) GetSenderID() string {
 	return message.User
 }
 
