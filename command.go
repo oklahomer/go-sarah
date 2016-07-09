@@ -25,7 +25,11 @@ type Command interface {
 	StripCommand(string) string
 }
 
-type EmptyCommandConfig struct{}
+var (
+	NullConfig = &nullConfig{}
+)
+
+type nullConfig struct{}
 
 func NewCommandBuilder() *commandBuilder {
 	return &commandBuilder{}
@@ -64,7 +68,7 @@ func (builder *commandBuilder) build(configDir string) (Command, error) {
 	}
 
 	switch config := builder.config.(type) {
-	case *EmptyCommandConfig:
+	case *nullConfig:
 		return builder.constructor(config), nil
 	default:
 		fileName := builder.identifier + ".yaml"

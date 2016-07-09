@@ -44,7 +44,7 @@ func TestInsufficientSettings(t *testing.T) {
 		}
 	}
 
-	builder.ConfigStruct(&EmptyCommandConfig{})
+	builder.ConfigStruct(NullConfig)
 	if _, err := builder.build("/path/"); err != nil {
 		t.Errorf("something is wrong with command construction. %#v", err)
 	}
