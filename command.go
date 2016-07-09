@@ -7,7 +7,9 @@ import (
 	"path"
 )
 
-type CommandConfig interface{}
+var (
+	NullConfig = &nullConfig{}
+)
 
 type CommandResponse struct {
 	ResponseContent interface{}
@@ -25,20 +27,49 @@ type Command interface {
 	StripCommand(string) string
 }
 
-var (
-	NullConfig = &nullConfig{}
-)
+type Commands struct {
+	cmd []Command
+}
+
+func NewCommands() *Commands {
+	return &Commands{cmd: make([]Command, 0)}
+}
+
+func (commands *Commands) Append(command Command) {
+	commands.cmd = append(commands.cmd, command)
+}
+
+func (commands *Commands) FindFirstMatched(text string) Command {
+	for _, command := range commands.cmd {
+		if command.Match(text) {
+			return command
+		}
+	}
+
+	return nil
+}
+
+func (commands *Commands) ExecuteFirstMatched(input BotInput) (*CommandResponse, error) {
+	command := commands.FindFirstMatched(input.GetMessage())
+	if command == nil {
+		return nil, nil
+	}
+
+	return command.Execute(input)
+}
 
 type nullConfig struct{}
 
-func NewCommandBuilder() *commandBuilder {
-	return &commandBuilder{}
-}
+type CommandConfig interface{}
 
 type commandBuilder struct {
 	identifier  string
 	constructor func(CommandConfig) Command
 	config      CommandConfig
+}
+
+func NewCommandBuilder() *commandBuilder {
+	return &commandBuilder{}
 }
 
 func (builder *commandBuilder) Identifier(id string) *commandBuilder {
