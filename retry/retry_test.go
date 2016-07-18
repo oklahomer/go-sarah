@@ -14,7 +14,11 @@ func TestRetry(t *testing.T) {
 		return errors.New(fmt.Sprintf("error on %d", i))
 	})
 
-	if uint(len(err.Errors)) != trial {
+	retryErr, ok := err.(*RetryErrors)
+	if !ok {
+		t.Errorf("returned error is not RetryErrors. %#v", err)
+	}
+	if uint(len(retryErr.Errors)) != trial {
 		t.Errorf("something is wrong with retrial. %s.", err.Error())
 	}
 }

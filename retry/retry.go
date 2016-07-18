@@ -26,15 +26,15 @@ func (e *RetryErrors) append(err error) {
 	e.Errors = append(e.Errors, err)
 }
 
-func Retry(trial uint, function func() error) *RetryErrors {
+func Retry(trial uint, function func() error) error {
 	return RetryInterval(trial, function, 0*time.Second)
 }
 
-func RetryInterval(trial uint, function func() error, interval time.Duration) *RetryErrors {
+func RetryInterval(trial uint, function func() error, interval time.Duration) error {
 	return RetryBackOff(trial, interval, 0, function)
 }
 
-func RetryBackOff(trial uint, meanInterval time.Duration, randFactor float64, function func() error) *RetryErrors {
+func RetryBackOff(trial uint, meanInterval time.Duration, randFactor float64, function func() error) error {
 	errors := NewRetryErrors()
 	for trial > 0 {
 		trial--
