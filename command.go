@@ -2,9 +2,12 @@ package sarah
 
 import (
 	"fmt"
+	"github.com/Sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path"
+	"regexp"
+	"strings"
 )
 
 var (
@@ -26,6 +29,44 @@ type Command interface {
 	Match(string) bool
 
 	StripCommand(string) string
+}
+
+type SimpleCommand struct {
+	identifier string
+
+	example string
+
+	matchPattern *regexp.Regexp
+}
+
+func (command *SimpleCommand) Identifier() string {
+	return command.identifier
+}
+
+func (command *SimpleCommand) Example() string {
+	return command.example
+}
+
+func (command *SimpleCommand) Match(input string) bool {
+	return command.matchPattern.MatchString(input)
+}
+
+func (command *SimpleCommand) StripCommand(input string) string {
+	text := command.matchPattern.ReplaceAllString(input, "")
+	return strings.TrimSpace(text)
+}
+
+func (command *SimpleCommand) Execute(input BotInput) *CommandResponse {
+	logrus.Errorf("required method 'Execute(BotInput) *CommandResponse' must be implemented by embedding command, %s", command.Identifier())
+	return nil
+}
+
+func NewSimpleCommand(id string, ex string, pattern *regexp.Regexp) *SimpleCommand {
+	return &SimpleCommand{
+		identifier:   id,
+		example:      ex,
+		matchPattern: pattern,
+	}
 }
 
 type Commands struct {
@@ -56,7 +97,13 @@ func (commands *Commands) ExecuteFirstMatched(input BotInput) (*CommandResponse,
 		return nil, nil
 	}
 
-	return command.Execute(input)
+	res, err := command.Execute(input)
+	if err != nil {
+		return nil, err
+	}
+	res.Input = input
+
+	return res, err
 }
 
 type nullConfig struct{}

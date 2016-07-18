@@ -231,15 +231,3 @@ func NewStringCommandResponse(responseContent string) *sarah.CommandResponse {
 func NewPostMessageCommandResponse(responseContent *webapi.PostMessage) *sarah.CommandResponse {
 	return &sarah.CommandResponse{ResponseContent: responseContent}
 }
-
-type Config struct {
-	token           string
-	pluginConfigDir string
-}
-
-func NewConfig(token, pluginConfigDir string) *Config {
-	return &Config{
-		token:           token,
-		pluginConfigDir: pluginConfigDir,
-	}
-}
