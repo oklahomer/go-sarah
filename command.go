@@ -12,6 +12,7 @@ var (
 )
 
 type CommandResponse struct {
+	Input           BotInput
 	ResponseContent interface{}
 }
 

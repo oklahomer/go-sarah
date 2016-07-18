@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/websocket"
-	"time"
 )
 
 type Client struct {
@@ -18,19 +16,7 @@ func NewClient() *Client {
 }
 
 func (client *Client) Connect(url string) (*websocket.Conn, error) {
-	tryLimit := 10
-	for i := 1; i <= tryLimit; i++ {
-		conn, err := websocket.Dial(url, "", "http://localhost/")
-		if err != nil {
-			logrus.Warnf("failed to connect to %s on %d trial. error: %s", url, i, err.Error())
-			time.Sleep(time.Duration(i) * time.Second)
-			continue
-		}
-
-		return conn, nil
-	}
-
-	return nil, errors.New(fmt.Sprintf("failed to establish connection to %s with %d trials.", url, tryLimit))
+	return websocket.Dial(url, "", "http://localhost")
 }
 
 func (client *Client) DecodePayload(payload json.RawMessage) (DecodedEvent, error) {
@@ -65,6 +51,21 @@ func DefaultPayloadDecoder(payload json.RawMessage) (DecodedEvent, error) {
 	return decodedEvent, nil
 }
 
+func ReceivePayload(conn *websocket.Conn) (json.RawMessage, error) {
+	payload := json.RawMessage{}
+
+	// TODO err := websocket.Message.Receive(conn, &payload)
+	err := websocket.JSON.Receive(conn, &payload)
+	if err != nil {
+		return nil, err
+	} else if len(payload) == 0 {
+		// TODO
+		return nil, errors.New("emptry payload is given")
+	}
+
+	return payload, nil
+}
+
 /*
 ReplyStatusError is returned when given WebSocketReply payload is indicating a status error.
 */
@@ -84,4 +85,13 @@ NewReplyStatusError creates new ReplyStatusError instance with given arguments.
 */
 func NewReplyStatusError(reply *WebSocketReply) *ReplyStatusError {
 	return &ReplyStatusError{Reply: reply}
+}
+
+type TextMessage struct {
+	channel string
+	text    string
+}
+
+func NewTextMessage(channel string, text string) *TextMessage {
+	return &TextMessage{channel: channel, text: text}
 }
