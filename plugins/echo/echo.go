@@ -10,24 +10,16 @@ var (
 	identifier = "echo"
 )
 
-type Echo struct {
-	sarah.SimpleCommand
-}
-
-func NewEcho(_ sarah.CommandConfig) sarah.Command {
-	matchPattern := regexp.MustCompile(`^\.echo`)
-
-	return &Echo{SimpleCommand: *sarah.NewSimpleCommand(identifier, ".echo Hello, world!", matchPattern)}
-}
-
-func (echo *Echo) Execute(input sarah.BotInput) (*sarah.CommandResponse, error) {
-	return slack.NewStringCommandResponse(echo.StripCommand(input.GetMessage())), nil
+func echo(strippedMessage string, _ sarah.BotInput, _ sarah.CommandConfig) (*sarah.CommandResponse, error) {
+	return slack.NewStringCommandResponse(strippedMessage), nil
 }
 
 func init() {
 	builder := sarah.NewCommandBuilder().
-		ConfigStruct(sarah.NullConfig).
 		Identifier(identifier).
-		Constructor(NewEcho)
+		ConfigStruct(sarah.NullConfig).
+		MatchPattern(regexp.MustCompile(`^\.echo`)).
+		Func(echo).
+		Example(".echo knock knock")
 	sarah.AppendCommandBuilder(slack.SLACK, builder)
 }

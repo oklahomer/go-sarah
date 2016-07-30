@@ -72,7 +72,10 @@ func TestAppendCommandBuilder(t *testing.T) {
 		NewCommandBuilder().
 			ConfigStruct(NullConfig).
 			Identifier("fooCommand").
-			Constructor(func(conf CommandConfig) Command { return &nullCommand{} })
+			Example("example text").
+			Func(func(strippedMessage string, input BotInput, _ CommandConfig) (*CommandResponse, error) {
+				return nil, nil
+			})
 	AppendCommandBuilder(FOO, commandBuilder)
 
 	stashedBuilders := stashedCommandBuilder[FOO]

@@ -2,7 +2,6 @@ package sarah
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path"
@@ -22,51 +21,56 @@ type CommandResponse struct {
 type Command interface {
 	Identifier() string
 
-	Execute(BotInput) (*CommandResponse, error)
+	Execute(string, BotInput) (*CommandResponse, error)
 
 	Example() string
 
 	Match(string) bool
 
-	StripCommand(string) string
+	StripMessage(string) string
 }
 
-type SimpleCommand struct {
+type simpleCommand struct {
 	identifier string
 
 	example string
 
 	matchPattern *regexp.Regexp
+
+	commandFunc commandFunc
+
+	config CommandConfig
 }
 
-func (command *SimpleCommand) Identifier() string {
+func newSimpleCommand(identifier, example string, matchPattern *regexp.Regexp, commandFunc commandFunc, config CommandConfig) Command {
+	return &simpleCommand{
+		identifier:   identifier,
+		example:      example,
+		matchPattern: matchPattern,
+		commandFunc:  commandFunc,
+		config:       config,
+	}
+}
+
+func (command *simpleCommand) Identifier() string {
 	return command.identifier
 }
 
-func (command *SimpleCommand) Example() string {
+func (command *simpleCommand) Example() string {
 	return command.example
 }
 
-func (command *SimpleCommand) Match(input string) bool {
+func (command *simpleCommand) Match(input string) bool {
 	return command.matchPattern.MatchString(input)
 }
 
-func (command *SimpleCommand) StripCommand(input string) string {
+func (command *simpleCommand) StripMessage(input string) string {
 	text := command.matchPattern.ReplaceAllString(input, "")
 	return strings.TrimSpace(text)
 }
 
-func (command *SimpleCommand) Execute(input BotInput) *CommandResponse {
-	logrus.Errorf("required method 'Execute(BotInput) *CommandResponse' must be implemented by embedding command, %s", command.Identifier())
-	return nil
-}
-
-func NewSimpleCommand(id string, ex string, pattern *regexp.Regexp) *SimpleCommand {
-	return &SimpleCommand{
-		identifier:   id,
-		example:      ex,
-		matchPattern: pattern,
-	}
+func (command *simpleCommand) Execute(strippedMessage string, input BotInput) (*CommandResponse, error) {
+	return command.commandFunc(strippedMessage, input, command.config)
 }
 
 type Commands struct {
@@ -92,12 +96,13 @@ func (commands *Commands) FindFirstMatched(text string) Command {
 }
 
 func (commands *Commands) ExecuteFirstMatched(input BotInput) (*CommandResponse, error) {
-	command := commands.FindFirstMatched(input.GetMessage())
+	inputMessage := input.GetMessage()
+	command := commands.FindFirstMatched(inputMessage)
 	if command == nil {
 		return nil, nil
 	}
 
-	res, err := command.Execute(input)
+	res, err := command.Execute(command.StripMessage(inputMessage), input)
 	if err != nil {
 		return nil, err
 	}
@@ -110,10 +115,14 @@ type nullConfig struct{}
 
 type CommandConfig interface{}
 
+type commandFunc func(string, BotInput, CommandConfig) (*CommandResponse, error)
+
 type commandBuilder struct {
-	identifier  string
-	constructor func(CommandConfig) Command
-	config      CommandConfig
+	identifier   string
+	matchPattern *regexp.Regexp
+	config       CommandConfig
+	commandFunc  commandFunc
+	example      string
 }
 
 func NewCommandBuilder() *commandBuilder {
@@ -125,13 +134,23 @@ func (builder *commandBuilder) Identifier(id string) *commandBuilder {
 	return builder
 }
 
-func (builder *commandBuilder) Constructor(constructor func(CommandConfig) Command) *commandBuilder {
-	builder.constructor = constructor
+func (builder *commandBuilder) ConfigStruct(config CommandConfig) *commandBuilder {
+	builder.config = config
 	return builder
 }
 
-func (builder *commandBuilder) ConfigStruct(config CommandConfig) *commandBuilder {
-	builder.config = config
+func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) *commandBuilder {
+	builder.matchPattern = pattern
+	return builder
+}
+
+func (builder *commandBuilder) Func(function commandFunc) *commandBuilder {
+	builder.commandFunc = function
+	return builder
+}
+
+func (builder *commandBuilder) Example(example string) *commandBuilder {
+	builder.example = example
 	return builder
 }
 
@@ -139,16 +158,22 @@ func (builder *commandBuilder) build(configDir string) (Command, error) {
 	if builder.identifier == "" {
 		return nil, NewCommandInsufficientArgumentError("command identifier must be set.")
 	}
-	if builder.constructor == nil {
+	if builder.example == "" {
+		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command example must be set. id: %s", builder.identifier))
+	}
+	if builder.matchPattern == nil {
 		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command constructor must be set. id: %s", builder.identifier))
 	}
 	if builder.config == nil {
 		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command config struct must be set. id: %s", builder.identifier))
 	}
+	if builder.commandFunc == nil {
+		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command function must be set. id: %s", builder.identifier))
+	}
 
 	switch config := builder.config.(type) {
 	case *nullConfig:
-		return builder.constructor(config), nil
+		return newSimpleCommand(builder.identifier, builder.example, builder.matchPattern, builder.commandFunc, config), nil
 	default:
 		fileName := builder.identifier + ".yaml"
 		configPath := path.Join(configDir, fileName)
@@ -156,7 +181,7 @@ func (builder *commandBuilder) build(configDir string) (Command, error) {
 		if err != nil {
 			return nil, err
 		}
-		return builder.constructor(config), nil
+		return newSimpleCommand(builder.identifier, builder.example, builder.matchPattern, builder.commandFunc, config), nil
 	}
 }
 
