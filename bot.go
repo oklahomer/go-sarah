@@ -41,7 +41,7 @@ func NewBot() *Bot {
 	}
 }
 
-func (bot *Bot) AppendAdapter(adapter BotAdapter) {
+func (bot *Bot) AddAdapter(adapter BotAdapter) {
 	botType := adapter.GetBotType()
 	bot.adapters[botType] = adapter
 	bot.commands[botType] = NewCommands()

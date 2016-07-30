@@ -59,6 +59,10 @@ func (pool *Pool) Run() error {
 	return nil
 }
 
+func (pool *Pool) IsRunning() bool {
+	return pool.isRunning
+}
+
 func (pool *Pool) runWorker(worker *pooledWorker) {
 	logrus.Infof("start worker id: %d.", worker.ID)
 	for {
