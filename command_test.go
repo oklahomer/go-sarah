@@ -39,63 +39,63 @@ func TestInsufficientSettings(t *testing.T) {
 
 type abandonedCommand struct{}
 
-func (_ *abandonedCommand) Identifier() string {
+func (abandonedCommand *abandonedCommand) Identifier() string {
 	return "arbitraryStringThatWouldNeverBeRecognized"
 }
 
-func (_ *abandonedCommand) Execute(_ string, _ BotInput) (*CommandResponse, error) {
+func (abandonedCommand *abandonedCommand) Execute(_ string, _ BotInput) (*CommandResponse, error) {
 	return nil, nil
 }
 
-func (_ *abandonedCommand) Example() string {
+func (abandonedCommand *abandonedCommand) Example() string {
 	return ""
 }
 
-func (_ *abandonedCommand) Match(_ string) bool {
+func (abandonedCommand *abandonedCommand) Match(_ string) bool {
 	return false
 }
 
-func (_ *abandonedCommand) StripMessage(_ string) string {
+func (abandonedCommand *abandonedCommand) StripMessage(_ string) string {
 	return ""
 }
 
 type echoCommand struct{}
 
-func (_ *echoCommand) Identifier() string {
+func (echoCommand *echoCommand) Identifier() string {
 	return "echo"
 }
 
-func (_ *echoCommand) Execute(strippedMessage string, input BotInput) (*CommandResponse, error) {
+func (echoCommand *echoCommand) Execute(strippedMessage string, input BotInput) (*CommandResponse, error) {
 	return &CommandResponse{ResponseContent: input.GetMessage()}, nil
 }
 
-func (_ *echoCommand) Example() string {
+func (echoCommand *echoCommand) Example() string {
 	return ""
 }
 
-func (_ *echoCommand) Match(msg string) bool {
+func (echoCommand *echoCommand) Match(msg string) bool {
 	return strings.HasPrefix(msg, "echo")
 }
 
-func (_ *echoCommand) StripMessage(msg string) string {
+func (echoCommand *echoCommand) StripMessage(msg string) string {
 	return strings.TrimPrefix(msg, "echo")
 }
 
 type echoInput struct{}
 
-func (_ *echoInput) GetSenderID() string {
+func (echoInput *echoInput) GetSenderID() string {
 	return ""
 }
 
-func (_ *echoInput) GetMessage() string {
+func (echoInput *echoInput) GetMessage() string {
 	return "echo foo"
 }
 
-func (_ *echoInput) GetSentAt() time.Time {
+func (echoInput *echoInput) GetSentAt() time.Time {
 	return time.Now()
 }
 
-func (_ *echoInput) GetRoomID() string {
+func (echoInput *echoInput) GetRoomID() string {
 	return ""
 }
 
@@ -105,17 +105,18 @@ func TestCommands_FindFirstMatched(t *testing.T) {
 	commands.Append(&echoCommand{})
 	commands.Append(&abandonedCommand{})
 
-	if echo := commands.FindFirstMatched("echo"); echo == nil {
+	echo := commands.FindFirstMatched("echo")
+	if echo == nil {
 		t.Error("expected command is not found")
 		return
-	} else {
-		switch echo.(type) {
-		case *echoCommand:
-		// O.K.
-		default:
-			t.Errorf("expecting echoCommand's pointer, but was %#v.", echo)
-			return
-		}
+	}
+
+	switch echo.(type) {
+	case *echoCommand:
+	// O.K.
+	default:
+		t.Errorf("expecting echoCommand's pointer, but was %#v.", echo)
+		return
 	}
 
 	response, err := commands.ExecuteFirstMatched(&echoInput{})
