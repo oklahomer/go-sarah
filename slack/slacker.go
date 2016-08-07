@@ -42,10 +42,10 @@ type Slacker struct {
 	pluginConfigDir string
 
 	// Some channels to handle its life-cycle.
-	startNewRtm chan bool
-	tryPing     chan bool
-	stopper     chan bool
-	stopAll     chan bool
+	startNewRtm chan struct{}
+	tryPing     chan struct{}
+	stopper     chan struct{}
+	stopAll     chan struct{}
 
 	// WebSocket connection that is set and updated on each connection (re)establishment.
 	webSocketConnection *websocket.Conn
@@ -59,10 +59,10 @@ func NewSlacker(token, pluginConfigDir string) *Slacker {
 		OutgoingMessages: make(chan *rtmapi.TextMessage, 100),
 		outgoingEventID:  rtmapi.NewOutgoingEventID(),
 		pluginConfigDir:  pluginConfigDir,
-		startNewRtm:      make(chan bool),
-		tryPing:          make(chan bool),
-		stopper:          make(chan bool),
-		stopAll:          make(chan bool),
+		startNewRtm:      make(chan struct{}),
+		tryPing:          make(chan struct{}),
+		stopper:          make(chan struct{}),
+		stopAll:          make(chan struct{}),
 	}
 }
 
@@ -82,12 +82,12 @@ func (slacker *Slacker) Run(receiver chan<- sarah.BotInput) {
 	go slacker.sendEnqueuedMessage()
 	go slacker.receiveEvent(receiver)
 
-	slacker.startNewRtm <- true
+	slacker.startNewRtm <- struct{}{}
 }
 
 // Stop stops Slack interaction and cleans up all belonging goroutines.
 func (slacker *Slacker) Stop() {
-	slacker.stopper <- true
+	slacker.stopper <- struct{}{}
 }
 
 /*
@@ -108,7 +108,7 @@ func (slacker *Slacker) supervise() {
 			slacker.disconnect()
 			if err := slacker.connect(); err != nil {
 				logrus.Errorf("can't establish connection. %s", err.Error())
-				slacker.stopper <- true
+				slacker.Stop()
 			}
 		case <-slacker.stopper:
 			close(slacker.stopAll)
@@ -171,7 +171,7 @@ func (slacker *Slacker) receiveEvent(receiver chan<- sarah.BotInput) {
 			// When connection is closed in the middle of this method call, this immediately returns error.
 			payload, err := rtmapi.ReceivePayload(slacker.webSocketConnection)
 			if err == io.EOF {
-				slacker.tryPing <- true
+				slacker.tryPing <- struct{}{}
 				continue
 			} else if err != nil {
 				logrus.Error("error on receiving payload", reflect.TypeOf(err), err.Error())
@@ -256,7 +256,7 @@ func (slacker *Slacker) checkConnection() {
 	ping := rtmapi.NewPing(slacker.outgoingEventID)
 	if err := websocket.JSON.Send(slacker.webSocketConnection, ping); err != nil {
 		logrus.Error("failed sending Ping payload", err)
-		slacker.startNewRtm <- true
+		slacker.startNewRtm <- struct{}{}
 	}
 }
 

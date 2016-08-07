@@ -18,7 +18,7 @@ type Pool struct {
 	isRunning   bool
 	mutex       *sync.Mutex
 	jobReceiver chan func()
-	stop        chan bool
+	stop        chan struct{}
 }
 
 /*
@@ -33,7 +33,7 @@ func NewPool(workerNum int) *Pool {
 		workers:     workers,
 		isRunning:   false,
 		mutex:       &sync.Mutex{},
-		stop:        make(chan bool),
+		stop:        make(chan struct{}),
 		jobReceiver: make(chan func(), 100),
 	}
 }

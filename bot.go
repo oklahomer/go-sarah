@@ -39,7 +39,7 @@ type Bot struct {
 	adapters   map[BotType]BotAdapter
 	commands   map[BotType]*Commands
 	workerPool *worker.Pool
-	stopAll    chan bool
+	stopAll    chan struct{}
 }
 
 // NewBot creates and return new Bot instance.
@@ -48,7 +48,7 @@ func NewBot() *Bot {
 		adapters:   map[BotType]BotAdapter{},
 		commands:   map[BotType]*Commands{},
 		workerPool: worker.NewPool(10),
-		stopAll:    make(chan bool),
+		stopAll:    make(chan struct{}),
 	}
 }
 
@@ -147,7 +147,7 @@ func (bot *Bot) ConfigureCommands(botType BotType) {
 	for _, builder := range stashedCommandBuilder[botType] {
 		command, err := builder.build(adapter.GetPluginConfigDir())
 		if err != nil {
-			logrus.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.Identifier, err.Error()))
+			logrus.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.identifier, err.Error()))
 			continue
 		}
 		bot.commands[botType].Append(command)
