@@ -8,11 +8,11 @@ import (
 )
 
 type Client struct {
-	PayloadDecoder func(json.RawMessage) (DecodedEvent, error)
+	payloadDecodeFunc func(json.RawMessage) (DecodedEvent, error)
 }
 
 func NewClient() *Client {
-	return &Client{PayloadDecoder: DefaultPayloadDecoder}
+	return &Client{payloadDecodeFunc: DefaultPayloadDecodeFunc}
 }
 
 func (client *Client) Connect(url string) (*websocket.Conn, error) {
@@ -20,7 +20,7 @@ func (client *Client) Connect(url string) (*websocket.Conn, error) {
 }
 
 func (client *Client) DecodePayload(payload json.RawMessage) (DecodedEvent, error) {
-	return client.PayloadDecoder(payload)
+	return client.payloadDecodeFunc(payload)
 }
 
 /*
@@ -29,7 +29,7 @@ When given payload is an event, it returns decoded event or error; while it retu
 Beware that it does nothing and returns nil when WebSocketReply is given from slack and it doesn't indicate error on previous post.
 What we always want is just events, but reply is given and it has different format so there...
 */
-func DefaultPayloadDecoder(payload json.RawMessage) (DecodedEvent, error) {
+func DefaultPayloadDecodeFunc(payload json.RawMessage) (DecodedEvent, error) {
 	decodedEvent, eventDecodeError := DecodeEvent(payload)
 
 	if _, ok := eventDecodeError.(*MalformedEventTypeError); ok {

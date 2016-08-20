@@ -60,7 +60,7 @@ func TestConnect(t *testing.T) {
 
 func TestDecodePayload(t *testing.T) {
 	input := []byte("{\"type\": \"message\", \"channel\": \"C2147483705\", \"user\": \"U2147483697\", \"text\": \"Hello, world!\", \"ts\": \"1355517523.000005\", \"edited\": { \"user\": \"U2147483697\", \"ts\": \"1355517536.000001\"}}")
-	if event, err := DefaultPayloadDecoder(input); err == nil {
+	if event, err := DefaultPayloadDecodeFunc(input); err == nil {
 		if event == nil {
 			t.Error("expecting event to be returned, but neither event or error is returned.")
 			return
@@ -79,7 +79,7 @@ func TestDecodePayload(t *testing.T) {
 
 func TestDecodeReplyPayload(t *testing.T) {
 	input := []byte("{\"ok\": true, \"reply_to\": 1, \"ts\": \"1355517523.000005\", \"text\": \"Hello world\"}")
-	event, err := DefaultPayloadDecoder(input)
+	event, err := DefaultPayloadDecodeFunc(input)
 
 	if err != nil {
 		t.Errorf("expecting nil error to be returned, but was %#v", err)
@@ -92,7 +92,7 @@ func TestDecodeReplyPayload(t *testing.T) {
 
 func TestDecodeReplyPayloadWithErrorStatus(t *testing.T) {
 	input := []byte("{\"ok\": false, \"reply_to\": 1, \"ts\": \"1355517523.000005\", \"text\": \"Hello world\"}")
-	event, err := DefaultPayloadDecoder(input)
+	event, err := DefaultPayloadDecodeFunc(input)
 
 	switch e := err.(type) {
 	case nil:
@@ -112,7 +112,7 @@ func TestDecodeReplyPayloadWithErrorStatus(t *testing.T) {
 
 func TestDecodePayloadWithUnknownFormat(t *testing.T) {
 	input := []byte("{\"foo\": \"bar\"}")
-	event, err := DefaultPayloadDecoder(input)
+	event, err := DefaultPayloadDecodeFunc(input)
 
 	switch err.(type) {
 	case nil:
