@@ -10,14 +10,11 @@ var (
 )
 
 type NullAdapter struct {
-}
-
-func (adapter *NullAdapter) GetPluginConfigDir() string {
-	return ""
+	botType BotType
 }
 
 func (adapter *NullAdapter) GetBotType() BotType {
-	return FOO
+	return adapter.botType
 }
 
 func (adapter *NullAdapter) Run(receiver chan<- BotInput) {
@@ -30,7 +27,11 @@ func (adapter *NullAdapter) Stop() {
 }
 
 func NewNullAdapter() *NullAdapter {
-	return &NullAdapter{}
+	return NewNullAdapterWithBotType(FOO)
+}
+
+func NewNullAdapterWithBotType(botType BotType) *NullAdapter {
+	return &NullAdapter{botType: botType}
 }
 
 func TestBotType(t *testing.T) {
@@ -87,56 +88,64 @@ func TestAppendCommandBuilder(t *testing.T) {
 	}
 }
 
-func TestNewBot(t *testing.T) {
-	bot := NewBot()
+func TestNewBotRunner(t *testing.T) {
+	runner := NewBotRunner()
 
-	if bot.adapters == nil {
-		t.Error("adapters is nil")
+	if runner.botProperties == nil {
+		t.Error("botProperties is nil")
 	}
 
-	if bot.commands == nil {
-		t.Error("commands is nil")
-	}
-
-	if bot.workerPool == nil {
+	if runner.workerPool == nil {
 		t.Error("workerPool is nil")
 	}
 
-	if bot.stopAll == nil {
+	if runner.stopAll == nil {
 		t.Error("stopAll is nil")
 	}
 }
 
-func TestBot_AddAdapter(t *testing.T) {
+func TestBotRunner_AddAdapter(t *testing.T) {
 	adapter := NewNullAdapter()
 
-	bot := NewBot()
-	bot.AddAdapter(adapter)
+	runner := NewBotRunner()
+	runner.AddAdapter(adapter, "")
 
-	stashedAdapter, ok := bot.adapters[FOO]
-	if !ok {
-		t.Error("given adapter is not stashed")
-		return
-	}
+	stashedBotProperties := runner.botProperties[0]
 
-	if stashedAdapter != adapter {
+	if stashedBotProperties.adapter != adapter {
 		t.Error("wrong adapter is stashed")
 	}
 }
 
-func TestBot_RunStop(t *testing.T) {
-	bot := NewBot()
-	bot.Run()
+func TestBotRunner_AddAdapter_DuplicationPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic did not occur")
+		}
+	}()
+	firstAdapter := NewNullAdapter()
+
+	var BAR BotType = "foo" // Same value as default FOO.
+	secondAdapter := NewNullAdapterWithBotType(BAR)
+
+	runner := NewBotRunner()
+	runner.AddAdapter(firstAdapter, "")
+	runner.AddAdapter(secondAdapter, "")
+}
+
+func TestBotRunner_Run_Stop(t *testing.T) {
+	runner := NewBotRunner()
+	runner.Run()
 
 	time.Sleep(300 * time.Millisecond)
-	if bot.workerPool.IsRunning() == false {
+	if runner.workerPool.IsRunning() == false {
 		t.Error("worker is not running")
 	}
 
-	bot.Stop()
+	runner.Stop()
 
 	time.Sleep(300 * time.Millisecond)
-	if bot.workerPool.IsRunning() == true {
+	if runner.workerPool.IsRunning() == true {
 		t.Error("worker is still running")
 	}
 }

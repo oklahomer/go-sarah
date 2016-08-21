@@ -84,6 +84,7 @@ func NewCommands() *Commands {
 
 // Append let developers to register new Command to its internal stash.
 func (commands *Commands) Append(command Command) {
+	// TODO duplication check
 	commands.cmd = append(commands.cmd, command)
 }
 

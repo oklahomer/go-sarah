@@ -23,7 +23,7 @@ Slacker internally calls Slack Rest API and Real Time Messaging API to offer cli
 This implements sarah.BotAdapter interface, so this instance can be fed to sarah.Bot instance as below.
 
   bot := sarah.NewBot()
-  bot.AddAdapter(NewSlacker("myToken", "/path/to/plugin/configuration.yml"))
+  bot.AddAdapter(NewSlacker("myToken"))
   bot.Run()
 */
 type Slacker struct {
@@ -38,9 +38,6 @@ type Slacker struct {
 	// IDs must be unique per-connection.
 	outgoingEventID *rtmapi.OutgoingEventID
 
-	// Directory that store plugin configuration files.
-	pluginConfigDir string
-
 	// Some channels to handle its life-cycle.
 	startNewRtm chan struct{}
 	tryPing     chan struct{}
@@ -52,23 +49,17 @@ type Slacker struct {
 }
 
 // NewSlacker creates new Slacker instance with given settings.
-func NewSlacker(token, pluginConfigDir string) *Slacker {
+func NewSlacker(token string) *Slacker {
 	return &Slacker{
 		WebAPIClient:     webapi.NewClient(&webapi.Config{Token: token}),
 		RtmAPIClient:     rtmapi.NewClient(),
 		OutgoingMessages: make(chan *rtmapi.TextMessage, 100),
 		outgoingEventID:  rtmapi.NewOutgoingEventID(),
-		pluginConfigDir:  pluginConfigDir,
 		startNewRtm:      make(chan struct{}),
 		tryPing:          make(chan struct{}),
 		stopper:          make(chan struct{}),
 		stopAll:          make(chan struct{}),
 	}
-}
-
-// GetPluginConfigDir returns path to where plugins' configuration files belong.
-func (slacker *Slacker) GetPluginConfigDir() string {
-	return slacker.pluginConfigDir
 }
 
 // GetBotType returns BotType of this particular instance.
