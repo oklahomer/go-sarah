@@ -17,10 +17,13 @@ func (adapter *NullAdapter) GetBotType() BotType {
 	return adapter.botType
 }
 
-func (adapter *NullAdapter) Run(receiver chan<- BotInput) {
+func (adapter *NullAdapter) Run(_ chan<- BotInput) {
 }
 
-func (adapter *NullAdapter) SendResponse(response *CommandResponse) {
+func (adapter *NullAdapter) SendResponse(_ *CommandResponse) {
+}
+
+func (adapter *NullAdapter) SendMessage(_ *Message) {
 }
 
 func (adapter *NullAdapter) Stop() {

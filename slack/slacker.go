@@ -213,6 +213,21 @@ func (slacker *Slacker) SendResponse(response *sarah.CommandResponse) {
 	}
 }
 
+func (slacker *Slacker) SendMessage(message *sarah.Message) {
+	switch content := message.Content.(type) {
+	case string:
+		sendingMessage := rtmapi.NewTextMessage(message.GetRoomID(), content)
+		slacker.OutgoingMessages <- sendingMessage
+	case *webapi.PostMessage:
+		message := message.Content.(*webapi.PostMessage)
+		if _, err := slacker.WebAPIClient.PostMessage(message); err != nil {
+			logrus.Error("something went wrong with Web API posting", err)
+		}
+	default:
+		logrus.Warnf("unexpected command response %v", reflect.TypeOf(message).Name())
+	}
+}
+
 /*
 sendEnqueuedMessage receives messages via Slacker.OutgoingMessages, and send them over WebSocket connection.
 This method is meant to be run in a single goroutine per Slacker instance.

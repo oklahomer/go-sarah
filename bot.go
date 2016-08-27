@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"github.com/Sirupsen/logrus"
 	"github.com/oklahomer/go-sarah/worker"
+	"github.com/robfig/cron"
 	"time"
 )
 
 var (
-	stashedCommandBuilder = map[BotType][]*commandBuilder{}
+	stashedCommandBuilder       = map[BotType][]*commandBuilder{}
+	stashedScheduledTaskBuilder = map[BotType][]*scheduledTaskBuilder{}
 )
 
 // BotType indicates what bot implementation a particular BotAdapter/Plugin is corresponding to.
@@ -27,6 +29,7 @@ type BotAdapter interface {
 	GetBotType() BotType
 	Run(chan<- BotInput)
 	SendResponse(*CommandResponse)
+	SendMessage(*Message)
 	Stop()
 }
 
@@ -41,6 +44,7 @@ type botProperty struct {
 	adapter         BotAdapter
 	commands        *Commands
 	pluginConfigDir string
+	cron            *cron.Cron
 }
 
 /*
@@ -51,6 +55,7 @@ func newBotProperty(adapter BotAdapter, configDir string) *botProperty {
 		adapter:         adapter,
 		commands:        NewCommands(),
 		pluginConfigDir: configDir,
+		cron:            cron.New(),
 	}
 }
 
@@ -97,15 +102,27 @@ func (runner *BotRunner) Run() {
 	go runner.runWorkers()
 	for _, botProperty := range runner.botProperties {
 		// build commands with stashed builder settings
-		builders, ok := stashedCommandBuilder[botProperty.adapter.GetBotType()]
-		if !ok {
-			// No command builder is stashed for this bot type.
-			continue
+		if builders, ok := stashedCommandBuilder[botProperty.adapter.GetBotType()]; ok {
+			commands := buildCommands(builders, botProperty.pluginConfigDir)
+			for _, command := range commands {
+				botProperty.commands.Append(command)
+			}
 		}
-		commands := buildCommands(builders, botProperty.pluginConfigDir)
-		for _, command := range commands {
-			botProperty.commands.Append(command)
+		// build scheduled task with stashed builder settings
+		if builders, ok := stashedScheduledTaskBuilder[botProperty.adapter.GetBotType()]; ok {
+			tasks := buildScheduledTasks(builders, botProperty.pluginConfigDir)
+			for _, task := range tasks {
+				botProperty.cron.AddFunc(task.config.Schedule(), func() {
+					message, err := task.Execute()
+					if err != nil {
+						logrus.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
+						return
+					}
+					botProperty.adapter.SendMessage(message)
+				})
+			}
 		}
+		botProperty.cron.Start()
 
 		// Prepare a channel to pass around receiving messages, and run with it.
 		receiver := make(chan BotInput)
@@ -176,6 +193,16 @@ func AppendCommandBuilder(botType BotType, builder *commandBuilder) {
 	stashedCommandBuilder[botType] = append(stashedCommandBuilder[botType], builder)
 }
 
+func AppendScheduledTaskBuilder(botType BotType, builder *scheduledTaskBuilder) {
+	logrus.Infof("appending scheduled task builder for %s. builder %#v.", botType, builder)
+	_, ok := stashedScheduledTaskBuilder[botType]
+	if !ok {
+		stashedScheduledTaskBuilder[botType] = make([]*scheduledTaskBuilder, 0)
+	}
+
+	stashedScheduledTaskBuilder[botType] = append(stashedScheduledTaskBuilder[botType], builder)
+}
+
 /*
 buildCommands configures and creates Command instances with given stashed CommandBuilders
 */
@@ -191,6 +218,20 @@ func buildCommands(builders []*commandBuilder, configDir string) []Command {
 	}
 
 	return commands
+}
+
+func buildScheduledTasks(builders []*scheduledTaskBuilder, configDir string) []*scheduledTask {
+	scheduledTasks := []*scheduledTask{}
+	for _, builder := range builders {
+		task, err := builder.build(configDir)
+		if err != nil {
+			logrus.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.identifier, err.Error()))
+			continue
+		}
+		scheduledTasks = append(scheduledTasks, task)
+	}
+
+	return scheduledTasks
 }
 
 // BotInput defines interface that each incoming message must satisfy.
