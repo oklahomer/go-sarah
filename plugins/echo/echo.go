@@ -10,8 +10,8 @@ var (
 	identifier = "echo"
 )
 
-func echo(strippedMessage string, _ sarah.BotInput, _ sarah.CommandConfig) (*sarah.CommandResponse, error) {
-	return slack.NewStringCommandResponse(strippedMessage), nil
+func echo(strippedMessage string, _ sarah.BotInput, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
+	return slack.NewStringPluginResponse(strippedMessage), nil
 }
 
 func init() {

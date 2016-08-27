@@ -14,6 +14,11 @@ var (
 	NullConfig = &nullConfig{}
 )
 
+// PluginResponse is returned by Command or Task when the execution is finished.
+type PluginResponse struct {
+	Content interface{}
+}
+
 // CommandResponse is returned by Command execution when response is available.
 type CommandResponse struct {
 	Input           BotInput
@@ -24,7 +29,7 @@ type CommandResponse struct {
 type Command interface {
 	Identifier() string
 
-	Execute(string, BotInput) (*CommandResponse, error)
+	Execute(string, BotInput) (*PluginResponse, error)
 
 	Example() string
 
@@ -62,14 +67,8 @@ func (command *simpleCommand) StripMessage(input string) string {
 	return strings.TrimSpace(text)
 }
 
-func (command *simpleCommand) Execute(strippedMessage string, input BotInput) (*CommandResponse, error) {
-	res, err := command.commandFunc(strippedMessage, input, command.config)
-	if err != nil {
-		return nil, err
-	}
-
-	res.Input = input
-	return res, nil
+func (command *simpleCommand) Execute(strippedMessage string, input BotInput) (*PluginResponse, error) {
+	return command.commandFunc(strippedMessage, input, command.config)
 }
 
 // Commands stashes all registered Command.
@@ -106,7 +105,7 @@ func (commands *Commands) FindFirstMatched(text string) Command {
 }
 
 // ExecuteFirstMatched tries find matching command with the given input, and execute it if one is available.
-func (commands *Commands) ExecuteFirstMatched(input BotInput) (*CommandResponse, error) {
+func (commands *Commands) ExecuteFirstMatched(input BotInput) (*PluginResponse, error) {
 	inputMessage := input.GetMessage()
 	command := commands.FindFirstMatched(inputMessage)
 	if command == nil {
@@ -122,7 +121,7 @@ type nullConfig struct{}
 type CommandConfig interface{}
 
 // commandFunc is a function type that represents command function
-type commandFunc func(string, BotInput, CommandConfig) (*CommandResponse, error)
+type commandFunc func(string, BotInput, CommandConfig) (*PluginResponse, error)
 
 type commandBuilder struct {
 	identifier   string

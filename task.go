@@ -6,16 +6,18 @@ import (
 )
 
 // commandFunc is a function type that represents command function
-type taskFunc func(ScheduledTaskConfig) (*Message, error)
+type taskFunc func(ScheduledTaskConfig) (*PluginResponse, error)
 
 type ScheduledTaskConfig interface {
 	Schedule() string
+
+	Destination() OutputDestination
 }
 
 type Task interface {
 	Identifier() string
 
-	Execute() (*Message, error)
+	Execute() (*PluginResponse, error)
 }
 
 type scheduledTask struct {
@@ -30,7 +32,7 @@ func (task *scheduledTask) Identifier() string {
 	return task.identifier
 }
 
-func (task *scheduledTask) Execute() (*Message, error) {
+func (task *scheduledTask) Execute() (*PluginResponse, error) {
 	return task.taskFunc(task.config)
 }
 

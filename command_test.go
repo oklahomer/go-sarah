@@ -25,10 +25,9 @@ func TestInsufficientSettings(t *testing.T) {
 		}
 	}
 
-	builder.Func(func(strippedMessage string, input BotInput, _ CommandConfig) (*CommandResponse, error) {
-		return &CommandResponse{
-			Input:           input,
-			ResponseContent: strippedMessage,
+	builder.Func(func(strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
+		return &PluginResponse{
+			Content: strippedMessage,
 		}, nil
 	})
 
@@ -43,7 +42,7 @@ func (abandonedCommand *abandonedCommand) Identifier() string {
 	return "arbitraryStringThatWouldNeverBeRecognized"
 }
 
-func (abandonedCommand *abandonedCommand) Execute(_ string, _ BotInput) (*CommandResponse, error) {
+func (abandonedCommand *abandonedCommand) Execute(_ string, _ BotInput) (*PluginResponse, error) {
 	return nil, nil
 }
 
@@ -65,8 +64,8 @@ func (echoCommand *echoCommand) Identifier() string {
 	return "echo"
 }
 
-func (echoCommand *echoCommand) Execute(strippedMessage string, input BotInput) (*CommandResponse, error) {
-	return &CommandResponse{ResponseContent: input.GetMessage()}, nil
+func (echoCommand *echoCommand) Execute(strippedMessage string, input BotInput) (*PluginResponse, error) {
+	return &PluginResponse{Content: input.GetMessage()}, nil
 }
 
 func (echoCommand *echoCommand) Example() string {
@@ -95,8 +94,8 @@ func (echoInput *echoInput) GetSentAt() time.Time {
 	return time.Now()
 }
 
-func (echoInput *echoInput) GetRoomID() string {
-	return ""
+func (echoInput *echoInput) ReplyTo() OutputDestination {
+	return nil
 }
 
 func TestCommands_FindFirstMatched(t *testing.T) {
@@ -130,7 +129,7 @@ func TestCommands_FindFirstMatched(t *testing.T) {
 		return
 	}
 
-	switch v := response.ResponseContent.(type) {
+	switch v := response.Content.(type) {
 	case string:
 	//OK
 	default:

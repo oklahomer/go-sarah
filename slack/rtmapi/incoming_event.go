@@ -3,6 +3,8 @@ package rtmapi
 import (
 	"encoding/json"
 	"errors"
+	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/slack/common"
 	"time"
 )
 
@@ -39,7 +41,7 @@ This can be a part of other event such as message.
 */
 type IncomingChannelEvent struct {
 	CommonEvent
-	Channel string `json:"channel"`
+	Channel string `json:"channel"` // TODO common.Channel
 }
 
 /*
@@ -88,10 +90,10 @@ func (message *Message) GetSentAt() time.Time {
 }
 
 /*
-GetRoomID returns room identifier.
+ReplyTo returns slack channel to send reply to.
 */
-func (message *Message) GetRoomID() string {
-	return message.Channel
+func (message *Message) ReplyTo() sarah.OutputDestination {
+	return common.NewChannel(message.Channel)
 }
 
 /*

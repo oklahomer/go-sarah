@@ -28,8 +28,7 @@ Its instance can be fed to Bot to start bot interaction.
 type BotAdapter interface {
 	GetBotType() BotType
 	Run(chan<- BotInput)
-	SendResponse(*CommandResponse)
-	SendMessage(*Message)
+	SendMessage(BotOutput)
 	Stop()
 }
 
@@ -108,16 +107,18 @@ func (runner *BotRunner) Run() {
 				botProperty.commands.Append(command)
 			}
 		}
+
 		// build scheduled task with stashed builder settings
 		if builders, ok := stashedScheduledTaskBuilder[botProperty.adapter.GetBotType()]; ok {
 			tasks := buildScheduledTasks(builders, botProperty.pluginConfigDir)
 			for _, task := range tasks {
 				botProperty.cron.AddFunc(task.config.Schedule(), func() {
-					message, err := task.Execute()
+					res, err := task.Execute()
 					if err != nil {
 						logrus.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
 						return
 					}
+					message := NewBotOutputMessage(task.config.Destination(), res.Content)
 					botProperty.adapter.SendMessage(message)
 				})
 			}
@@ -135,7 +136,7 @@ func (runner *BotRunner) Run() {
 respondMessage listens to incoming messages via channel.
 
 Each BotAdapter enqueues incoming messages to runner's listening channel, and respondMessage receives them.
-When corresponding command is found, command is executed and the result can be passed to BotAdapter's SendResponse method.
+When corresponding command is found, command is executed and the result can be passed to BotAdapter's SendMessage method.
 */
 func (runner *BotRunner) respondMessage(botProperty *botProperty, receiver <-chan BotInput) {
 	for {
@@ -151,7 +152,8 @@ func (runner *BotRunner) respondMessage(botProperty *botProperty, receiver <-cha
 				}
 
 				if res != nil {
-					botProperty.adapter.SendResponse(res)
+					message := NewBotOutputMessage(botInput.ReplyTo(), res.Content)
+					botProperty.adapter.SendMessage(message)
 				}
 			})
 		}
@@ -234,6 +236,8 @@ func buildScheduledTasks(builders []*scheduledTaskBuilder, configDir string) []*
 	return scheduledTasks
 }
 
+type OutputDestination interface{}
+
 // BotInput defines interface that each incoming message must satisfy.
 type BotInput interface {
 	GetSenderID() string
@@ -242,5 +246,31 @@ type BotInput interface {
 
 	GetSentAt() time.Time
 
-	GetRoomID() string
+	ReplyTo() OutputDestination
+}
+
+// BotOutput defines interface that each outgoing message must satisfy.
+type BotOutput interface {
+	Destination() OutputDestination
+	Content() interface{}
+}
+
+type BotOutputMessage struct {
+	destination OutputDestination
+	content     interface{}
+}
+
+func NewBotOutputMessage(destination OutputDestination, content interface{}) BotOutput {
+	return &BotOutputMessage{
+		destination: destination,
+		content:     content,
+	}
+}
+
+func (output *BotOutputMessage) Destination() OutputDestination {
+	return output.destination
+}
+
+func (output *BotOutputMessage) Content() interface{} {
+	return output.content
 }

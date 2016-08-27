@@ -20,10 +20,7 @@ func (adapter *NullAdapter) GetBotType() BotType {
 func (adapter *NullAdapter) Run(_ chan<- BotInput) {
 }
 
-func (adapter *NullAdapter) SendResponse(_ *CommandResponse) {
-}
-
-func (adapter *NullAdapter) SendMessage(_ *Message) {
+func (adapter *NullAdapter) SendMessage(_ BotOutput) {
 }
 
 func (adapter *NullAdapter) Stop() {
@@ -54,7 +51,7 @@ func (c *nullCommand) Identifier() string {
 	return "fooBarBuzz"
 }
 
-func (c *nullCommand) Execute(input BotInput) (*CommandResponse, error) {
+func (c *nullCommand) Execute(input BotInput) (*PluginResponse, error) {
 	return nil, nil
 }
 
@@ -77,7 +74,7 @@ func TestAppendCommandBuilder(t *testing.T) {
 			ConfigStruct(NullConfig).
 			Identifier("fooCommand").
 			Example("example text").
-			Func(func(strippedMessage string, input BotInput, _ CommandConfig) (*CommandResponse, error) {
+			Func(func(strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
 				return nil, nil
 			})
 	AppendCommandBuilder(FOO, commandBuilder)

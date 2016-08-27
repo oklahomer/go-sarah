@@ -4,6 +4,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/retry"
+	"github.com/oklahomer/go-sarah/slack/common"
 	"github.com/oklahomer/go-sarah/slack/rtmapi"
 	"github.com/oklahomer/go-sarah/slack/webapi"
 	"golang.org/x/net/websocket"
@@ -31,8 +32,10 @@ type Slacker struct {
 	WebAPIClient *webapi.Client
 	RtmAPIClient *rtmapi.Client
 
-	// A channel that receive outgoing messages.
-	OutgoingMessages chan *rtmapi.TextMessage
+	// A channel that receive outgoing messages that are sent via RTM WebSocket connection.
+	// BEWARE: RTM messages are queued and handled in a serial manner because of the limitation of single connection;
+	// WebAPI messages can be sent in multiple goroutines with each dedicated HTTP requests.
+	OutgoingRtmMessages chan *rtmapi.TextMessage
 
 	// An instance that dispense unique id for outgoing messages.
 	// IDs must be unique per-connection.
@@ -48,17 +51,29 @@ type Slacker struct {
 	webSocketConnection *websocket.Conn
 }
 
+type SendingMessage struct {
+	channel *common.Channel
+}
+
+func (message *SendingMessage) Destination() *common.Channel {
+	return message.channel
+}
+
+func (message *SendingMessage) Content() interface{} {
+	return "TODO"
+}
+
 // NewSlacker creates new Slacker instance with given settings.
 func NewSlacker(token string) *Slacker {
 	return &Slacker{
-		WebAPIClient:     webapi.NewClient(&webapi.Config{Token: token}),
-		RtmAPIClient:     rtmapi.NewClient(),
-		OutgoingMessages: make(chan *rtmapi.TextMessage, 100),
-		outgoingEventID:  rtmapi.NewOutgoingEventID(),
-		startNewRtm:      make(chan struct{}),
-		tryPing:          make(chan struct{}),
-		stopper:          make(chan struct{}),
-		stopAll:          make(chan struct{}),
+		WebAPIClient:        webapi.NewClient(&webapi.Config{Token: token}),
+		RtmAPIClient:        rtmapi.NewClient(),
+		OutgoingRtmMessages: make(chan *rtmapi.TextMessage, 100),
+		outgoingEventID:     rtmapi.NewOutgoingEventID(),
+		startNewRtm:         make(chan struct{}),
+		tryPing:             make(chan struct{}),
+		stopper:             make(chan struct{}),
+		stopAll:             make(chan struct{}),
 	}
 }
 
@@ -194,37 +209,23 @@ func (slacker *Slacker) receiveEvent(receiver chan<- sarah.BotInput) {
 	}
 }
 
-/*
-SendResponse sends message to Slack via Rest API or existing WebSocket connection depending on what message type is
-given; Rest API for *webapi.PostMessage, WebSocket connection for string.
-*/
-func (slacker *Slacker) SendResponse(response *sarah.CommandResponse) {
-	switch content := response.ResponseContent.(type) {
+func (slacker *Slacker) SendMessage(output sarah.BotOutput) {
+	switch content := output.Content().(type) {
 	case string:
-		sendingMessage := rtmapi.NewTextMessage(response.Input.GetRoomID(), content)
-		slacker.OutgoingMessages <- sendingMessage
+		channel, ok := output.Destination().(*common.Channel)
+		if !ok {
+			logrus.Error("Destination is not instance of Channel")
+			return
+		}
+		sendingMessage := rtmapi.NewTextMessage(channel.Name, content)
+		slacker.OutgoingRtmMessages <- sendingMessage
 	case *webapi.PostMessage:
-		message := response.ResponseContent.(*webapi.PostMessage)
+		message := output.Content().(*webapi.PostMessage)
 		if _, err := slacker.WebAPIClient.PostMessage(message); err != nil {
 			logrus.Error("something went wrong with Web API posting", err)
 		}
 	default:
-		logrus.Warnf("unexpected command response %v", reflect.TypeOf(response).Name())
-	}
-}
-
-func (slacker *Slacker) SendMessage(message *sarah.Message) {
-	switch content := message.Content.(type) {
-	case string:
-		sendingMessage := rtmapi.NewTextMessage(message.GetRoomID(), content)
-		slacker.OutgoingMessages <- sendingMessage
-	case *webapi.PostMessage:
-		message := message.Content.(*webapi.PostMessage)
-		if _, err := slacker.WebAPIClient.PostMessage(message); err != nil {
-			logrus.Error("something went wrong with Web API posting", err)
-		}
-	default:
-		logrus.Warnf("unexpected command response %v", reflect.TypeOf(message).Name())
+		logrus.Warnf("unexpected output %v", reflect.TypeOf(output).Name())
 	}
 }
 
@@ -240,7 +241,7 @@ func (slacker *Slacker) sendEnqueuedMessage() {
 		select {
 		case <-slacker.stopAll:
 			return
-		case message := <-slacker.OutgoingMessages:
+		case message := <-slacker.OutgoingRtmMessages:
 			if slacker.webSocketConnection == nil {
 				continue
 			}
@@ -290,12 +291,9 @@ func connectRtm(client *rtmapi.Client, rtm *webapi.RtmStart) (*websocket.Conn, e
 	return conn, err
 }
 
-// NewStringCommandResponse creates new sarah.CommandResponse instance with given string response.
-func NewStringCommandResponse(responseContent string) *sarah.CommandResponse {
-	return &sarah.CommandResponse{ResponseContent: responseContent}
-}
-
-// NewPostMessageCommandResponse creates new sarah.CommandResponse instance with given *webapi.PostMessage response.
-func NewPostMessageCommandResponse(responseContent *webapi.PostMessage) *sarah.CommandResponse {
-	return &sarah.CommandResponse{ResponseContent: responseContent}
+// NewStringPluginResponse creates new sarah.PluginResponse instance with given string.
+func NewStringPluginResponse(responseContent string) *sarah.PluginResponse {
+	return &sarah.PluginResponse{
+		Content: responseContent,
+	}
 }
