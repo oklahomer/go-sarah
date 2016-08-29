@@ -14,6 +14,19 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/robfig/cron",
+			"repository": "https://github.com/robfig/cron",
+			"revision": "ab4c16f3a09641bd19d65f55b3d8d6edda7a8e05",
+			"branch": "master"
+		},
+		{
+			"importpath": "golang.org/x/net/context",
+			"repository": "https://go.googlesource.com/net",
+			"revision": "6250b412798208e6c90b03b7c4f226de5aa299e2",
+			"branch": "master",
+			"path": "/context"
+		},
+		{
 			"importpath": "golang.org/x/net/websocket",
 			"repository": "https://go.googlesource.com/net",
 			"revision": "bc3663df0ac92f928d419e31e0d2af22e683a5a2",

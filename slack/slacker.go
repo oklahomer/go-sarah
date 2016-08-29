@@ -7,6 +7,7 @@ import (
 	"github.com/oklahomer/go-sarah/slack/common"
 	"github.com/oklahomer/go-sarah/slack/rtmapi"
 	"github.com/oklahomer/go-sarah/slack/webapi"
+	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
 	"io"
 	"reflect"
@@ -44,8 +45,6 @@ type Slacker struct {
 	// Some channels to handle its life-cycle.
 	startNewRtm chan struct{}
 	tryPing     chan struct{}
-	stopper     chan struct{}
-	stopAll     chan struct{}
 
 	// WebSocket connection that is set and updated on each connection (re)establishment.
 	webSocketConnection *websocket.Conn
@@ -72,8 +71,6 @@ func NewSlacker(token string) *Slacker {
 		outgoingEventID:     rtmapi.NewOutgoingEventID(),
 		startNewRtm:         make(chan struct{}),
 		tryPing:             make(chan struct{}),
-		stopper:             make(chan struct{}),
-		stopAll:             make(chan struct{}),
 	}
 }
 
@@ -83,17 +80,12 @@ func (slacker *Slacker) GetBotType() sarah.BotType {
 }
 
 // Run starts Slack interaction including WebSocket connection management and message receiving/sending.
-func (slacker *Slacker) Run(receiver chan<- sarah.BotInput) {
-	go slacker.supervise()
-	go slacker.sendEnqueuedMessage()
-	go slacker.receiveEvent(receiver)
+func (slacker *Slacker) Run(ctx context.Context, receiver chan<- sarah.BotInput, errCh chan<- error) {
+	go slacker.supervise(ctx, errCh)
+	go slacker.sendEnqueuedMessage(ctx)
+	go slacker.receiveEvent(ctx, receiver)
 
 	slacker.startNewRtm <- struct{}{}
-}
-
-// Stop stops Slack interaction and cleans up all belonging goroutines.
-func (slacker *Slacker) Stop() {
-	slacker.stopper <- struct{}{}
 }
 
 /*
@@ -104,20 +96,25 @@ This supervises receives channels and triggers some tasks below:
  - stop Slack interaction
  - check connection status with ping
 */
-func (slacker *Slacker) supervise() {
+func (slacker *Slacker) supervise(ctx context.Context, errCh chan<- error) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-slacker.startNewRtm:
+			// make sure current connection is closed.
 			slacker.disconnect()
+
+			// establish new connection.
 			if err := slacker.connect(); err != nil {
+				// can't establish connection with retrial.
+				// notify critical condition and let BotRunner stop slacker.
 				logrus.Errorf("can't establish connection. %s", err.Error())
-				slacker.Stop()
+				errCh <- sarah.NewBotAdapterNonContinuableError(err.Error())
 			}
-		case <-slacker.stopper:
-			close(slacker.stopAll)
+		case <-ctx.Done():
+			logrus.Info("disconnect WebSocket connection due to context cancel")
 			slacker.disconnect()
 			return
 		case <-ticker.C:
@@ -161,11 +158,11 @@ func (slacker *Slacker) disconnect() {
 receiveEvent receives payloads via WebSocket connection, decodes them into pre-defined events, and passes them via
 channel if they satisfy sarah.BotInput interface.
 */
-func (slacker *Slacker) receiveEvent(receiver chan<- sarah.BotInput) {
+func (slacker *Slacker) receiveEvent(ctx context.Context, receiver chan<- sarah.BotInput) {
 	for {
 		select {
-		case <-slacker.stopAll:
-			logrus.Info("stop receiving events due to stop queue")
+		case <-ctx.Done():
+			logrus.Info("stop receiving events due to context cancel")
 			return
 		default:
 			if slacker.webSocketConnection == nil {
@@ -236,10 +233,11 @@ This method is meant to be run in a single goroutine per Slacker instance.
 Message sending is done in a serial manner one after another, so don't worry about sending multiple payloads over
 WebSocket connection simultaneously. websocket.JSON.Send itself is goroutine-safe, though.
 */
-func (slacker *Slacker) sendEnqueuedMessage() {
+func (slacker *Slacker) sendEnqueuedMessage(ctx context.Context) {
 	for {
 		select {
-		case <-slacker.stopAll:
+		case <-ctx.Done():
+			logrus.Info("stop sending message context cancel")
 			return
 		case message := <-slacker.OutgoingRtmMessages:
 			if slacker.webSocketConnection == nil {

@@ -5,6 +5,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/oklahomer/go-sarah/worker"
 	"github.com/robfig/cron"
+	"golang.org/x/net/context"
 	"time"
 )
 
@@ -27,9 +28,8 @@ Its instance can be fed to Bot to start bot interaction.
 */
 type BotAdapter interface {
 	GetBotType() BotType
-	Run(chan<- BotInput)
+	Run(context.Context, chan<- BotInput, chan<- error)
 	SendMessage(BotOutput)
-	Stop()
 }
 
 /*
@@ -65,7 +65,6 @@ Developers can register desired BotAdapter and Commands to create own bot.
 type BotRunner struct {
 	botProperties []*botProperty
 	workerPool    *worker.Pool
-	stopAll       chan struct{}
 }
 
 // NewBotRunner creates and return new Bot instance.
@@ -73,7 +72,6 @@ func NewBotRunner() *BotRunner {
 	return &BotRunner{
 		botProperties: []*botProperty{},
 		workerPool:    worker.NewPool(10),
-		stopAll:       make(chan struct{}),
 	}
 }
 
@@ -97,8 +95,8 @@ Run starts Bot interaction.
 
 At this point bot starts its internal workers, runs each BotAdapter, and starts listening to incoming messages.
 */
-func (runner *BotRunner) Run() {
-	go runner.runWorkers()
+func (runner *BotRunner) Run(ctx context.Context) {
+	go runner.runWorkers(ctx)
 	for _, botProperty := range runner.botProperties {
 		// build commands with stashed builder settings
 		if builders, ok := stashedCommandBuilder[botProperty.adapter.GetBotType()]; ok {
@@ -125,10 +123,25 @@ func (runner *BotRunner) Run() {
 		}
 		botProperty.cron.Start()
 
-		// Prepare a channel to pass around receiving messages, and run with it.
+		// run BotAdapter
 		receiver := make(chan BotInput)
-		botProperty.adapter.Run(receiver)
-		go runner.respondMessage(botProperty, receiver)
+		errCh := make(chan error)
+		botAdapterCtx, cancelAdapter := context.WithCancel(ctx)
+		go runner.respondMessage(ctx, botProperty, receiver)
+		go stopUnrecoverableAdapter(errCh, cancelAdapter)
+		botProperty.adapter.Run(botAdapterCtx, receiver, errCh)
+	}
+}
+
+func stopUnrecoverableAdapter(errNotifier <-chan error, stopAdapter context.CancelFunc) {
+	for {
+		err := <-errNotifier
+		switch err := err.(type) {
+		case *BotAdapterNonContinuableError:
+			logrus.Errorf("stop unrecoverable adapter: %s", err.Error())
+			stopAdapter()
+			return
+		}
 	}
 }
 
@@ -138,10 +151,11 @@ respondMessage listens to incoming messages via channel.
 Each BotAdapter enqueues incoming messages to runner's listening channel, and respondMessage receives them.
 When corresponding command is found, command is executed and the result can be passed to BotAdapter's SendMessage method.
 */
-func (runner *BotRunner) respondMessage(botProperty *botProperty, receiver <-chan BotInput) {
+func (runner *BotRunner) respondMessage(ctx context.Context, botProperty *botProperty, receiver <-chan BotInput) {
 	for {
 		select {
-		case <-runner.stopAll:
+		case <-ctx.Done():
+			logrus.Info("stop responding to message due to context cancel")
 			return
 		case botInput := <-receiver:
 			logrus.Debugf("responding to %#v", botInput)
@@ -160,20 +174,13 @@ func (runner *BotRunner) respondMessage(botProperty *botProperty, receiver <-cha
 	}
 }
 
-// Stop can be called to stop all bot interaction including each BotAdapter.
-func (runner *BotRunner) Stop() {
-	close(runner.stopAll)
-	for _, botProperty := range runner.botProperties {
-		botProperty.adapter.Stop()
-	}
-}
-
 // runWorkers starts BotRunner's internal workers.
-func (runner *BotRunner) runWorkers() {
+func (runner *BotRunner) runWorkers(ctx context.Context) {
 	runner.workerPool.Run()
 	defer runner.workerPool.Stop()
 
-	<-runner.stopAll
+	<-ctx.Done()
+	logrus.Info("stop workers due to context cancel")
 }
 
 // EnqueueJob can be used to enqueue task to BotRunner's internal workers.
@@ -273,4 +280,16 @@ func (output *BotOutputMessage) Destination() OutputDestination {
 
 func (output *BotOutputMessage) Content() interface{} {
 	return output.content
+}
+
+type BotAdapterNonContinuableError struct {
+	err string
+}
+
+func (e BotAdapterNonContinuableError) Error() string {
+	return e.err
+}
+
+func NewBotAdapterNonContinuableError(errorContent string) error {
+	return &BotAdapterNonContinuableError{err: errorContent}
 }
