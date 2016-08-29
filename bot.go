@@ -59,8 +59,12 @@ func newBotProperty(adapter BotAdapter, configDir string) *botProperty {
 }
 
 /*
-Bot is the core of sarah.
-Developers can register desired BotAdapter and Commands to create own bot.
+BotRunner is the core of sarah.
+
+This takes care of lifecycle of each bot implementation, internal job worker, and plugin execution;
+BotAdapter is responsible for bot-specific implementation such as connection handling, message reception and sending.
+
+Developers can register desired number of BotAdapter and Commands to create own bot.
 */
 type BotRunner struct {
 	botProperties []*botProperty
@@ -133,6 +137,9 @@ func (runner *BotRunner) Run(ctx context.Context) {
 	}
 }
 
+/*
+stopUnrecoverableAdapter receives error from BotAdapter, check if the error is critical, and stop the adapter if required.
+*/
 func stopUnrecoverableAdapter(errNotifier <-chan error, stopAdapter context.CancelFunc) {
 	for {
 		err := <-errNotifier
@@ -282,14 +289,24 @@ func (output *BotOutputMessage) Content() interface{} {
 	return output.content
 }
 
+/*
+BotAdapterNonContinuableError represents critical error that BotAdapter can't continue its operation.
+When BotRunner receives this, BotRunner must stop corresponding adapter.
+*/
 type BotAdapterNonContinuableError struct {
 	err string
 }
 
+/*
+Error returns detailed error about BotAdapter's non-continuable state.
+*/
 func (e BotAdapterNonContinuableError) Error() string {
 	return e.err
 }
 
+/*
+NewBotAdapterNonContinuableError creates and return new BotAdapterNonContinuableError instance.
+*/
 func NewBotAdapterNonContinuableError(errorContent string) error {
 	return &BotAdapterNonContinuableError{err: errorContent}
 }
