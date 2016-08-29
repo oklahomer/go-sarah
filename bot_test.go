@@ -1,6 +1,7 @@
 package sarah
 
 import (
+	"golang.org/x/net/context"
 	"testing"
 	"time"
 )
@@ -17,13 +18,10 @@ func (adapter *NullAdapter) GetBotType() BotType {
 	return adapter.botType
 }
 
-func (adapter *NullAdapter) Run(_ chan<- BotInput) {
+func (adapter *NullAdapter) Run(_ context.Context, _ chan<- BotInput, _ chan<- error) {
 }
 
 func (adapter *NullAdapter) SendMessage(_ BotOutput) {
-}
-
-func (adapter *NullAdapter) Stop() {
 }
 
 func NewNullAdapter() *NullAdapter {
@@ -34,14 +32,16 @@ func NewNullAdapterWithBotType(botType BotType) *NullAdapter {
 	return &NullAdapter{botType: botType}
 }
 
-func TestBotType(t *testing.T) {
-	if FOO.String() != "foo" {
-		t.Errorf("BotTYpe does not return expected value. expected 'foo', but was '%s'.", FOO.String())
+func TestBotType_String(t *testing.T) {
+	var BAR BotType = "myNewBotType"
+	if BAR.String() != "myNewBotType" {
+		t.Errorf("BotType does not return expected value. expected 'myNewBotType', but was '%s'.", BAR.String())
 	}
 }
 
 func resetStashedBuilder() {
 	stashedCommandBuilder = map[BotType][]*commandBuilder{}
+	stashedScheduledTaskBuilder = map[BotType][]*scheduledTaskBuilder{}
 }
 
 type nullCommand struct {
@@ -98,10 +98,6 @@ func TestNewBotRunner(t *testing.T) {
 	if runner.workerPool == nil {
 		t.Error("workerPool is nil")
 	}
-
-	if runner.stopAll == nil {
-		t.Error("stopAll is nil")
-	}
 }
 
 func TestBotRunner_AddAdapter(t *testing.T) {
@@ -134,18 +130,39 @@ func TestBotRunner_AddAdapter_DuplicationPanic(t *testing.T) {
 }
 
 func TestBotRunner_Run_Stop(t *testing.T) {
+	rootCtx := context.Background()
+	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
 	runner := NewBotRunner()
-	runner.Run()
+	runner.Run(runnerCtx)
 
 	time.Sleep(300 * time.Millisecond)
 	if runner.workerPool.IsRunning() == false {
 		t.Error("worker is not running")
 	}
 
-	runner.Stop()
+	cancelRunner()
 
 	time.Sleep(300 * time.Millisecond)
 	if runner.workerPool.IsRunning() == true {
 		t.Error("worker is still running")
+	}
+}
+
+func TestStopUnrecoverableAdapter(t *testing.T) {
+	rootCtx := context.Background()
+	adapterCtx, cancelAdapter := context.WithCancel(rootCtx)
+	errCh := make(chan error)
+
+	go stopUnrecoverableAdapter(errCh, cancelAdapter)
+	if err := adapterCtx.Err(); err != nil {
+		t.Error("ctx.Err() should be nil at this point")
+		return
+	}
+
+	errCh <- NewBotAdapterNonContinuableError("")
+
+	if err := adapterCtx.Err(); err == nil {
+		t.Error("expecting an error at this point")
+		return
 	}
 }

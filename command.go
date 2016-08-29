@@ -19,12 +19,6 @@ type PluginResponse struct {
 	Content interface{}
 }
 
-// CommandResponse is returned by Command execution when response is available.
-type CommandResponse struct {
-	Input           BotInput
-	ResponseContent interface{}
-}
-
 // Command defines interface that all Command must satisfy.
 type Command interface {
 	Identifier() string
