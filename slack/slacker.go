@@ -74,8 +74,8 @@ func NewSlacker(token string) *Slacker {
 	}
 }
 
-// GetBotType returns BotType of this particular instance.
-func (slacker *Slacker) GetBotType() sarah.BotType {
+// BotType returns BotType of this particular instance.
+func (slacker *Slacker) BotType() sarah.BotType {
 	return SLACK
 }
 

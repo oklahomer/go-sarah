@@ -14,7 +14,7 @@ type NullAdapter struct {
 	botType BotType
 }
 
-func (adapter *NullAdapter) GetBotType() BotType {
+func (adapter *NullAdapter) BotType() BotType {
 	return adapter.botType
 }
 

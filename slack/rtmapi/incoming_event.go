@@ -69,23 +69,23 @@ type Message struct {
 // Let Message implement BotInput
 
 /*
-GetSenderId returns sender's identifier.
+SenderId returns sender's identifier.
 */
-func (message *Message) GetSenderID() string {
+func (message *Message) SenderID() string {
 	return message.User
 }
 
 /*
-GetMessage returns sent message.
+Message returns sent message.
 */
-func (message *Message) GetMessage() string {
+func (message *Message) Message() string {
 	return message.Text
 }
 
 /*
-GetSentAt returns message event's timestamp.
+SentAt returns message event's timestamp.
 */
-func (message *Message) GetSentAt() time.Time {
+func (message *Message) SentAt() time.Time {
 	return message.TimeStamp.Time
 }
 

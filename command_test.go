@@ -65,7 +65,7 @@ func (echoCommand *echoCommand) Identifier() string {
 }
 
 func (echoCommand *echoCommand) Execute(strippedMessage string, input BotInput) (*PluginResponse, error) {
-	return &PluginResponse{Content: input.GetMessage()}, nil
+	return &PluginResponse{Content: input.Message()}, nil
 }
 
 func (echoCommand *echoCommand) Example() string {
@@ -82,15 +82,15 @@ func (echoCommand *echoCommand) StripMessage(msg string) string {
 
 type echoInput struct{}
 
-func (echoInput *echoInput) GetSenderID() string {
+func (echoInput *echoInput) SenderID() string {
 	return ""
 }
 
-func (echoInput *echoInput) GetMessage() string {
+func (echoInput *echoInput) Message() string {
 	return "echo foo"
 }
 
-func (echoInput *echoInput) GetSentAt() time.Time {
+func (echoInput *echoInput) SentAt() time.Time {
 	return time.Now()
 }
 

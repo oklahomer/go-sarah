@@ -100,7 +100,7 @@ func (commands *Commands) FindFirstMatched(text string) Command {
 
 // ExecuteFirstMatched tries find matching command with the given input, and execute it if one is available.
 func (commands *Commands) ExecuteFirstMatched(input BotInput) (*PluginResponse, error) {
-	inputMessage := input.GetMessage()
+	inputMessage := input.Message()
 	command := commands.FindFirstMatched(inputMessage)
 	if command == nil {
 		return nil, nil

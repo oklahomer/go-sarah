@@ -27,7 +27,7 @@ BotAdapter defines interface that each Bot implementation has to satisfy.
 Its instance can be fed to Bot to start bot interaction.
 */
 type BotAdapter interface {
-	GetBotType() BotType
+	BotType() BotType
 	Run(context.Context, chan<- BotInput, chan<- error)
 	SendMessage(BotOutput)
 }
@@ -85,8 +85,8 @@ Bot and each adapter mainly communicate via designated channels to pass incoming
 */
 func (runner *BotRunner) AddAdapter(adapter BotAdapter, pluginConfigDir string) {
 	for _, botProperty := range runner.botProperties {
-		if botProperty.adapter.GetBotType() == adapter.GetBotType() {
-			panic(fmt.Sprintf("BotType (%s) conflicted with stored BotAdapter.", adapter.GetBotType()))
+		if botProperty.adapter.BotType() == adapter.BotType() {
+			panic(fmt.Sprintf("BotType (%s) conflicted with stored BotAdapter.", adapter.BotType()))
 		}
 	}
 
@@ -103,7 +103,7 @@ func (runner *BotRunner) Run(ctx context.Context) {
 	go runner.runWorkers(ctx)
 	for _, botProperty := range runner.botProperties {
 		// build commands with stashed builder settings
-		if builders, ok := stashedCommandBuilder[botProperty.adapter.GetBotType()]; ok {
+		if builders, ok := stashedCommandBuilder[botProperty.adapter.BotType()]; ok {
 			commands := buildCommands(builders, botProperty.pluginConfigDir)
 			for _, command := range commands {
 				botProperty.commands.Append(command)
@@ -111,7 +111,7 @@ func (runner *BotRunner) Run(ctx context.Context) {
 		}
 
 		// build scheduled task with stashed builder settings
-		if builders, ok := stashedScheduledTaskBuilder[botProperty.adapter.GetBotType()]; ok {
+		if builders, ok := stashedScheduledTaskBuilder[botProperty.adapter.BotType()]; ok {
 			tasks := buildScheduledTasks(builders, botProperty.pluginConfigDir)
 			for _, task := range tasks {
 				botProperty.cron.AddFunc(task.config.Schedule(), func() {
@@ -254,11 +254,11 @@ type OutputDestination interface{}
 
 // BotInput defines interface that each incoming message must satisfy.
 type BotInput interface {
-	GetSenderID() string
+	SenderID() string
 
-	GetMessage() string
+	Message() string
 
-	GetSentAt() time.Time
+	SentAt() time.Time
 
 	ReplyTo() OutputDestination
 }
