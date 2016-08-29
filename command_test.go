@@ -82,10 +82,6 @@ func (echoCommand *echoCommand) StripMessage(msg string) string {
 
 type echoInput struct{}
 
-func (echoInput *echoInput) SenderID() string {
-	return ""
-}
-
 func (echoInput *echoInput) Message() string {
 	return "echo foo"
 }

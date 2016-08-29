@@ -161,6 +161,7 @@ func TestStopUnrecoverableAdapter(t *testing.T) {
 
 	errCh <- NewBotAdapterNonContinuableError("")
 
+	time.Sleep(100 * time.Millisecond)
 	if err := adapterCtx.Err(); err == nil {
 		t.Error("expecting an error at this point")
 		return

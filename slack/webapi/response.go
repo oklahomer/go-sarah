@@ -1,5 +1,7 @@
 package webapi
 
+import "github.com/oklahomer/go-sarah/slack/common"
+
 type SlackTimeStamp int64
 
 /*
@@ -40,24 +42,24 @@ type UserProfile struct {
 
 // User contains all the information of a user
 type User struct {
-	ID                string      `json:"id"`
-	Name              string      `json:"name"`
-	Deleted           bool        `json:"deleted"`
-	Color             string      `json:"color"`
-	RealName          string      `json:"real_name"`
-	TZ                string      `json:"tz,omitempty"`
-	TZLabel           string      `json:"tz_label"`
-	TZOffset          int         `json:"tz_offset"`
-	Profile           UserProfile `json:"profile"`
-	IsBot             bool        `json:"is_bot"`
-	IsAdmin           bool        `json:"is_admin"`
-	IsOwner           bool        `json:"is_owner"`
-	IsPrimaryOwner    bool        `json:"is_primary_owner"`
-	IsRestricted      bool        `json:"is_restricted"`
-	IsUltraRestricted bool        `json:"is_ultra_restricted"`
-	Has2FA            bool        `json:"has_2fa"`
-	HasFiles          bool        `json:"has_files"`
-	Presence          string      `json:"presence"`
+	User              *common.UserIdentifier `json:"user"`
+	Name              string                 `json:"name"`
+	Deleted           bool                   `json:"deleted"`
+	Color             string                 `json:"color"`
+	RealName          string                 `json:"real_name"`
+	TZ                string                 `json:"tz,omitempty"`
+	TZLabel           string                 `json:"tz_label"`
+	TZOffset          int                    `json:"tz_offset"`
+	Profile           UserProfile            `json:"profile"`
+	IsBot             bool                   `json:"is_bot"`
+	IsAdmin           bool                   `json:"is_admin"`
+	IsOwner           bool                   `json:"is_owner"`
+	IsPrimaryOwner    bool                   `json:"is_primary_owner"`
+	IsRestricted      bool                   `json:"is_restricted"`
+	IsUltraRestricted bool                   `json:"is_ultra_restricted"`
+	Has2FA            bool                   `json:"has_2fa"`
+	HasFiles          bool                   `json:"has_files"`
+	Presence          string                 `json:"presence"`
 }
 
 type Team struct {
@@ -79,8 +81,8 @@ type Purpose struct {
 }
 
 type Message struct {
-	User string `json:"user"`
-	Text string `json:"text"`
+	Sender *common.UserIdentifier `json:"user"`
+	Text   string                 `json:"text"`
 }
 
 type Channel struct {
@@ -133,16 +135,16 @@ type Bot struct {
 }
 
 type IM struct {
-	ID                 string         `json:"id"`
-	Created            SlackTimeStamp `json:"created"`
-	IsOpen             bool           `json:"is_open"`
-	LastRead           string         `json:"last_read,omitempty"`
-	Latest             *Message       `json:"latest,omitempty"`
-	UnreadCount        int            `json:"unread_count,omitempty"`
-	UnreadCountDisplay int            `json:"unread_count_display,omitempty"`
-	IsIM               bool           `json:"is_im"`
-	User               string         `json:"user"`
-	IsUserDeleted      bool           `json:"is_user_deleted"`
+	ID                 string                 `json:"id"`
+	Created            SlackTimeStamp         `json:"created"`
+	IsOpen             bool                   `json:"is_open"`
+	LastRead           string                 `json:"last_read,omitempty"`
+	Latest             *Message               `json:"latest,omitempty"`
+	UnreadCount        int                    `json:"unread_count,omitempty"`
+	UnreadCountDisplay int                    `json:"unread_count_display,omitempty"`
+	IsIM               bool                   `json:"is_im"`
+	Sender             *common.UserIdentifier `json:"user"`
+	IsUserDeleted      bool                   `json:"is_user_deleted"`
 }
 
 // https://api.slack.com/methods/rtm.start

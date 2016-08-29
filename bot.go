@@ -254,8 +254,6 @@ type OutputDestination interface{}
 
 // BotInput defines interface that each incoming message must satisfy.
 type BotInput interface {
-	SenderID() string
-
 	Message() string
 
 	SentAt() time.Time

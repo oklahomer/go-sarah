@@ -214,7 +214,7 @@ func (slacker *Slacker) SendMessage(output sarah.BotOutput) {
 			logrus.Error("Destination is not instance of Channel")
 			return
 		}
-		sendingMessage := rtmapi.NewTextMessage(channel.Name, content)
+		sendingMessage := rtmapi.NewTextMessage(channel, content)
 		slacker.OutgoingRtmMessages <- sendingMessage
 	case *webapi.PostMessage:
 		message := output.Content().(*webapi.PostMessage)

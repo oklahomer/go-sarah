@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/oklahomer/go-sarah/slack/common"
 	"golang.org/x/net/websocket"
 )
 
@@ -88,10 +89,10 @@ func NewReplyStatusError(reply *WebSocketReply) *ReplyStatusError {
 }
 
 type TextMessage struct {
-	channel string
+	channel *common.Channel
 	text    string
 }
 
-func NewTextMessage(channel string, text string) *TextMessage {
+func NewTextMessage(channel *common.Channel, text string) *TextMessage {
 	return &TextMessage{channel: channel, text: text}
 }

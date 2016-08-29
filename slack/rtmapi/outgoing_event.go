@@ -1,5 +1,7 @@
 package rtmapi
 
+import "github.com/oklahomer/go-sarah/slack/common"
+
 /*
 OutgoingEvent is just an empty interface that marks outgoing event.
 This can be used to define method signature or type of returning value.
@@ -23,9 +25,9 @@ https://api.slack.com/rtm#sending_messages
 */
 type OutgoingMessage struct {
 	OutgoingCommonEvent
-	ID      uint   `json:"id"`
-	Channel string `json:"channel"`
-	Text    string `json:"text"`
+	ID      uint            `json:"id"`
+	Channel *common.Channel `json:"channel"`
+	Text    string          `json:"text"`
 }
 
 /*

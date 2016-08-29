@@ -41,7 +41,7 @@ This can be a part of other event such as message.
 */
 type IncomingChannelEvent struct {
 	CommonEvent
-	Channel string `json:"channel"` // TODO common.Channel
+	Channel *common.Channel `json:"channel"`
 }
 
 /*
@@ -61,19 +61,12 @@ https://api.slack.com/events/message
 */
 type Message struct {
 	IncomingChannelEvent
-	User      string    `json:"user"`
-	Text      string    `json:"text"`
-	TimeStamp TimeStamp `json:"ts"`
+	Sender    *common.UserIdentifier `json:"user"`
+	Text      string                 `json:"text"`
+	TimeStamp TimeStamp              `json:"ts"`
 }
 
 // Let Message implement BotInput
-
-/*
-SenderId returns sender's identifier.
-*/
-func (message *Message) SenderID() string {
-	return message.User
-}
 
 /*
 Message returns sent message.
@@ -93,7 +86,7 @@ func (message *Message) SentAt() time.Time {
 ReplyTo returns slack channel to send reply to.
 */
 func (message *Message) ReplyTo() sarah.OutputDestination {
-	return common.NewChannel(message.Channel)
+	return message.Channel
 }
 
 /*

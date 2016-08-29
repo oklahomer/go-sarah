@@ -21,8 +21,11 @@ func TestDecodeMessage(t *testing.T) {
 	if message.TimeStamp.OriginalValue != "1355517523.000005" {
 		t.Errorf("unexpected unix timestamp %s", message.TimeStamp.OriginalValue)
 	}
-	if message.Channel != "C2147483705" {
-		t.Errorf("unexpected channel value %s", message.Channel)
+	if message.Channel.Name != "C2147483705" {
+		t.Errorf("unexpected channel value %#v", message.Channel)
+	}
+	if message.Sender.ID != "U2147483697" {
+		t.Errorf("unexpected sender id %#v", message.Sender)
 	}
 }
 
