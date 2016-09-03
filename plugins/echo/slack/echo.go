@@ -1,4 +1,4 @@
-package echo
+package slack
 
 import (
 	"github.com/oklahomer/go-sarah"
