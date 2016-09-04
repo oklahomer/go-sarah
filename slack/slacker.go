@@ -295,3 +295,10 @@ func NewStringPluginResponse(responseContent string) *sarah.PluginResponse {
 		Content: responseContent,
 	}
 }
+
+func NewPostMessagePluginResponse(input sarah.BotInput, message string, attachments []*webapi.MessageAttachment) *sarah.PluginResponse {
+	inputMesasge, _ := input.(*rtmapi.Message)
+	return &sarah.PluginResponse{
+		Content: webapi.NewPostMessageWithAttachments(inputMesasge.Channel.Name, message, attachments),
+	}
+}
