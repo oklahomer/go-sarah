@@ -95,8 +95,8 @@ func TestNewBotRunner(t *testing.T) {
 		t.Error("botProperties is nil")
 	}
 
-	if runner.workerPool == nil {
-		t.Error("workerPool is nil")
+	if runner.worker == nil {
+		t.Error("worker is nil")
 	}
 }
 
@@ -136,14 +136,14 @@ func TestBotRunner_Run_Stop(t *testing.T) {
 	runner.Run(runnerCtx)
 
 	time.Sleep(300 * time.Millisecond)
-	if runner.workerPool.IsRunning() == false {
+	if runner.worker.IsRunning() == false {
 		t.Error("worker is not running")
 	}
 
 	cancelRunner()
 
 	time.Sleep(300 * time.Millisecond)
-	if runner.workerPool.IsRunning() == true {
+	if runner.worker.IsRunning() == true {
 		t.Error("worker is still running")
 	}
 }

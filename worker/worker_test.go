@@ -5,80 +5,49 @@ import (
 	"time"
 )
 
-func TestConstruct(t *testing.T) {
-	workerNum := 5
-	pool := NewPool(workerNum)
+func TestNew(t *testing.T) {
+	worker := New()
 
-	// Worker size
-	if actualSize := len(pool.workers); actualSize != workerNum {
-		t.Errorf("unexpected worker size. expected: %d. actual: %d.", workerNum, actualSize)
-	}
-
-	// Check id designation and its duplication
-	workerIDs := []int{}
-	for _, worker := range pool.workers {
-		workerIDs = append(workerIDs, worker.ID)
-	}
-	uniqueWorkerIDs := make(map[int]bool)
-	for id := range workerIDs {
-		uniqueWorkerIDs[id] = true
-	}
-	if len(uniqueWorkerIDs) != workerNum {
-		t.Errorf("worker.ID duplicates, %v.", workerIDs)
+	if worker.isRunning != false {
+		t.Error("unexpected worker state")
 	}
 }
 
-func TestStatus(t *testing.T) {
-	workerNum := 5
-	pool := NewPool(workerNum)
+func TestWorker_Run(t *testing.T) {
+	worker := New()
+	cancel := make(chan struct{})
 
-	if pool.isRunning != false {
-		t.Errorf("worker pool status insists its running.")
-	}
-
-	err := pool.Run()
+	// Start worker
+	err := worker.Run(cancel, 5)
 	if err != nil {
-		t.Errorf("error on worker pool start: %s.", err.Error())
-	}
-	if pool.isRunning == false {
-		t.Error("status not updated.")
+		t.Fatalf("failed to run. %s", err.Error())
 	}
 
-	err = pool.Run()
-	if err == nil {
-		t.Errorf("error should be given on multiple Run.")
-	}
+	// panic won't affect
+	worker.EnqueueJob(func() {
+		panic("My house is on FIRE!!")
+	})
 
+	// Check if job runs
 	isFinished := false
-	pool.EnqueueJob(func() {
+	worker.EnqueueJob(func() {
 		isFinished = true
 	})
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	if isFinished == false {
 		t.Error("job is not executed")
 	}
 
-	err = pool.Stop()
-	if err != nil {
-		t.Errorf("error on worker pool stop: %s.", err.Error())
-	}
-	if pool.isRunning == true {
-		t.Error("status not updated.")
-	}
-
-	err = pool.Stop()
+	// Error should return on multiple Run call
+	err = worker.Run(cancel, 5)
 	if err == nil {
-		t.Errorf("error should be given on multiple Stop.")
+		t.Error("worker.Run is called multiple times")
 	}
-}
 
-func TestPanicSituation(t *testing.T) {
-	pool := NewPool(1)
-	pool.Run()
-
-	pool.EnqueueJob(func() {
-		panic("My house is on FIRE!!")
-	})
-
-	pool.Stop()
+	// Stop worker
+	close(cancel)
+	time.Sleep(100 * time.Millisecond)
+	if worker.IsRunning() != false {
+		t.Error("worker.IsRunning still returns true after cancelation")
+	}
 }

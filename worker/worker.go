@@ -6,72 +6,64 @@ import (
 	"sync"
 )
 
-type pooledWorker struct {
-	ID int
-}
-
 /*
-Pool holds desired number of worker instances, dispatch jobs to them, and handle their lifecycle.
+Worker holds desired number of child workers when Run is called.
 */
-type Pool struct {
-	workers     []*pooledWorker
-	isRunning   bool
-	mutex       *sync.Mutex
+type Worker struct {
 	jobReceiver chan func()
-	stop        chan struct{}
+	mutex       *sync.Mutex
+	isRunning   bool
 }
 
 /*
-NewPool is a helper function that construct and return new Pool instance.
+New is a helper function that construct and return new Worker instance.
 */
-func NewPool(workerNum int) *Pool {
-	var workers = make([]*pooledWorker, workerNum)
-	for i := range workers {
-		workers[i] = &pooledWorker{ID: i + 1}
-	}
-	return &Pool{
-		workers:     workers,
-		isRunning:   false,
-		mutex:       &sync.Mutex{},
-		stop:        make(chan struct{}),
+func New() *Worker {
+	return &Worker{
 		jobReceiver: make(chan func(), 100),
+		mutex:       &sync.Mutex{},
+		isRunning:   false,
 	}
 }
 
 /*
-Run prepares all underlying workers to receive jobs for execution.
-Once Run is called, this Pool receives job until Sop is called.
+Run creates as many child workers as specified and start those child workers.
+First argument, cancel channel, can be context.Context.Done to propagate upstream status change.
 */
-func (pool *Pool) Run() error {
+func (worker *Worker) Run(cancel <-chan struct{}, workerNum uint) error {
 	logrus.Infof("start workers")
-	pool.mutex.Lock()
-	defer pool.mutex.Unlock()
+	worker.mutex.Lock()
+	defer worker.mutex.Unlock()
 
-	if pool.isRunning == true {
+	if worker.isRunning == true {
 		return errors.New("workers are already running")
 	}
 
-	for _, worker := range pool.workers {
-		go pool.runWorker(worker)
+	var i uint
+	for i = 1; i <= workerNum; i++ {
+		go worker.runChild(cancel, i)
 	}
-	pool.isRunning = true
+	worker.isRunning = true
+
+	// update status to false on cancellation
+	go func() {
+		<-cancel
+		worker.isRunning = false
+	}()
 
 	return nil
 }
 
-func (pool *Pool) IsRunning() bool {
-	return pool.isRunning
-}
+func (worker *Worker) runChild(cancel <-chan struct{}, workerId uint) {
+	logrus.Infof("start worker id: %d.", workerId)
 
-func (pool *Pool) runWorker(worker *pooledWorker) {
-	logrus.Infof("start worker id: %d.", worker.ID)
 	for {
 		select {
-		case <-pool.stop:
-			logrus.Infof("stopping worker id: %d", worker.ID)
+		case <-cancel:
+			logrus.Infof("stopping worker id: %d", workerId)
 			return
-		case job := <-pool.jobReceiver:
-			logrus.Infof("receiving job on worker: %d", worker.ID)
+		case job := <-worker.jobReceiver:
+			logrus.Debugf("receiving job on worker: %d", workerId)
 			// To avoid given job's panic affect later jobs, wrap them with recover.
 			func() {
 				defer func() {
@@ -86,25 +78,15 @@ func (pool *Pool) runWorker(worker *pooledWorker) {
 }
 
 /*
-Stop lets underlying workers stop receiving jobs
+IsRunning returns current status of worker.
 */
-func (pool *Pool) Stop() error {
-	logrus.Infof("stop workers")
-	pool.mutex.Lock()
-	defer pool.mutex.Unlock()
-
-	if pool.isRunning != true {
-		return errors.New("workers are already stopped")
-	}
-	close(pool.stop)
-	pool.isRunning = false
-
-	return nil
+func (worker *Worker) IsRunning() bool {
+	return worker.isRunning
 }
 
 /*
 EnqueueJob appends new job to be executed.
 */
-func (pool *Pool) EnqueueJob(job func()) {
-	pool.jobReceiver <- job
+func (worker *Worker) EnqueueJob(job func()) {
+	worker.jobReceiver <- job
 }

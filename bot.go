@@ -68,14 +68,14 @@ Developers can register desired number of BotAdapter and Commands to create own 
 */
 type BotRunner struct {
 	botProperties []*botProperty
-	workerPool    *worker.Pool
+	worker        *worker.Worker
 }
 
 // NewBotRunner creates and return new Bot instance.
 func NewBotRunner() *BotRunner {
 	return &BotRunner{
 		botProperties: []*botProperty{},
-		workerPool:    worker.NewPool(10),
+		worker:        worker.New(),
 	}
 }
 
@@ -100,7 +100,7 @@ Run starts Bot interaction.
 At this point bot starts its internal workers, runs each BotAdapter, and starts listening to incoming messages.
 */
 func (runner *BotRunner) Run(ctx context.Context) {
-	go runner.runWorkers(ctx)
+	runner.worker.Run(ctx.Done(), 10)
 	for _, botProperty := range runner.botProperties {
 		// build commands with stashed builder settings
 		if builders, ok := stashedCommandBuilder[botProperty.adapter.BotType()]; ok {
@@ -181,18 +181,9 @@ func (runner *BotRunner) respondMessage(ctx context.Context, botProperty *botPro
 	}
 }
 
-// runWorkers starts BotRunner's internal workers.
-func (runner *BotRunner) runWorkers(ctx context.Context) {
-	runner.workerPool.Run()
-	defer runner.workerPool.Stop()
-
-	<-ctx.Done()
-	logrus.Info("stop workers due to context cancel")
-}
-
 // EnqueueJob can be used to enqueue task to BotRunner's internal workers.
 func (runner *BotRunner) EnqueueJob(job func()) {
-	runner.workerPool.EnqueueJob(job)
+	runner.worker.EnqueueJob(job)
 }
 
 /*
