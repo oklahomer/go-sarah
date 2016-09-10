@@ -107,7 +107,7 @@ func (slacker *Slacker) supervise(ctx context.Context, errCh chan<- error) {
 			slacker.disconnect()
 
 			// establish new connection.
-			if err := slacker.connect(); err != nil {
+			if err := slacker.connect(ctx); err != nil {
 				// can't establish connection with retrial.
 				// notify critical condition and let BotRunner stop slacker.
 				logrus.Errorf("can't establish connection. %s", err.Error())
@@ -126,13 +126,13 @@ func (slacker *Slacker) supervise(ctx context.Context, errCh chan<- error) {
 }
 
 // connect fetches WebSocket endpoint information via Rest API and establishes WebSocket connection.
-func (slacker *Slacker) connect() error {
-	rtmInfo, err := fetchRtmInfo(slacker.WebAPIClient)
+func (slacker *Slacker) connect(ctx context.Context) error {
+	rtmInfo, err := fetchRtmInfo(ctx, slacker.WebAPIClient)
 	if err != nil {
 		return err
 	}
 
-	conn, err := connectRtm(slacker.RtmAPIClient, rtmInfo)
+	conn, err := connectRtm(ctx, slacker.RtmAPIClient, rtmInfo)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (slacker *Slacker) disconnect() {
 receiveEvent receives payloads via WebSocket connection, decodes them into pre-defined events, and passes them via
 channel if they satisfy sarah.BotInput interface.
 */
-func (slacker *Slacker) receiveEvent(ctx context.Context, receiver chan<- sarah.BotInput) {
+func (slacker *Slacker) receiveEvent(ctx context.Context, inputReceiver chan<- sarah.BotInput) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -198,7 +198,7 @@ func (slacker *Slacker) receiveEvent(ctx context.Context, receiver chan<- sarah.
 			}
 
 			if botInput, ok := event.(sarah.BotInput); ok {
-				receiver <- botInput
+				inputReceiver <- botInput
 			} else {
 				// Miscellaneous events to support operation
 			}
@@ -206,7 +206,7 @@ func (slacker *Slacker) receiveEvent(ctx context.Context, receiver chan<- sarah.
 	}
 }
 
-func (slacker *Slacker) SendMessage(output sarah.BotOutput) {
+func (slacker *Slacker) SendMessage(ctx context.Context, output sarah.BotOutput) {
 	switch content := output.Content().(type) {
 	case string:
 		channel, ok := output.Destination().(*common.Channel)
@@ -218,7 +218,7 @@ func (slacker *Slacker) SendMessage(output sarah.BotOutput) {
 		slacker.OutgoingRtmMessages <- sendingMessage
 	case *webapi.PostMessage:
 		message := output.Content().(*webapi.PostMessage)
-		if _, err := slacker.WebAPIClient.PostMessage(message); err != nil {
+		if _, err := slacker.WebAPIClient.PostMessage(ctx, message); err != nil {
 			logrus.Error("something went wrong with Web API posting", err)
 		}
 	default:
@@ -266,10 +266,10 @@ func (slacker *Slacker) checkConnection() {
 }
 
 // fetchRtmInfo fetches Real Time Messaging API information via Rest API endpoint with retries.
-func fetchRtmInfo(client *webapi.Client) (*webapi.RtmStart, error) {
+func fetchRtmInfo(ctx context.Context, client *webapi.Client) (*webapi.RtmStart, error) {
 	var rtmStart *webapi.RtmStart
 	err := retry.RetryInterval(10, func() error {
-		r, e := client.RtmStart()
+		r, e := client.RtmStart(ctx)
 		rtmStart = r
 		return e
 	}, 500*time.Millisecond)
@@ -278,10 +278,10 @@ func fetchRtmInfo(client *webapi.Client) (*webapi.RtmStart, error) {
 }
 
 // connectRtm establishes WebSocket connection with retries.
-func connectRtm(client *rtmapi.Client, rtm *webapi.RtmStart) (*websocket.Conn, error) {
+func connectRtm(ctx context.Context, client *rtmapi.Client, rtm *webapi.RtmStart) (*websocket.Conn, error) {
 	var conn *websocket.Conn
 	err := retry.RetryInterval(10, func() error {
-		c, e := client.Connect(rtm.URL)
+		c, e := client.Connect(ctx, rtm.URL)
 		conn = c
 		return e
 	}, 500*time.Millisecond)

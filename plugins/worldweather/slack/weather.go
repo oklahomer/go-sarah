@@ -19,11 +19,11 @@ type pluginConfig struct {
 	APIKey string `yaml:"api_key"`
 }
 
-func weather(strippedMessage string, input sarah.BotInput, config sarah.CommandConfig) (*sarah.PluginResponse, error) {
+func weather(ctx context.Context, strippedMessage string, input sarah.BotInput, config sarah.CommandConfig) (*sarah.PluginResponse, error) {
 	// Share client instance with later execution
 	conf, _ := config.(*pluginConfig)
 	client := worldweather.NewClient(worldweather.NewConfig(conf.APIKey))
-	resp, err := client.LocalWeather(context.TODO(), strippedMessage)
+	resp, err := client.LocalWeather(ctx, strippedMessage)
 	// TODO err check
 	if err != nil {
 		logrus.Errorf("Error on weather api reqeust: %s.", err.Error())

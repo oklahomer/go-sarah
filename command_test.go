@@ -1,6 +1,7 @@
 package sarah
 
 import (
+	"golang.org/x/net/context"
 	"regexp"
 	"strings"
 	"testing"
@@ -25,7 +26,7 @@ func TestInsufficientSettings(t *testing.T) {
 		}
 	}
 
-	builder.Func(func(strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
+	builder.Func(func(_ context.Context, strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
 		return &PluginResponse{
 			Content: strippedMessage,
 		}, nil
@@ -42,7 +43,7 @@ func (abandonedCommand *abandonedCommand) Identifier() string {
 	return "arbitraryStringThatWouldNeverBeRecognized"
 }
 
-func (abandonedCommand *abandonedCommand) Execute(_ string, _ BotInput) (*PluginResponse, error) {
+func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ string, _ BotInput) (*PluginResponse, error) {
 	return nil, nil
 }
 
@@ -64,7 +65,7 @@ func (echoCommand *echoCommand) Identifier() string {
 	return "echo"
 }
 
-func (echoCommand *echoCommand) Execute(strippedMessage string, input BotInput) (*PluginResponse, error) {
+func (echoCommand *echoCommand) Execute(_ context.Context, strippedMessage string, input BotInput) (*PluginResponse, error) {
 	return &PluginResponse{Content: input.Message()}, nil
 }
 
@@ -114,7 +115,7 @@ func TestCommands_FindFirstMatched(t *testing.T) {
 		return
 	}
 
-	response, err := commands.ExecuteFirstMatched(&echoInput{})
+	response, err := commands.ExecuteFirstMatched(context.TODO(), &echoInput{})
 	if err != nil {
 		t.Errorf("unexpected error on commands execution: %#v", err)
 		return

@@ -2,6 +2,7 @@ package sarah
 
 import (
 	"fmt"
+	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path"
@@ -23,7 +24,7 @@ type PluginResponse struct {
 type Command interface {
 	Identifier() string
 
-	Execute(string, BotInput) (*PluginResponse, error)
+	Execute(context.Context, string, BotInput) (*PluginResponse, error)
 
 	Example() string
 
@@ -61,8 +62,8 @@ func (command *simpleCommand) StripMessage(input string) string {
 	return strings.TrimSpace(text)
 }
 
-func (command *simpleCommand) Execute(strippedMessage string, input BotInput) (*PluginResponse, error) {
-	return command.commandFunc(strippedMessage, input, command.config)
+func (command *simpleCommand) Execute(ctx context.Context, strippedMessage string, input BotInput) (*PluginResponse, error) {
+	return command.commandFunc(ctx, strippedMessage, input, command.config)
 }
 
 // Commands stashes all registered Command.
@@ -99,14 +100,14 @@ func (commands *Commands) FindFirstMatched(text string) Command {
 }
 
 // ExecuteFirstMatched tries find matching command with the given input, and execute it if one is available.
-func (commands *Commands) ExecuteFirstMatched(input BotInput) (*PluginResponse, error) {
+func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input BotInput) (*PluginResponse, error) {
 	inputMessage := input.Message()
 	command := commands.FindFirstMatched(inputMessage)
 	if command == nil {
 		return nil, nil
 	}
 
-	return command.Execute(command.StripMessage(inputMessage), input)
+	return command.Execute(ctx, command.StripMessage(inputMessage), input)
 }
 
 type nullConfig struct{}
@@ -115,7 +116,7 @@ type nullConfig struct{}
 type CommandConfig interface{}
 
 // commandFunc is a function type that represents command function
-type commandFunc func(string, BotInput, CommandConfig) (*PluginResponse, error)
+type commandFunc func(context.Context, string, BotInput, CommandConfig) (*PluginResponse, error)
 
 type commandBuilder struct {
 	identifier   string

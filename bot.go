@@ -29,7 +29,7 @@ Its instance can be fed to Bot to start bot interaction.
 type BotAdapter interface {
 	BotType() BotType
 	Run(context.Context, chan<- BotInput, chan<- error)
-	SendMessage(BotOutput)
+	SendMessage(context.Context, BotOutput)
 }
 
 /*
@@ -102,6 +102,9 @@ At this point bot starts its internal workers, runs each BotAdapter, and starts 
 func (runner *BotRunner) Run(ctx context.Context) {
 	runner.worker.Run(ctx.Done(), 10)
 	for _, botProperty := range runner.botProperties {
+		// each BotRunner has its own context propagating BotRunner's lifecycle
+		botAdapterCtx, cancelAdapter := context.WithCancel(ctx)
+
 		// build commands with stashed builder settings
 		if builders, ok := stashedCommandBuilder[botProperty.adapter.BotType()]; ok {
 			commands := buildCommands(builders, botProperty.pluginConfigDir)
@@ -115,25 +118,24 @@ func (runner *BotRunner) Run(ctx context.Context) {
 			tasks := buildScheduledTasks(builders, botProperty.pluginConfigDir)
 			for _, task := range tasks {
 				botProperty.cron.AddFunc(task.config.Schedule(), func() {
-					res, err := task.Execute()
+					res, err := task.Execute(botAdapterCtx)
 					if err != nil {
 						logrus.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
 						return
 					}
 					message := NewBotOutputMessage(task.config.Destination(), res.Content)
-					botProperty.adapter.SendMessage(message)
+					botProperty.adapter.SendMessage(ctx, message)
 				})
 			}
 		}
 		botProperty.cron.Start()
 
 		// run BotAdapter
-		receiver := make(chan BotInput)
+		inputReceiver := make(chan BotInput)
 		errCh := make(chan error)
-		botAdapterCtx, cancelAdapter := context.WithCancel(ctx)
-		go runner.respondMessage(ctx, botProperty, receiver)
+		go runner.respondMessage(botAdapterCtx, botProperty, inputReceiver)
 		go stopUnrecoverableAdapter(errCh, cancelAdapter)
-		botProperty.adapter.Run(botAdapterCtx, receiver, errCh)
+		botProperty.adapter.Run(botAdapterCtx, inputReceiver, errCh)
 	}
 }
 
@@ -158,23 +160,23 @@ respondMessage listens to incoming messages via channel.
 Each BotAdapter enqueues incoming messages to runner's listening channel, and respondMessage receives them.
 When corresponding command is found, command is executed and the result can be passed to BotAdapter's SendMessage method.
 */
-func (runner *BotRunner) respondMessage(ctx context.Context, botProperty *botProperty, receiver <-chan BotInput) {
+func (runner *BotRunner) respondMessage(adapterCtx context.Context, botProperty *botProperty, inputReceiver <-chan BotInput) {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-adapterCtx.Done():
 			logrus.Info("stop responding to message due to context cancel")
 			return
-		case botInput := <-receiver:
+		case botInput := <-inputReceiver:
 			logrus.Debugf("responding to %#v", botInput)
 			runner.EnqueueJob(func() {
-				res, err := botProperty.commands.ExecuteFirstMatched(botInput)
+				res, err := botProperty.commands.ExecuteFirstMatched(adapterCtx, botInput)
 				if err != nil {
 					logrus.Errorf("error on message handling. botInput: %s. error: %#v.", botInput, err.Error())
 				}
 
 				if res != nil {
 					message := NewBotOutputMessage(botInput.ReplyTo(), res.Content)
-					botProperty.adapter.SendMessage(message)
+					botProperty.adapter.SendMessage(adapterCtx, message)
 				}
 			})
 		}

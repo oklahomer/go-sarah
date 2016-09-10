@@ -21,7 +21,7 @@ func (adapter *NullAdapter) BotType() BotType {
 func (adapter *NullAdapter) Run(_ context.Context, _ chan<- BotInput, _ chan<- error) {
 }
 
-func (adapter *NullAdapter) SendMessage(_ BotOutput) {
+func (adapter *NullAdapter) SendMessage(_ context.Context, _ BotOutput) {
 }
 
 func NewNullAdapter() *NullAdapter {
@@ -74,7 +74,7 @@ func TestAppendCommandBuilder(t *testing.T) {
 			ConfigStruct(NullConfig).
 			Identifier("fooCommand").
 			Example("example text").
-			Func(func(strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
+			Func(func(_ context.Context, strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
 				return nil, nil
 			})
 	AppendCommandBuilder(FOO, commandBuilder)

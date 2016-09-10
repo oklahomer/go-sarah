@@ -3,6 +3,7 @@ package webapi
 import (
 	"github.com/jarcoal/httpmock"
 	"github.com/oklahomer/go-sarah/httperror"
+	"golang.org/x/net/context"
 	"net/url"
 	"testing"
 )
@@ -29,7 +30,7 @@ func TestGet(t *testing.T) {
 
 	client := NewClient(&Config{Token: "abc"})
 	dummyResponse := &GetResponseDummy{}
-	err := client.Get("foo", nil, dummyResponse)
+	err := client.Get(context.TODO(), "foo", nil, dummyResponse)
 
 	if err != nil {
 		t.Errorf("something went wrong. %#v", err)
@@ -57,7 +58,7 @@ func TestGetStatusError(t *testing.T) {
 
 	client := NewClient(&Config{Token: "abc"})
 	dummyResponse := &GetResponseDummy{}
-	err := client.Get("foo", nil, dummyResponse)
+	err := client.Get(context.TODO(), "foo", nil, dummyResponse)
 
 	switch e := err.(type) {
 	case nil:
@@ -84,7 +85,7 @@ func TestGetJSONError(t *testing.T) {
 
 	client := NewClient(&Config{Token: "abc"})
 	dummyResponse := &GetResponseDummy{}
-	err := client.Get("foo", nil, dummyResponse)
+	err := client.Get(context.TODO(), "foo", nil, dummyResponse)
 
 	if err == nil {
 		t.Error("error should return")
@@ -108,7 +109,7 @@ func TestRtmStart(t *testing.T) {
 		jsonResponder)
 
 	client := NewClient(&Config{Token: "abc"})
-	rtmStart, err := client.RtmStart()
+	rtmStart, err := client.RtmStart(context.TODO())
 
 	if err != nil {
 		t.Errorf("something went wrong. %#v", err)
@@ -132,7 +133,7 @@ func TestPost(t *testing.T) {
 
 	client := NewClient(&Config{Token: "abc"})
 	response := &APIResponse{}
-	err := client.Post("foo", url.Values{}, response)
+	err := client.Post(context.TODO(), "foo", url.Values{}, response)
 
 	if err != nil {
 		t.Errorf("something is wrong. %#v", err)
@@ -152,7 +153,7 @@ func TestPostStatusError(t *testing.T) {
 
 	client := NewClient(&Config{Token: "abc"})
 	response := &APIResponse{}
-	err := client.Post("foo", url.Values{}, response)
+	err := client.Post(context.TODO(), "foo", url.Values{}, response)
 
 	switch e := err.(type) {
 	case nil:
@@ -180,10 +181,10 @@ func TestPostMessage(t *testing.T) {
 
 	postMessage := NewPostMessage("channel", "my message")
 	client := NewClient(&Config{Token: "abc"})
-	response, err := client.PostMessage(postMessage)
+	response, err := client.PostMessage(context.TODO(), postMessage)
 
 	if err != nil {
-		t.Error("something is wrong. %#v", err)
+		t.Errorf("something is wrong. %#v", err)
 	}
 
 	if response.OK != true {

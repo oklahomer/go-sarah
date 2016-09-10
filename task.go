@@ -2,11 +2,12 @@ package sarah
 
 import (
 	"fmt"
+	"golang.org/x/net/context"
 	"path"
 )
 
 // commandFunc is a function type that represents command function
-type taskFunc func(ScheduledTaskConfig) (*PluginResponse, error)
+type taskFunc func(context.Context, ScheduledTaskConfig) (*PluginResponse, error)
 
 type ScheduledTaskConfig interface {
 	Schedule() string
@@ -17,7 +18,7 @@ type ScheduledTaskConfig interface {
 type Task interface {
 	Identifier() string
 
-	Execute() (*PluginResponse, error)
+	Execute(context.Context) (*PluginResponse, error)
 }
 
 type scheduledTask struct {
@@ -32,8 +33,8 @@ func (task *scheduledTask) Identifier() string {
 	return task.identifier
 }
 
-func (task *scheduledTask) Execute() (*PluginResponse, error) {
-	return task.taskFunc(task.config)
+func (task *scheduledTask) Execute(ctx context.Context) (*PluginResponse, error) {
+	return task.taskFunc(ctx, task.config)
 }
 
 type scheduledTaskBuilder struct {

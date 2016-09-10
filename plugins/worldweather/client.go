@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -50,10 +51,7 @@ func (client *Client) buildEndpoint(apiType string, queryParams *url.Values) *ur
 
 func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.Values, intf interface{}) error {
 	endpoint := client.buildEndpoint(apiType, queryParams)
-	req, err := http.NewRequest("GET", endpoint.String(), nil)
-	req.Cancel = ctx.Done()
-
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := ctxhttp.Get(ctx, http.DefaultClient, endpoint.String())
 	if err != nil {
 		switch e := err.(type) {
 		case *url.Error:

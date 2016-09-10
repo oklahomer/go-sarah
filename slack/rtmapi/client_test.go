@@ -3,6 +3,7 @@ package rtmapi
 import (
 	"bytes"
 	"fmt"
+	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
 	"io"
 	"net/http"
@@ -31,7 +32,7 @@ func TestConnect(t *testing.T) {
 	// Establish connection
 	url := fmt.Sprintf("ws://%s%s", webSocketServerAddress, "/echo")
 	client := NewClient()
-	conn, err := client.Connect(url)
+	conn, err := client.Connect(context.TODO(), url)
 	if err != nil {
 		t.Errorf("webSocket connection error. %#v.", err)
 		return

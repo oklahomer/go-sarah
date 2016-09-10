@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/oklahomer/go-sarah/httperror"
+	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -40,10 +42,10 @@ func (client *Client) buildEndpoint(slackMethod string, queryParams *url.Values)
 	return requestURL
 }
 
-func (client *Client) Get(slackMethod string, queryParams *url.Values, intf interface{}) error {
+func (client *Client) Get(ctx context.Context, slackMethod string, queryParams *url.Values, intf interface{}) error {
 	endpoint := client.buildEndpoint(slackMethod, queryParams)
 
-	resp, err := http.Get(endpoint.String())
+	resp, err := ctxhttp.Get(ctx, http.DefaultClient, endpoint.String())
 	if err != nil {
 		switch e := err.(type) {
 		case *url.Error:
@@ -71,19 +73,19 @@ func (client *Client) Get(slackMethod string, queryParams *url.Values, intf inte
 	return nil
 }
 
-func (client *Client) RtmStart() (*RtmStart, error) {
+func (client *Client) RtmStart(ctx context.Context) (*RtmStart, error) {
 	rtmStart := &RtmStart{}
-	if err := client.Get("rtm.start", nil, &rtmStart); err != nil {
+	if err := client.Get(ctx, "rtm.start", nil, &rtmStart); err != nil {
 		return nil, err
 	}
 
 	return rtmStart, nil
 }
 
-func (client *Client) Post(slackMethod string, bodyParam url.Values, intf interface{}) error {
+func (client *Client) Post(ctx context.Context, slackMethod string, bodyParam url.Values, intf interface{}) error {
 	endpoint := client.buildEndpoint(slackMethod, nil)
 
-	resp, err := http.PostForm(endpoint.String(), bodyParam)
+	resp, err := ctxhttp.PostForm(ctx, http.DefaultClient, endpoint.String(), bodyParam)
 	if err != nil {
 		switch e := err.(type) {
 		case *url.Error:
@@ -111,9 +113,9 @@ func (client *Client) Post(slackMethod string, bodyParam url.Values, intf interf
 	return nil
 }
 
-func (client *Client) PostMessage(postMessage *PostMessage) (*APIResponse, error) {
+func (client *Client) PostMessage(ctx context.Context, postMessage *PostMessage) (*APIResponse, error) {
 	response := &APIResponse{}
-	err := client.Post("chat.postMessage", postMessage.ToURLValues(), &response)
+	err := client.Post(ctx, "chat.postMessage", postMessage.ToURLValues(), &response)
 	if err != nil {
 		return nil, err
 	}

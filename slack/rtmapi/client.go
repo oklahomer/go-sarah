@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/slack/common"
+	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
 )
 
@@ -16,7 +17,8 @@ func NewClient() *Client {
 	return &Client{payloadDecodeFunc: DefaultPayloadDecodeFunc}
 }
 
-func (client *Client) Connect(url string) (*websocket.Conn, error) {
+func (client *Client) Connect(_ context.Context, url string) (*websocket.Conn, error) {
+	// no DialContext?
 	return websocket.Dial(url, "", "http://localhost")
 }
 

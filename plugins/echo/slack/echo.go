@@ -3,6 +3,7 @@ package slack
 import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
+	"golang.org/x/net/context"
 	"regexp"
 )
 
@@ -10,7 +11,7 @@ var (
 	identifier = "echo"
 )
 
-func echo(strippedMessage string, _ sarah.BotInput, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
+func echo(_ context.Context, strippedMessage string, _ sarah.BotInput, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
 	return slack.NewStringPluginResponse(strippedMessage), nil
 }
 
