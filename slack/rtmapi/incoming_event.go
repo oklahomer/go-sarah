@@ -97,6 +97,13 @@ func (message *Message) ReplyTo() sarah.OutputDestination {
 	return message.Channel
 }
 
+// TODO define each one with subtype field. This is just a representation of common subtyped payload
+// https://api.slack.com/events/message#message_subtypes
+type MiscMessage struct {
+	CommonMessage
+	TimeStamp TimeStamp `json:"ts"`
+}
+
 /*
 DecodedEvent is just an empty interface that marks decoded event.
 This can be used to define method signature or type of returning value.
@@ -119,7 +126,16 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 	case HELLO:
 		mapping = &Hello{}
 	case MESSAGE:
-		mapping = &Message{}
+		subTypedMessage := &CommonMessage{}
+		if err := json.Unmarshal(input, subTypedMessage); err != nil {
+			return nil, NewMalformedPayloadError(err.Error())
+		}
+		switch subTypedMessage.SubType {
+		case EMPTY:
+			mapping = &Message{}
+		default:
+			mapping = &MiscMessage{}
+		}
 	case TEAM_MIGRATION_STARTED:
 		mapping = &TeamMigrationStarted{}
 	case PONG:

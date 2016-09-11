@@ -201,6 +201,7 @@ func (slacker *Slacker) receiveEvent(ctx context.Context, inputReceiver chan<- s
 				inputReceiver <- botInput
 			} else {
 				// Miscellaneous events to support operation
+				logrus.Debugf("received non-message event. %#v.", event)
 			}
 		}
 	}
