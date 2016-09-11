@@ -3,6 +3,7 @@ package worker
 import (
 	"errors"
 	"github.com/Sirupsen/logrus"
+	"runtime"
 	"sync"
 )
 
@@ -69,7 +70,17 @@ func (worker *Worker) runChild(cancel <-chan struct{}, workerId uint) {
 				defer func() {
 					if r := recover(); r != nil {
 						logrus.Warnf("panic in given job. recovered: %#v", r)
+
+						// Display stack trace
+						for depth := 0; ; depth++ {
+							_, src, line, ok := runtime.Caller(depth)
+							if !ok {
+								break
+							}
+							logrus.Warnf(" -> depth:%d. file:%s. line:%d.", depth, src, line)
+						}
 					}
+
 				}()
 				job()
 			}()
