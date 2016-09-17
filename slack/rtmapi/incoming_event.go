@@ -3,6 +3,7 @@ package rtmapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack/common"
 	"time"
@@ -67,6 +68,13 @@ type Message struct {
 }
 
 // Let Message implement BotInput
+
+/*
+SenderKey returns string representing message sender.
+*/
+func (message *Message) SenderKey() string {
+	return fmt.Sprintf("%s|%s", message.Channel.Name, message.Sender.ID)
+}
 
 /*
 Message returns sent message.

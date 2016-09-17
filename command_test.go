@@ -83,6 +83,10 @@ func (echoCommand *echoCommand) StripMessage(msg string) string {
 
 type echoInput struct{}
 
+func (echoInput *echoInput) SenderKey() string {
+	return "uniqueValue"
+}
+
 func (echoInput *echoInput) Message() string {
 	return "echo foo"
 }

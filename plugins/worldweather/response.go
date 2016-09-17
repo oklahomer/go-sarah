@@ -1,11 +1,25 @@
 package worldweather
 
+// "{ \"data\": { \"error\": [ {\"msg\": \"Unable to find any matching weather location to the query submitted!\" } ] }}"
+type ErrorDescription struct {
+	Message string `json:"msg"`
+}
+
+type CommonData struct {
+	Error []*ErrorDescription `json:"error"`
+}
+
+func (data *CommonData) HasError() bool {
+	return len(data.Error) > 0
+}
+
 // https://developer.worldweatheronline.com/api/docs/local-city-town-weather-api.aspx#data_element
 type LocalWeatherResponse struct {
 	Data *WeatherData `json:"data"`
 }
 
 type WeatherData struct {
+	CommonData
 	Request          []*Request          `json:"request"`
 	CurrentCondition []*CurrentCondition `json:"current_condition"`
 	Weather          []*Weather          `json:"weather"`
