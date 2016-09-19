@@ -12,7 +12,7 @@ var (
 )
 
 func echo(_ context.Context, strippedMessage string, _ sarah.BotInput, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
-	return slack.NewStringPluginResponse(strippedMessage), nil
+	return slack.NewStringResponse(strippedMessage), nil
 }
 
 func init() {

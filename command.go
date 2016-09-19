@@ -15,9 +15,12 @@ var (
 	NullConfig = &nullConfig{}
 )
 
+type ContextualFunc func(context.Context, BotInput) (*PluginResponse, error)
+
 // PluginResponse is returned by Command or Task when the execution is finished.
 type PluginResponse struct {
 	Content interface{}
+	Next    ContextualFunc
 }
 
 // Command defines interface that all Command must satisfy.

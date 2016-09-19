@@ -24,10 +24,22 @@ func weather(ctx context.Context, strippedMessage string, input sarah.BotInput, 
 	conf, _ := config.(*pluginConfig)
 	client := worldweather.NewClient(worldweather.NewConfig(conf.APIKey))
 	resp, err := client.LocalWeather(ctx, strippedMessage)
-	// TODO err check
+
+	// If error is returned with HTTP request level, just let it know and quit.
 	if err != nil {
 		logrus.Errorf("Error on weather api reqeust: %s.", err.Error())
-		return slack.NewStringPluginResponse("Something went wrong with weather api request."), nil
+		return slack.NewStringResponse("Something went wrong with weather api request."), nil
+	}
+	// If status code of 200 is returned, which means successful API request, but still the content contains error message,
+	// notify the user and put him in "the middle of conversation" for further communication.
+	if resp.Data.HasError() {
+		errorDescription := resp.Data.Error[0].Message
+		return slack.NewStringResponseWithNext(
+			fmt.Sprintf("Error was returned: %s.\nInput location name to retry, please.", errorDescription),
+			func(c context.Context, i sarah.BotInput) (*sarah.PluginResponse, error) {
+				return weather(c, i.Message(), i, config)
+			},
+		), nil
 	}
 
 	request := resp.Data.Request[0]
@@ -107,7 +119,7 @@ func weather(ctx context.Context, strippedMessage string, input sarah.BotInput, 
 		},
 	}
 
-	return slack.NewPostMessagePluginResponse(input, "", attachments), nil
+	return slack.NewPostMessageResponse(input, "", attachments), nil
 }
 
 func init() {

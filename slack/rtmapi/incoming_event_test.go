@@ -10,10 +10,14 @@ func TestDecodeMessage(t *testing.T) {
 
 	message, ok := event.(*Message)
 	if message.Type != MESSAGE {
-		t.Errorf("unexpected type %s", message.Type)
+		t.Fatalf("unexpected type %s", message.Type)
 	}
 	if !ok {
-		t.Errorf("unexpected event %#v", event)
+		t.Fatalf("unexpected event %#v", event)
+	}
+
+	if message.SenderKey() != "C2147483705|U2147483697" {
+		t.Errorf("unexpected sender key %s", message.SenderKey())
 	}
 	if message.TimeStamp.Time.Unix() != 1355517523 {
 		t.Errorf("unexpected unix timestamp %d", message.TimeStamp.Time.Unix())

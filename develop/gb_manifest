@@ -14,6 +14,12 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/patrickmn/go-cache",
+			"repository": "https://github.com/patrickmn/go-cache",
+			"revision": "1881a9bccb818787f68c52bfba648c6cf34c34fa",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/robfig/cron",
 			"repository": "https://github.com/robfig/cron",
 			"revision": "ab4c16f3a09641bd19d65f55b3d8d6edda7a8e05",

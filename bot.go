@@ -6,6 +6,7 @@ import (
 	"github.com/oklahomer/go-sarah/worker"
 	"github.com/robfig/cron"
 	"golang.org/x/net/context"
+	"strings"
 	"time"
 )
 
@@ -161,15 +162,32 @@ Each BotAdapter enqueues incoming messages to runner's listening channel, and re
 When corresponding command is found, command is executed and the result can be passed to BotAdapter's SendMessage method.
 */
 func (runner *BotRunner) respondMessage(adapterCtx context.Context, botProperty *botProperty, inputReceiver <-chan BotInput) {
+	userContextCache := NewCachedUserContexts(3*time.Minute, 10*time.Minute)
 	for {
 		select {
 		case <-adapterCtx.Done():
 			logrus.Info("stop responding to message due to context cancel")
+			userContextCache.Flush()
 			return
 		case botInput := <-inputReceiver:
 			logrus.Debugf("responding to %#v", botInput)
 			runner.EnqueueJob(func() {
-				res, err := botProperty.commands.ExecuteFirstMatched(adapterCtx, botInput)
+				senderKey := botInput.SenderKey()
+				userContext := userContextCache.Get(senderKey)
+				var res *PluginResponse
+				var err error
+				if userContext == nil {
+					res, err = botProperty.commands.ExecuteFirstMatched(adapterCtx, botInput)
+				} else {
+					userContextCache.Delete(senderKey)
+					if strings.TrimSpace(botInput.Message()) == ".abort" {
+						// abort
+						return
+					}
+					fn := userContext.Next
+					res, err = fn(adapterCtx, botInput)
+				}
+
 				if err != nil {
 					logrus.Errorf("error on message handling. botInput: %s. error: %#v.", botInput, err.Error())
 				}
@@ -177,6 +195,10 @@ func (runner *BotRunner) respondMessage(adapterCtx context.Context, botProperty 
 				if res != nil {
 					message := NewBotOutputMessage(botInput.ReplyTo(), res.Content)
 					botProperty.adapter.SendMessage(adapterCtx, message)
+
+					if res.Next != nil {
+						userContextCache.Set(senderKey, NewUserContext(res.Next))
+					}
 				}
 			})
 		}
@@ -247,6 +269,8 @@ type OutputDestination interface{}
 
 // BotInput defines interface that each incoming message must satisfy.
 type BotInput interface {
+	SenderKey() string
+
 	Message() string
 
 	SentAt() time.Time

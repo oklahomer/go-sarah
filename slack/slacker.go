@@ -201,6 +201,7 @@ func (slacker *Slacker) receiveEvent(ctx context.Context, inputReceiver chan<- s
 				inputReceiver <- botInput
 			} else {
 				// Miscellaneous events to support operation
+				logrus.Debugf("received non-message event. %#v.", event)
 			}
 		}
 	}
@@ -289,16 +290,27 @@ func connectRtm(ctx context.Context, client *rtmapi.Client, rtm *webapi.RtmStart
 	return conn, err
 }
 
-// NewStringPluginResponse creates new sarah.PluginResponse instance with given string.
-func NewStringPluginResponse(responseContent string) *sarah.PluginResponse {
+// NewStringResponse creates new sarah.PluginResponse instance with given string.
+func NewStringResponse(responseContent string) *sarah.PluginResponse {
+	return NewStringResponseWithNext(responseContent, nil)
+}
+
+// NewStringResponseWithNext creates new sarah.PluginResponse instance with given string and next function to continue
+func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.PluginResponse {
 	return &sarah.PluginResponse{
 		Content: responseContent,
+		Next:    next,
 	}
 }
 
-func NewPostMessagePluginResponse(input sarah.BotInput, message string, attachments []*webapi.MessageAttachment) *sarah.PluginResponse {
-	inputMesasge, _ := input.(*rtmapi.Message)
+func NewPostMessageResponse(input sarah.BotInput, message string, attachments []*webapi.MessageAttachment) *sarah.PluginResponse {
+	return NewPostMessageResponseWithNext(input, message, attachments, nil)
+}
+
+func NewPostMessageResponseWithNext(input sarah.BotInput, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.PluginResponse {
+	inputMessage, _ := input.(*rtmapi.Message)
 	return &sarah.PluginResponse{
-		Content: webapi.NewPostMessageWithAttachments(inputMesasge.Channel.Name, message, attachments),
+		Content: webapi.NewPostMessageWithAttachments(inputMessage.Channel.Name, message, attachments),
+		Next:    next,
 	}
 }
