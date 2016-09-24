@@ -26,8 +26,8 @@ func TestUnmarshalInvalidEventType(t *testing.T) {
 		return
 	}
 
-	if strings.Compare(string(eventType), string(UNKNOWN)) != 0 {
-		t.Errorf("event type, %s, is wrong. expecting %s.", eventType, UNKNOWN)
+	if strings.Compare(string(eventType), string(UNSUPPORTED)) != 0 {
+		t.Errorf("event type, %s, is wrong. expecting %s.", eventType, UNSUPPORTED)
 	}
 }
 
@@ -45,8 +45,8 @@ func TestMarshalEventType(t *testing.T) {
 func TestMarshalZeroValuedEventType(t *testing.T) {
 	var eventType EventType
 	if b, e := eventType.MarshalText(); e == nil {
-		if !bytes.Equal(b, []byte(UNKNOWN)) {
-			t.Errorf("marshaled value is wrong %s. expected %s.", string(b), string(UNKNOWN))
+		if !bytes.Equal(b, []byte(UNSUPPORTED)) {
+			t.Errorf("marshaled value is wrong %s. expected %s.", string(b), string(UNSUPPORTED))
 		}
 	} else {
 		t.Errorf("error on marshal slack event type. %s.", e.Error())
@@ -54,7 +54,7 @@ func TestMarshalZeroValuedEventType(t *testing.T) {
 }
 
 func TestUnmarshalCommonEvent(t *testing.T) {
-	messageEvent := []byte("{\"type\": \"message\"}")
+	messageEvent := []byte(`{"type": "message"}`)
 	parsedEvent := CommonEvent{}
 	if err := json.Unmarshal(messageEvent, &parsedEvent); err != nil {
 		t.Errorf("error on parsing given JSON structure. %s. %s.", string(messageEvent), err.Error())
@@ -71,7 +71,7 @@ func TestMarshalCommonEvent(t *testing.T) {
 	event := CommonEvent{Type: MESSAGE}
 	if b, err := json.Marshal(event); err == nil {
 		if !strings.Contains(string(b), string(MESSAGE)) {
-			t.Errorf("returned text doesn't contain \"message\". %s.", string(b))
+			t.Errorf(`returned text doesn't contain "message". %s.`, string(b))
 		}
 	} else {
 		t.Errorf("error on json.Marshal. %s.", err.Error())

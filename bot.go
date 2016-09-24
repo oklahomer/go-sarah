@@ -103,6 +103,8 @@ At this point bot starts its internal workers, runs each BotAdapter, and starts 
 func (runner *BotRunner) Run(ctx context.Context) {
 	runner.worker.Run(ctx.Done(), 10)
 	for _, botProperty := range runner.botProperties {
+		logrus.Infof("starting %s", botProperty.adapter.BotType())
+
 		// each BotRunner has its own context propagating BotRunner's lifecycle
 		botAdapterCtx, cancelAdapter := context.WithCancel(ctx)
 
@@ -136,7 +138,7 @@ func (runner *BotRunner) Run(ctx context.Context) {
 		errCh := make(chan error)
 		go runner.respondMessage(botAdapterCtx, botProperty, inputReceiver)
 		go stopUnrecoverableAdapter(errCh, cancelAdapter)
-		botProperty.adapter.Run(botAdapterCtx, inputReceiver, errCh)
+		go botProperty.adapter.Run(botAdapterCtx, inputReceiver, errCh)
 	}
 }
 

@@ -51,6 +51,30 @@ func (timeStamp *TimeStamp) MarshalText() ([]byte, error) {
 	return []byte(timeStamp.String()), nil
 }
 
+// Channel represents Slack channel.
+type Channel struct {
+	Name string
+}
+
+/*
+UnmarshalText parses a given slack chanel information to Channel
+This method is mainly used by encode/json.
+*/
+func (channel *Channel) UnmarshalText(b []byte) error {
+	str := string(b)
+
+	channel.Name = str
+
+	return nil
+}
+
+/*
+MarshalText returns the stringified value of Channel
+*/
+func (channel *Channel) MarshalText() ([]byte, error) {
+	return []byte(channel.Name), nil
+}
+
 /*
 MalformedPayloadError represents an error that given JSON payload is not properly formatted.
 e.g. required fields are not given, or payload is not a valid JSON string.
