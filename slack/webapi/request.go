@@ -27,6 +27,7 @@ type MessageAttachment struct {
 	ThumbURL   string             `json:"thumb_url,omitempty"`
 }
 
+// https://api.slack.com/docs/message-guidelines
 type PostMessage struct {
 	Channel     string
 	Text        string

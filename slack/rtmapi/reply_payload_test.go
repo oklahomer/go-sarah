@@ -7,7 +7,7 @@ import (
 )
 
 func TestDecodeReply(t *testing.T) {
-	str := "{\"ok\": true, \"reply_to\": 1, \"ts\": \"1355517523.000005\", \"text\": \"Hello world\"}"
+	str := `{"ok": true, "reply_to": 1, "ts": "1355517523.000005", "text": "Hello world"}`
 	if reply, err := DecodeReply([]byte(str)); err == nil {
 		if reply == nil {
 			t.Error("reply instance is not returned.")
