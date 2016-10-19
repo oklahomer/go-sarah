@@ -3,7 +3,7 @@ package rtmapi
 import (
 	"encoding/json"
 	"errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/websocket"
 	"io"
 )
@@ -81,7 +81,7 @@ func decodePayload(incoming json.RawMessage) (DecodedPayload, error) {
 	}
 
 	if eventDecodeErr == UnsupportedEventTypeError {
-		logrus.Infof("unsupported event type is fed. %s.", string(incoming))
+		log.Infof("unsupported event type is fed. %s.", string(incoming))
 		return nil, eventDecodeErr
 	}
 

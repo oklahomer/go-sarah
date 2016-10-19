@@ -1,8 +1,8 @@
 package slack
 
 import (
-	"github.com/Sirupsen/logrus"
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
 	"github.com/oklahomer/go-sarah/slack/rtmapi"
 	"github.com/oklahomer/go-sarah/slack/webapi"
@@ -81,7 +81,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Bo
 			// No more interaction follows.
 			return
 		} else {
-			logrus.Error(connErr.Error())
+			log.Error(connErr.Error())
 		}
 	}
 
@@ -107,9 +107,9 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 		case <-ticker.C:
 			nonBlockSignal(pingSignalChannelId, tryPing)
 		case <-tryPing:
-			logrus.Debug("send ping")
+			log.Debug("send ping")
 			if err := payloadSender.Ping(); err != nil {
-				logrus.Errorf("error on ping: %#v.", err.Error())
+				log.Errorf("error on ping: %#v.", err.Error())
 				return err
 			}
 		}
@@ -130,7 +130,7 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 	for {
 		select {
 		case <-connCtx.Done():
-			logrus.Info("stop receiving payload due to context cancel")
+			log.Info("stop receiving payload due to context cancel")
 			return
 		default:
 			payload, err := payloadReceiver.Receive()
@@ -141,7 +141,7 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 				continue
 			} else if err != nil {
 				// connection might not be stable or is closed already.
-				logrus.Debugf("ping caused by '%s'", err.Error())
+				log.Debugf("ping caused by '%s'", err.Error())
 				nonBlockSignal(pingSignalChannelId, tryPing)
 				continue
 			}
@@ -150,7 +150,7 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 			case *rtmapi.WebSocketReply:
 				if !*p.OK {
 					// Something wrong with previous payload sending.
-					logrus.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
+					log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
 				}
 			case *rtmapi.Message:
 				receivedMessage <- p
@@ -159,7 +159,7 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 			case nil:
 				continue
 			default:
-				logrus.Debugf("payload given, but no corresponding action is defined. %#v", p)
+				log.Debugf("payload given, but no corresponding action is defined. %#v", p)
 			}
 		}
 	}
@@ -180,7 +180,7 @@ func nonBlockSignal(id string, target chan<- struct{}) {
 	case target <- struct{}{}:
 	default:
 		// couldn't send because no goroutine is receiving channel or is busy.
-		logrus.Infof("not sending signal to channel: %s", id)
+		log.Infof("not sending signal to channel: %s", id)
 	}
 }
 
@@ -195,7 +195,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.BotOutput)
 	case string:
 		channel, ok := output.Destination().(*rtmapi.Channel)
 		if !ok {
-			logrus.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
+			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
 		}
 
@@ -206,10 +206,10 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.BotOutput)
 	case *webapi.PostMessage:
 		message := output.Content().(*webapi.PostMessage)
 		if _, err := adapter.WebAPIClient.PostMessage(ctx, message); err != nil {
-			logrus.Error("something went wrong with Web API posting", err)
+			log.Error("something went wrong with Web API posting", err)
 		}
 	default:
-		logrus.Warnf("unexpected output %#v", output)
+		log.Warnf("unexpected output %#v", output)
 	}
 }
 

@@ -2,7 +2,7 @@ package gitter
 
 import (
 	"encoding/json"
-	"github.com/Sirupsen/logrus"
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 	"io/ioutil"
@@ -68,7 +68,7 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 		return err
 	}
 	if err := json.Unmarshal(body, &intf); err != nil {
-		logrus.Errorf("can not unmarshal given JSON structure: %s", string(body))
+		log.Errorf("can not unmarshal given JSON structure: %s", string(body))
 		return err
 	}
 
@@ -109,7 +109,7 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 		return err
 	}
 	if err := json.Unmarshal(body, &responsePayload); err != nil {
-		logrus.Errorf("can not unmarshal given JSON structure: %s", string(body))
+		log.Errorf("can not unmarshal given JSON structure: %s", string(body))
 		return err
 	}
 
@@ -130,7 +130,7 @@ func (client *RestAPIClient) Rooms(ctx context.Context) (*Rooms, error) {
 func (client *RestAPIClient) PostMessage(ctx context.Context, room *Room, text string) (*Message, error) {
 	message := &Message{}
 	if err := client.Post(ctx, []string{"rooms", room.ID, "chatMessages"}, &PostingMessage{Text: text}, message); err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return nil, err
 	}
 	return message, nil

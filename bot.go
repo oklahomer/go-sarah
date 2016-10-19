@@ -2,7 +2,7 @@ package sarah
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
+	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
 	"github.com/robfig/cron"
 	"golang.org/x/net/context"
@@ -103,7 +103,7 @@ At this point bot starts its internal workers, runs each BotAdapter, and starts 
 func (runner *BotRunner) Run(ctx context.Context) {
 	runner.worker.Run(ctx.Done(), 10)
 	for _, botProperty := range runner.botProperties {
-		logrus.Infof("starting %s", botProperty.adapter.BotType())
+		log.Infof("starting %s", botProperty.adapter.BotType())
 
 		// each BotRunner has its own context propagating BotRunner's lifecycle
 		botAdapterCtx, cancelAdapter := context.WithCancel(ctx)
@@ -123,7 +123,7 @@ func (runner *BotRunner) Run(ctx context.Context) {
 				botProperty.cron.AddFunc(task.config.Schedule(), func() {
 					res, err := task.Execute(botAdapterCtx)
 					if err != nil {
-						logrus.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
+						log.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
 						return
 					}
 					message := NewBotOutputMessage(task.config.Destination(), res.Content)
@@ -150,7 +150,7 @@ func stopUnrecoverableAdapter(errNotifier <-chan error, stopAdapter context.Canc
 		err := <-errNotifier
 		switch err := err.(type) {
 		case *BotAdapterNonContinuableError:
-			logrus.Errorf("stop unrecoverable adapter: %s", err.Error())
+			log.Errorf("stop unrecoverable adapter: %s", err.Error())
 			stopAdapter()
 			return
 		}
@@ -168,11 +168,11 @@ func (runner *BotRunner) respondMessage(adapterCtx context.Context, botProperty 
 	for {
 		select {
 		case <-adapterCtx.Done():
-			logrus.Info("stop responding to message due to context cancel")
+			log.Info("stop responding to message due to context cancel")
 			userContextCache.Flush()
 			return
 		case botInput := <-inputReceiver:
-			logrus.Debugf("responding to %#v", botInput)
+			log.Debugf("responding to %#v", botInput)
 			runner.EnqueueJob(func() {
 				senderKey := botInput.SenderKey()
 				userContext := userContextCache.Get(senderKey)
@@ -191,7 +191,7 @@ func (runner *BotRunner) respondMessage(adapterCtx context.Context, botProperty 
 				}
 
 				if err != nil {
-					logrus.Errorf("error on message handling. botInput: %s. error: %#v.", botInput, err.Error())
+					log.Errorf("error on message handling. botInput: %s. error: %#v.", botInput, err.Error())
 				}
 
 				if res != nil {
@@ -217,7 +217,7 @@ AppendCommandBuilder appends given commandBuilder to internal stash.
 Stashed builder is used to configure and build Command instance on BotRunner's initialization.
 */
 func AppendCommandBuilder(botType BotType, builder *commandBuilder) {
-	logrus.Infof("appending command builder for %s. builder %#v.", botType, builder)
+	log.Infof("appending command builder for %s. builder %#v.", botType, builder)
 	_, ok := stashedCommandBuilder[botType]
 	if !ok {
 		stashedCommandBuilder[botType] = make([]*commandBuilder, 0)
@@ -227,7 +227,7 @@ func AppendCommandBuilder(botType BotType, builder *commandBuilder) {
 }
 
 func AppendScheduledTaskBuilder(botType BotType, builder *scheduledTaskBuilder) {
-	logrus.Infof("appending scheduled task builder for %s. builder %#v.", botType, builder)
+	log.Infof("appending scheduled task builder for %s. builder %#v.", botType, builder)
 	_, ok := stashedScheduledTaskBuilder[botType]
 	if !ok {
 		stashedScheduledTaskBuilder[botType] = make([]*scheduledTaskBuilder, 0)
@@ -244,7 +244,7 @@ func buildCommands(builders []*commandBuilder, configDir string) []Command {
 	for _, builder := range builders {
 		command, err := builder.build(configDir)
 		if err != nil {
-			logrus.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.identifier, err.Error()))
+			log.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.identifier, err.Error()))
 			continue
 		}
 		commands = append(commands, command)
@@ -258,7 +258,7 @@ func buildScheduledTasks(builders []*scheduledTaskBuilder, configDir string) []*
 	for _, builder := range builders {
 		task, err := builder.build(configDir)
 		if err != nil {
-			logrus.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.identifier, err.Error()))
+			log.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.identifier, err.Error()))
 			continue
 		}
 		scheduledTasks = append(scheduledTasks, task)

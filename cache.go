@@ -1,7 +1,7 @@
 package sarah
 
 import (
-	"github.com/Sirupsen/logrus"
+	"github.com/oklahomer/go-sarah/log"
 	"github.com/patrickmn/go-cache"
 	"time"
 )
@@ -36,7 +36,7 @@ func (contexts *CachedUserContexts) Get(key string) *UserContext {
 	case *UserContext:
 		return v
 	default:
-		logrus.Errorf("cached value has illegal type of %#v", v)
+		log.Errorf("cached value has illegal type of %#v", v)
 		return nil
 	}
 }

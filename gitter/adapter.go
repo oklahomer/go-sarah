@@ -1,8 +1,8 @@
 package gitter
 
 import (
-	"github.com/Sirupsen/logrus"
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
 	"golang.org/x/net/context"
 	"time"
@@ -52,12 +52,12 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.BotOutput)
 	case string:
 		room, ok := output.Destination().(*Room)
 		if !ok {
-			logrus.Errorf("Destination is not instance of Room. %#v.", output.Destination())
+			log.Errorf("Destination is not instance of Room. %#v.", output.Destination())
 			return
 		}
 		adapter.restAPIClient.PostMessage(ctx, room, content)
 	default:
-		logrus.Warnf("unexpected output %#v", output)
+		log.Warnf("unexpected output %#v", output)
 	}
 }
 
@@ -67,10 +67,10 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 		case <-ctx.Done():
 			return
 		default:
-			logrus.Infof("connecting to room: %s", room.ID)
+			log.Infof("connecting to room: %s", room.ID)
 			conn, err := adapter.connectRoom(ctx, room)
 			if err != nil {
-				logrus.Warnf("could not connect to room: %s", room.ID)
+				log.Warnf("could not connect to room: %s", room.ID)
 				return
 			}
 
@@ -86,7 +86,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 				// But, the truth is, given error is just a privately defined error instance given by http package.
 				// var errRequestCanceled = errors.New("net/http: request canceled")
 				// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
-				logrus.Error(connErr.Error())
+				log.Error(connErr.Error())
 			}
 		}
 	}
@@ -104,7 +104,7 @@ func (adapter *Adapter) fetchRooms(ctx context.Context) (*Rooms, error) {
 }
 
 func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage chan<- sarah.BotInput) error {
-	logrus.Infof("start receiving message")
+	log.Infof("start receiving message")
 	for {
 		message, err := messageReceiver.Receive()
 
@@ -115,7 +115,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage ch
 			// that the connection is still alive during low message volume periods.
 			continue
 		} else if malformedErr, ok := err.(*MalformedPayloadError); ok {
-			logrus.Warnf("skipping malformed input: %s", malformedErr)
+			log.Warnf("skipping malformed input: %s", malformedErr)
 			continue
 		} else if err != nil {
 			// At this point, assume connection is unstable or is closed.
@@ -132,7 +132,7 @@ func (adapter *Adapter) connectRoom(ctx context.Context, room *Room) (Connection
 	err := retry.RetryInterval(10, func() error {
 		r, e := adapter.streamingAPIClient.Connect(ctx, room)
 		if e != nil {
-			logrus.Error(e)
+			log.Error(e)
 		}
 		conn = r
 		return e

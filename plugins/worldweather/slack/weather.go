@@ -2,8 +2,8 @@ package slack
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/plugins/worldweather"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/go-sarah/slack/webapi"
@@ -27,7 +27,7 @@ func weather(ctx context.Context, strippedMessage string, input sarah.BotInput, 
 
 	// If error is returned with HTTP request level, just let it know and quit.
 	if err != nil {
-		logrus.Errorf("Error on weather api reqeust: %s.", err.Error())
+		log.Errorf("Error on weather api reqeust: %s.", err.Error())
 		return slack.NewStringResponse("Something went wrong with weather api request."), nil
 	}
 	// If status code of 200 is returned, which means successful API request, but still the content contains error message,
