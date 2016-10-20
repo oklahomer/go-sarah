@@ -2,7 +2,7 @@ package worker
 
 import (
 	"errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/oklahomer/go-sarah/log"
 	"runtime"
 	"sync"
 )
@@ -32,7 +32,7 @@ Run creates as many child workers as specified and start those child workers.
 First argument, cancel channel, can be context.Context.Done to propagate upstream status change.
 */
 func (worker *Worker) Run(cancel <-chan struct{}, workerNum uint) error {
-	logrus.Infof("start workers")
+	log.Infof("start workers")
 	worker.mutex.Lock()
 	defer worker.mutex.Unlock()
 
@@ -56,20 +56,20 @@ func (worker *Worker) Run(cancel <-chan struct{}, workerNum uint) error {
 }
 
 func (worker *Worker) runChild(cancel <-chan struct{}, workerId uint) {
-	logrus.Infof("start worker id: %d.", workerId)
+	log.Infof("start worker id: %d.", workerId)
 
 	for {
 		select {
 		case <-cancel:
-			logrus.Infof("stopping worker id: %d", workerId)
+			log.Infof("stopping worker id: %d", workerId)
 			return
 		case job := <-worker.jobReceiver:
-			logrus.Debugf("receiving job on worker: %d", workerId)
+			log.Debugf("receiving job on worker: %d", workerId)
 			// To avoid given job's panic affect later jobs, wrap them with recover.
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						logrus.Warnf("panic in given job. recovered: %#v", r)
+						log.Warnf("panic in given job. recovered: %#v", r)
 
 						// Display stack trace
 						for depth := 0; ; depth++ {
@@ -77,7 +77,7 @@ func (worker *Worker) runChild(cancel <-chan struct{}, workerId uint) {
 							if !ok {
 								break
 							}
-							logrus.Warnf(" -> depth:%d. file:%s. line:%d.", depth, src, line)
+							log.Warnf(" -> depth:%d. file:%s. line:%d.", depth, src, line)
 						}
 					}
 

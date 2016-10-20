@@ -1,6 +1,6 @@
 package worldweather
 
-// "{ \"data\": { \"error\": [ {\"msg\": \"Unable to find any matching weather location to the query submitted!\" } ] }}"
+// `{ "data": { "error": [ {"msg": "Unable to find any matching weather location to the query submitted!" } ] }}`
 type ErrorDescription struct {
 	Message string `json:"msg"`
 }

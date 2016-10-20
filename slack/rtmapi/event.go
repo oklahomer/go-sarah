@@ -10,8 +10,9 @@ Event is passed to client in a form of JSON string, which has a field named "typ
 */
 type EventType string
 
+// List of available EventTypes
 const (
-	UNKNOWN                EventType = "unknown"
+	UNSUPPORTED            EventType = "unsupported"
 	HELLO                            = "hello"
 	MESSAGE                          = "message"
 	TEAM_MIGRATION_STARTED           = "team_migration_started"
@@ -35,7 +36,7 @@ func (eventType *EventType) UnmarshalText(b []byte) error {
 			return nil
 		}
 	}
-	*eventType = UNKNOWN
+	*eventType = UNSUPPORTED
 	return nil
 }
 
@@ -51,11 +52,13 @@ MarshalText returns the stringified value of slack event.
 This method is mainly used by encode/json.
 */
 func (eventType *EventType) MarshalText() ([]byte, error) {
-	if str := eventType.String(); strings.Compare(str, "") == 0 {
-		return []byte(UNKNOWN), nil
-	} else {
-		return []byte(str), nil
+	str := eventType.String()
+
+	if strings.Compare(str, "") == 0 {
+		return []byte(UNSUPPORTED), nil
 	}
+
+	return []byte(str), nil
 }
 
 /*
@@ -66,9 +69,11 @@ type CommonEvent struct {
 	Type EventType `json:"type,omitempty"`
 }
 
+// SubType may given as a part of message payload to describe detailed content.
 type SubType string
 
 const (
+	// List of available SubTypes
 	EMPTY             SubType = "" // can be absent
 	BOT_MESSAGE               = "bot_message"
 	CHANNEL_ARCHIVE           = "channel_archive"
@@ -132,14 +137,18 @@ MarshalText returns the stringified value of slack subtype.
 This method is mainly used by encode/json.
 */
 func (subType *SubType) MarshalText() ([]byte, error) {
-	if str := subType.String(); strings.Compare(str, "") == 0 {
+	str := subType.String()
+
+	if strings.Compare(str, "") == 0 {
 		return []byte(""), nil // EMPTY
-	} else {
-		return []byte(str), nil
 	}
+
+	return []byte(str), nil
 }
 
 /*
+CommonMessage contains some common fields of message event.
+See SubType field to distinguish corresponding event struct.
 https://api.slack.com/events/message#message_subtypes
 */
 type CommonMessage struct {

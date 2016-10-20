@@ -15,18 +15,16 @@ func TestMarshalPingEvent(t *testing.T) {
 	}
 	val, err := json.Marshal(ping)
 	if err != nil {
-		t.Error("error occured while encoding. %s.", err.Error())
-		return
+		t.Fatalf("error occured while encoding. %s.", err.Error())
 	}
 
 	if strings.Contains(string(val), "ping") != true {
-		t.Error("returned string doesn't contain \"ping\"", string(val))
-		return
+		t.Fatalf(`returned string doesn't contain "ping". %s.`, string(val))
 	}
 }
 
 func TestUnmarshalPingEvent(t *testing.T) {
-	str := "{\"type\": \"ping\", \"id\": 123}"
+	str := `{"type": "ping", "id": 123}`
 	ping := &Ping{}
 	if err := json.Unmarshal([]byte(str), ping); err != nil {
 		t.Errorf("error on Unmarshal. %s.", err.Error())

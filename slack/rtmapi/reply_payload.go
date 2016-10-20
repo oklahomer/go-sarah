@@ -1,6 +1,8 @@
 package rtmapi
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 /*
 WebSocketReply is passed from slack as a reply to client message, and indicates its status.
@@ -10,9 +12,9 @@ type WebSocketReply struct {
 	// https://willnorris.com/2014/05/go-rest-apis-and-pointers
 	OK *bool `json:"ok"`
 
-	ReplyTo   uint      `json:"reply_to"`
-	TimeStamp TimeStamp `json:"ts"`
-	Text      string    `json:"text"`
+	ReplyTo   uint       `json:"reply_to"`
+	TimeStamp *TimeStamp `json:"ts"`
+	Text      string     `json:"text"`
 }
 
 /*

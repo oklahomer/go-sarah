@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+var (
+	UnsupportedEventTypeError = errors.New("given type is not supported.")
+	EventTypeNotGivenError    = errors.New("type field is not given")
+)
+
 /*
 Hello event is sent from slack when WebSocket connection is successfully established.
 https://api.slack.com/events/hello
@@ -42,7 +47,7 @@ This can be a part of other event such as message.
 */
 type IncomingChannelEvent struct {
 	CommonEvent
-	Channel *common.Channel `json:"channel"`
+	Channel *Channel `json:"channel"`
 }
 
 /*
@@ -64,7 +69,7 @@ type Message struct {
 	IncomingChannelEvent
 	Sender    *common.UserIdentifier `json:"user"`
 	Text      string                 `json:"text"`
-	TimeStamp TimeStamp              `json:"ts"`
+	TimeStamp *TimeStamp             `json:"ts"`
 }
 
 // Let Message implement BotInput
@@ -97,11 +102,12 @@ func (message *Message) ReplyTo() sarah.OutputDestination {
 	return message.Channel
 }
 
+// MiscMessage represents some minor message events.
 // TODO define each one with subtype field. This is just a representation of common subtyped payload
 // https://api.slack.com/events/message#message_subtypes
 type MiscMessage struct {
 	CommonMessage
-	TimeStamp TimeStamp `json:"ts"`
+	TimeStamp *TimeStamp `json:"ts"`
 }
 
 /*
@@ -123,6 +129,8 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 	var mapping DecodedEvent
 
 	switch event.Type {
+	case UNSUPPORTED:
+		return nil, UnsupportedEventTypeError
 	case HELLO:
 		mapping = &Hello{}
 	case MESSAGE:
@@ -141,12 +149,12 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 	case PONG:
 		mapping = &Pong{}
 	case "":
-		// type is not given and is filled with zero-value
-		// or empty string is given as type value
-		return nil, NewMalformedEventTypeError("type is not given. " + string(input))
+		// type field is not given so string's zero value, empty string, is set.
+		return nil, EventTypeNotGivenError
 	default:
-		// What? New event type? Time to check latest update.
-		return nil, NewUnknownEventTypeError("received unknown event. " + string(input))
+		// What?? Even if the type field is not given, "" should be set and there for case check for "" should
+		// catch that.
+		panic(fmt.Sprintf("error on event decode. %s", string(input)))
 	}
 
 	if err := json.Unmarshal(input, mapping); err != nil {
@@ -154,47 +162,4 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 	}
 
 	return mapping, nil
-}
-
-/*
-MalformedEventTypeError represents an error that given payload can properly parsed as valid JSON string,
-but it is missing "type" field.
-*/
-type MalformedEventTypeError struct {
-	Err string
-}
-
-/*
-NewMalformedEventTypeError creates new MalformedEventTypeError instance with given arguments.
-*/
-func NewMalformedEventTypeError(e string) *MalformedEventTypeError {
-	return &MalformedEventTypeError{Err: e}
-}
-
-/*
-Error returns its error string.
-*/
-func (e *MalformedEventTypeError) Error() string {
-	return e.Err
-}
-
-/*
-UnknownEventTypeError is returned when given event's type is undefined.
-*/
-type UnknownEventTypeError struct {
-	Err string
-}
-
-/*
-NewUnknownEventTypeError creates new instance of UnknownEventTypeError with given error string.
-*/
-func NewUnknownEventTypeError(e string) *UnknownEventTypeError {
-	return &UnknownEventTypeError{Err: e}
-}
-
-/*
-Error returns its error string.
-*/
-func (e *UnknownEventTypeError) Error() string {
-	return e.Err
 }

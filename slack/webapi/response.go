@@ -1,8 +1,10 @@
 package webapi
 
-import "github.com/oklahomer/go-sarah/slack/common"
+import (
+	"github.com/oklahomer/go-sarah/slack/common"
+)
 
-type SlackTimeStamp int64
+type TimeStamp int64
 
 /*
 APIResponse provides common fields shared by all API response.
@@ -17,10 +19,10 @@ Self contains details on the authenticated user.
 https://api.slack.com/methods/rtm.start#response
 */
 type Self struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	Created        SlackTimeStamp `json:"created"`
-	ManualPresence string         `json:"manual_presence"`
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	Created        TimeStamp `json:"created"`
+	ManualPresence string    `json:"manual_presence"`
 }
 
 type UserProfile struct {
@@ -69,15 +71,15 @@ type Team struct {
 }
 
 type Topic struct {
-	Value   string         `json:"value"`
-	Creator string         `json:"creator"`
-	LastSet SlackTimeStamp `json:"last_set"`
+	Value   string    `json:"value"`
+	Creator string    `json:"creator"`
+	LastSet TimeStamp `json:"last_set"`
 }
 
 type Purpose struct {
-	Value   string         `json:"value"`
-	Creator string         `json:"creator"`
-	LastSet SlackTimeStamp `json:"last_set"`
+	Value   string    `json:"value"`
+	Creator string    `json:"creator"`
+	LastSet TimeStamp `json:"last_set"`
 }
 
 type Message struct {
@@ -86,41 +88,41 @@ type Message struct {
 }
 
 type Channel struct {
-	ID                 string         `json:"id"`
-	Created            SlackTimeStamp `json:"created"`
-	IsOpen             bool           `json:"is_open"`
-	LastRead           string         `json:"last_read,omitempty"`
-	Latest             *Message       `json:"latest,omitempty"`
-	UnreadCount        int            `json:"unread_count,omitempty"`
-	UnreadCountDisplay int            `json:"unread_count_display,omitempty"`
-	Name               string         `json:"name"`
-	Creator            string         `json:"creator"`
-	IsArchived         bool           `json:"is_archived"`
-	Members            []string       `json:"members"`
-	NumMembers         int            `json:"num_members,omitempty"`
-	Topic              Topic          `json:"topic"`
-	Purpose            Purpose        `json:"purpose"`
-	IsChannel          bool           `json:"is_channel"`
-	IsGeneral          bool           `json:"is_general"`
-	IsMember           bool           `json:"is_member"`
+	ID                 string    `json:"id"`
+	Created            TimeStamp `json:"created"`
+	IsOpen             bool      `json:"is_open"`
+	LastRead           string    `json:"last_read,omitempty"`
+	Latest             *Message  `json:"latest,omitempty"`
+	UnreadCount        int       `json:"unread_count,omitempty"`
+	UnreadCountDisplay int       `json:"unread_count_display,omitempty"`
+	Name               string    `json:"name"`
+	Creator            string    `json:"creator"`
+	IsArchived         bool      `json:"is_archived"`
+	Members            []string  `json:"members"`
+	NumMembers         int       `json:"num_members,omitempty"`
+	Topic              Topic     `json:"topic"`
+	Purpose            Purpose   `json:"purpose"`
+	IsChannel          bool      `json:"is_channel"`
+	IsGeneral          bool      `json:"is_general"`
+	IsMember           bool      `json:"is_member"`
 }
 
 type Group struct {
-	ID                 string         `json:"id"`
-	Created            SlackTimeStamp `json:"created"`
-	IsOpen             bool           `json:"is_open"`
-	LastRead           string         `json:"last_read,omitempty"`
-	Latest             *Message       `json:"latest,omitempty"`
-	UnreadCount        int            `json:"unread_count,omitempty"`
-	UnreadCountDisplay int            `json:"unread_count_display,omitempty"`
-	Name               string         `json:"name"`
-	Creator            string         `json:"creator"`
-	IsArchived         bool           `json:"is_archived"`
-	Members            []string       `json:"members"`
-	NumMembers         int            `json:"num_members,omitempty"`
-	Topic              Topic          `json:"topic"`
-	Purpose            Purpose        `json:"purpose"`
-	IsGroup            bool           `json:"is_group"`
+	ID                 string    `json:"id"`
+	Created            TimeStamp `json:"created"`
+	IsOpen             bool      `json:"is_open"`
+	LastRead           string    `json:"last_read,omitempty"`
+	Latest             *Message  `json:"latest,omitempty"`
+	UnreadCount        int       `json:"unread_count,omitempty"`
+	UnreadCountDisplay int       `json:"unread_count_display,omitempty"`
+	Name               string    `json:"name"`
+	Creator            string    `json:"creator"`
+	IsArchived         bool      `json:"is_archived"`
+	Members            []string  `json:"members"`
+	NumMembers         int       `json:"num_members,omitempty"`
+	Topic              Topic     `json:"topic"`
+	Purpose            Purpose   `json:"purpose"`
+	IsGroup            bool      `json:"is_group"`
 }
 
 type Icons struct {
@@ -136,7 +138,7 @@ type Bot struct {
 
 type IM struct {
 	ID                 string                 `json:"id"`
-	Created            SlackTimeStamp         `json:"created"`
+	Created            TimeStamp              `json:"created"`
 	IsOpen             bool                   `json:"is_open"`
 	LastRead           string                 `json:"last_read,omitempty"`
 	Latest             *Message               `json:"latest,omitempty"`

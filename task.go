@@ -97,5 +97,5 @@ func (e *TaskInsufficientArgumentError) Error() string {
 }
 
 func NewTaskInsufficientArgumentError(argName string) *TaskInsufficientArgumentError {
-	return &TaskInsufficientArgumentError{Err: fmt.Sprintf("% must be set.", argName)}
+	return &TaskInsufficientArgumentError{Err: fmt.Sprintf("%s must be set.", argName)}
 }
