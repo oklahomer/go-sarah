@@ -33,11 +33,11 @@ func (adapter *Adapter) BotType() sarah.BotType {
 }
 
 // Run fetches all belonging Room and connects to them.
-func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.BotInput, errCh chan<- error) {
+func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errCh chan<- error) {
 	// fetch joined rooms
 	rooms, err := adapter.fetchRooms(ctx)
 	if err != nil {
-		errCh <- sarah.NewBotAdapterNonContinuableError(err.Error())
+		errCh <- sarah.NewAdapterNonContinuableError(err.Error())
 		return
 	}
 
@@ -47,7 +47,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Bo
 }
 
 // SendMessage let Bot send message to gitter.
-func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.BotOutput) {
+func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	switch content := output.Content().(type) {
 	case string:
 		room, ok := output.Destination().(*Room)
@@ -61,7 +61,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.BotOutput)
 	}
 }
 
-func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMessage chan<- sarah.BotInput) {
+func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMessage chan<- sarah.Input) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -103,7 +103,7 @@ func (adapter *Adapter) fetchRooms(ctx context.Context) (*Rooms, error) {
 	return rooms, err
 }
 
-func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage chan<- sarah.BotInput) error {
+func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage chan<- sarah.Input) error {
 	log.Infof("start receiving message")
 	for {
 		message, err := messageReceiver.Receive()

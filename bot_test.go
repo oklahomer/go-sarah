@@ -18,10 +18,10 @@ func (adapter *NullAdapter) BotType() BotType {
 	return adapter.botType
 }
 
-func (adapter *NullAdapter) Run(_ context.Context, _ chan<- BotInput, _ chan<- error) {
+func (adapter *NullAdapter) Run(_ context.Context, _ chan<- Input, _ chan<- error) {
 }
 
-func (adapter *NullAdapter) SendMessage(_ context.Context, _ BotOutput) {
+func (adapter *NullAdapter) SendMessage(_ context.Context, _ Output) {
 }
 
 func NewNullAdapter() *NullAdapter {
@@ -51,7 +51,7 @@ func (c *nullCommand) Identifier() string {
 	return "fooBarBuzz"
 }
 
-func (c *nullCommand) Execute(input BotInput) (*PluginResponse, error) {
+func (c *nullCommand) Execute(input Input) (*PluginResponse, error) {
 	return nil, nil
 }
 
@@ -74,7 +74,7 @@ func TestAppendCommandBuilder(t *testing.T) {
 			ConfigStruct(NullConfig).
 			Identifier("fooCommand").
 			Example("example text").
-			Func(func(_ context.Context, strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
+			Func(func(_ context.Context, strippedMessage string, input Input, _ CommandConfig) (*PluginResponse, error) {
 				return nil, nil
 			})
 	AppendCommandBuilder(FOO, commandBuilder)
@@ -89,9 +89,9 @@ func TestAppendCommandBuilder(t *testing.T) {
 }
 
 func TestNewBotRunner(t *testing.T) {
-	runner := NewBotRunner()
+	runner := NewRunner()
 
-	if runner.botProperties == nil {
+	if runner.bots == nil {
 		t.Error("botProperties is nil")
 	}
 
@@ -103,12 +103,15 @@ func TestNewBotRunner(t *testing.T) {
 func TestBotRunner_AddAdapter(t *testing.T) {
 	adapter := NewNullAdapter()
 
-	runner := NewBotRunner()
+	runner := NewRunner()
 	runner.AddAdapter(adapter, "")
 
-	stashedBotProperties := runner.botProperties[0]
+	bot, ok := runner.bots[0].(*bot)
+	if !ok {
+		t.Fatal("registered bot is not type of default bot")
+	}
 
-	if stashedBotProperties.adapter != adapter {
+	if bot.adapter != adapter {
 		t.Error("wrong adapter is stashed")
 	}
 }
@@ -124,7 +127,7 @@ func TestBotRunner_AddAdapter_DuplicationPanic(t *testing.T) {
 	var BAR BotType = "foo" // Same value as default FOO.
 	secondAdapter := NewNullAdapterWithBotType(BAR)
 
-	runner := NewBotRunner()
+	runner := NewRunner()
 	runner.AddAdapter(firstAdapter, "")
 	runner.AddAdapter(secondAdapter, "")
 }
@@ -132,7 +135,7 @@ func TestBotRunner_AddAdapter_DuplicationPanic(t *testing.T) {
 func TestBotRunner_Run_Stop(t *testing.T) {
 	rootCtx := context.Background()
 	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
-	runner := NewBotRunner()
+	runner := NewRunner()
 	runner.Run(runnerCtx)
 
 	time.Sleep(300 * time.Millisecond)
@@ -159,7 +162,7 @@ func TestStopUnrecoverableAdapter(t *testing.T) {
 		return
 	}
 
-	errCh <- NewBotAdapterNonContinuableError("")
+	errCh <- NewAdapterNonContinuableError("")
 
 	time.Sleep(100 * time.Millisecond)
 	if err := adapterCtx.Err(); err == nil {

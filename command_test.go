@@ -26,7 +26,7 @@ func TestInsufficientSettings(t *testing.T) {
 		}
 	}
 
-	builder.Func(func(_ context.Context, strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
+	builder.Func(func(_ context.Context, strippedMessage string, input Input, _ CommandConfig) (*PluginResponse, error) {
 		return &PluginResponse{
 			Content: strippedMessage,
 		}, nil
@@ -43,7 +43,7 @@ func (abandonedCommand *abandonedCommand) Identifier() string {
 	return "arbitraryStringThatWouldNeverBeRecognized"
 }
 
-func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ string, _ BotInput) (*PluginResponse, error) {
+func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ string, _ Input) (*PluginResponse, error) {
 	return nil, nil
 }
 
@@ -65,7 +65,7 @@ func (echoCommand *echoCommand) Identifier() string {
 	return "echo"
 }
 
-func (echoCommand *echoCommand) Execute(_ context.Context, strippedMessage string, input BotInput) (*PluginResponse, error) {
+func (echoCommand *echoCommand) Execute(_ context.Context, strippedMessage string, input Input) (*PluginResponse, error) {
 	return &PluginResponse{Content: input.Message()}, nil
 }
 

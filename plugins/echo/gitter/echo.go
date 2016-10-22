@@ -11,7 +11,7 @@ var (
 	identifier = "echo"
 )
 
-func echo(_ context.Context, strippedMessage string, _ sarah.BotInput, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
+func echo(_ context.Context, strippedMessage string, _ sarah.Input, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
 	return gitter.NewStringResponse(strippedMessage), nil
 }
 

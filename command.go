@@ -15,7 +15,7 @@ var (
 	NullConfig = &nullConfig{}
 )
 
-type ContextualFunc func(context.Context, BotInput) (*PluginResponse, error)
+type ContextualFunc func(context.Context, Input) (*PluginResponse, error)
 
 // PluginResponse is returned by Command or Task when the execution is finished.
 type PluginResponse struct {
@@ -27,7 +27,7 @@ type PluginResponse struct {
 type Command interface {
 	Identifier() string
 
-	Execute(context.Context, string, BotInput) (*PluginResponse, error)
+	Execute(context.Context, string, Input) (*PluginResponse, error)
 
 	Example() string
 
@@ -65,7 +65,7 @@ func (command *simpleCommand) StripMessage(input string) string {
 	return strings.TrimSpace(text)
 }
 
-func (command *simpleCommand) Execute(ctx context.Context, strippedMessage string, input BotInput) (*PluginResponse, error) {
+func (command *simpleCommand) Execute(ctx context.Context, strippedMessage string, input Input) (*PluginResponse, error) {
 	return command.commandFunc(ctx, strippedMessage, input, command.config)
 }
 
@@ -103,7 +103,7 @@ func (commands *Commands) FindFirstMatched(text string) Command {
 }
 
 // ExecuteFirstMatched tries find matching command with the given input, and execute it if one is available.
-func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input BotInput) (*PluginResponse, error) {
+func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) (*PluginResponse, error) {
 	inputMessage := input.Message()
 	command := commands.FindFirstMatched(inputMessage)
 	if command == nil {
@@ -119,7 +119,7 @@ type nullConfig struct{}
 type CommandConfig interface{}
 
 // commandFunc is a function type that represents command function
-type commandFunc func(context.Context, string, BotInput, CommandConfig) (*PluginResponse, error)
+type commandFunc func(context.Context, string, Input, CommandConfig) (*PluginResponse, error)
 
 type commandBuilder struct {
 	identifier   string

@@ -20,7 +20,7 @@ var pingSignalChannelId string = "ping"
 /*
 Adapter internally calls Slack Rest API and Real Time Messaging API to offer clients easy way to communicate with Slack.
 
-This implements sarah.BotAdapter interface, so this instance can be fed to sarah.Bot instance as below.
+This implements sarah.Adapter interface, so this instance can be fed to sarah.Bot instance as below.
 
   bot := sarah.NewBot()
   bot.AddAdapter(slack.NewAdapter("myToken"), "/path/to/plugin/config.yml")
@@ -47,11 +47,11 @@ func (adapter *Adapter) BotType() sarah.BotType {
 	return SLACK
 }
 
-func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.BotInput, errCh chan<- error) {
+func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errCh chan<- error) {
 	for {
 		conn, err := adapter.connect(ctx)
 		if err != nil {
-			errCh <- sarah.NewBotAdapterNonContinuableError(err.Error())
+			errCh <- sarah.NewAdapterNonContinuableError(err.Error())
 			return
 		}
 
@@ -126,7 +126,7 @@ func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) 
 	return connectRtm(ctx, adapter.RtmAPIClient, rtmInfo)
 }
 
-func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, receivedMessage chan<- sarah.BotInput) {
+func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, receivedMessage chan<- sarah.Input) {
 	for {
 		select {
 		case <-connCtx.Done():
@@ -190,7 +190,7 @@ type textMessage struct {
 }
 
 // SendMessage let Bot send message to Slack.
-func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.BotOutput) {
+func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	switch content := output.Content().(type) {
 	case string:
 		channel, ok := output.Destination().(*rtmapi.Channel)
@@ -251,12 +251,12 @@ func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc
 }
 
 // NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
-func NewPostMessageResponse(input sarah.BotInput, message string, attachments []*webapi.MessageAttachment) *sarah.PluginResponse {
+func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.PluginResponse {
 	return NewPostMessageResponseWithNext(input, message, attachments, nil)
 }
 
 // NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.
-func NewPostMessageResponseWithNext(input sarah.BotInput, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.PluginResponse {
+func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.PluginResponse {
 	inputMessage, _ := input.(*rtmapi.Message)
 	return &sarah.PluginResponse{
 		Content: webapi.NewPostMessageWithAttachments(inputMessage.Channel.Name, message, attachments),
