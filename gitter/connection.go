@@ -81,7 +81,7 @@ func decodePayload(payload []byte) (*Message, error) {
 }
 
 // MessageWithRoom stashes received Message and additional Room information.
-// This implements BotInput.
+// This implements Input.
 type RoomMessage struct {
 	Room            *Room
 	ReceivedMessage *Message

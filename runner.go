@@ -8,11 +8,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-var (
-	stashedCommandBuilder       = map[BotType][]*commandBuilder{}
-	stashedScheduledTaskBuilder = map[BotType][]*scheduledTaskBuilder{}
-)
-
 /*
 Runner is the core of sarah.
 
@@ -71,30 +66,26 @@ func (runner *Runner) Run(ctx context.Context) {
 		adapterCtx, cancelAdapter := context.WithCancel(ctx)
 
 		// build commands with stashed builder settings
-		if builders, ok := stashedCommandBuilder[botType]; ok {
-			commands := buildCommands(builders, bot.PluginConfigDir())
-			for _, command := range commands {
-				bot.AppendCommand(command)
-			}
+		commands := stashedCommandBuilders.build(botType, bot.PluginConfigDir())
+		for _, command := range commands {
+			bot.AppendCommand(command)
 		}
 
 		// build scheduled task with stashed builder settings
-		if builders, ok := stashedScheduledTaskBuilder[botType]; ok {
-			tasks := buildScheduledTasks(builders, bot.PluginConfigDir())
-			for _, task := range tasks {
-				runner.cron.AddFunc(task.config.Schedule(), func() {
-					res, err := task.Execute(adapterCtx)
-					if err != nil {
-						log.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
-						return
-					} else if res == nil {
-						return
-					}
+		tasks := stashedScheduledTaskBuilders.build(botType, bot.PluginConfigDir())
+		for _, task := range tasks {
+			runner.cron.AddFunc(task.config.Schedule(), func() {
+				res, err := task.Execute(adapterCtx)
+				if err != nil {
+					log.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
+					return
+				} else if res == nil {
+					return
+				}
 
-					message := NewOutputMessage(task.config.Destination(), res.Content)
-					bot.SendMessage(adapterCtx, message)
-				})
-			}
+				message := NewOutputMessage(task.config.Destination(), res.Content)
+				bot.SendMessage(adapterCtx, message)
+			})
 		}
 
 		// run Adapter
@@ -135,19 +126,19 @@ func (runner *Runner) respond(adapterCtx context.Context, bot Bot, inputReceiver
 		case <-adapterCtx.Done():
 			log.Info("stop responding to message due to context cancel")
 			return
-		case botInput := <-inputReceiver:
-			log.Debugf("responding to %#v", botInput)
+		case input := <-inputReceiver:
+			log.Debugf("responding to %#v", input)
 
 			runner.EnqueueJob(func() {
-				res, err := bot.Respond(adapterCtx, botInput)
+				res, err := bot.Respond(adapterCtx, input)
 				if err != nil {
-					log.Errorf("error on message handling. botInput: %s. error: %#v.", botInput, err.Error())
+					log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
 					return
 				} else if res == nil {
 					return
 				}
 
-				message := NewOutputMessage(botInput.ReplyTo(), res.Content)
+				message := NewOutputMessage(input.ReplyTo(), res.Content)
 				bot.SendMessage(adapterCtx, message)
 			})
 		}
@@ -157,59 +148,4 @@ func (runner *Runner) respond(adapterCtx context.Context, bot Bot, inputReceiver
 // EnqueueJob can be used to enqueue task to Runner's internal workers.
 func (runner *Runner) EnqueueJob(job func()) {
 	runner.worker.EnqueueJob(job)
-}
-
-/*
-AppendCommandBuilder appends given commandBuilder to internal stash.
-Stashed builder is used to configure and build Command instance on Runner's initialization.
-*/
-func AppendCommandBuilder(botType BotType, builder *commandBuilder) {
-	log.Infof("appending command builder for %s. builder %#v.", botType, builder)
-	_, ok := stashedCommandBuilder[botType]
-	if !ok {
-		stashedCommandBuilder[botType] = make([]*commandBuilder, 0)
-	}
-
-	stashedCommandBuilder[botType] = append(stashedCommandBuilder[botType], builder)
-}
-
-func AppendScheduledTaskBuilder(botType BotType, builder *scheduledTaskBuilder) {
-	log.Infof("appending scheduled task builder for %s. builder %#v.", botType, builder)
-	_, ok := stashedScheduledTaskBuilder[botType]
-	if !ok {
-		stashedScheduledTaskBuilder[botType] = make([]*scheduledTaskBuilder, 0)
-	}
-
-	stashedScheduledTaskBuilder[botType] = append(stashedScheduledTaskBuilder[botType], builder)
-}
-
-/*
-buildCommands configures and creates Command instances with given stashed CommandBuilders
-*/
-func buildCommands(builders []*commandBuilder, configDir string) []Command {
-	commands := []Command{}
-	for _, builder := range builders {
-		command, err := builder.build(configDir)
-		if err != nil {
-			log.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.identifier, err.Error()))
-			continue
-		}
-		commands = append(commands, command)
-	}
-
-	return commands
-}
-
-func buildScheduledTasks(builders []*scheduledTaskBuilder, configDir string) []*scheduledTask {
-	scheduledTasks := []*scheduledTask{}
-	for _, builder := range builders {
-		task, err := builder.build(configDir)
-		if err != nil {
-			log.Errorf(fmt.Sprintf("can't configure plugin: %s. error: %s.", builder.identifier, err.Error()))
-			continue
-		}
-		scheduledTasks = append(scheduledTasks, task)
-	}
-
-	return scheduledTasks
 }

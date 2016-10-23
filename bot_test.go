@@ -40,7 +40,7 @@ func TestBotType_String(t *testing.T) {
 }
 
 func resetStashedBuilder() {
-	stashedCommandBuilder = map[BotType][]*commandBuilder{}
+	stashedCommandBuilders = &commandBuilderStash{}
 	stashedScheduledTaskBuilder = map[BotType][]*scheduledTaskBuilder{}
 }
 
@@ -65,27 +65,6 @@ func (c *nullCommand) Match(input string) bool {
 
 func (c *nullCommand) StripCommand(input string) string {
 	return input
-}
-
-func TestAppendCommandBuilder(t *testing.T) {
-	resetStashedBuilder()
-	commandBuilder :=
-		NewCommandBuilder().
-			ConfigStruct(NullConfig).
-			Identifier("fooCommand").
-			Example("example text").
-			Func(func(_ context.Context, strippedMessage string, input Input, _ CommandConfig) (*PluginResponse, error) {
-				return nil, nil
-			})
-	AppendCommandBuilder(FOO, commandBuilder)
-
-	stashedBuilders := stashedCommandBuilder[FOO]
-	if size := len(stashedBuilders); size != 1 {
-		t.Errorf("1 commandBuilder was expected to be stashed, but was %d", size)
-	}
-	if builder := stashedBuilders[0]; builder != commandBuilder {
-		t.Errorf("stashed commandBuilder is somewhat different. %#v", builder)
-	}
 }
 
 func TestNewBotRunner(t *testing.T) {

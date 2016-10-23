@@ -35,21 +35,21 @@ func (bot *bot) BotType() BotType {
 	return bot.adapter.BotType()
 }
 
-func (bot *bot) Respond(ctx context.Context, botInput Input) (*PluginResponse, error) {
-	senderKey := botInput.SenderKey()
+func (bot *bot) Respond(ctx context.Context, input Input) (*PluginResponse, error) {
+	senderKey := input.SenderKey()
 	userContext := bot.userContextCache.Get(senderKey)
 
 	if userContext == nil {
-		return bot.commands.ExecuteFirstMatched(ctx, botInput)
+		return bot.commands.ExecuteFirstMatched(ctx, input)
 	}
 
 	bot.userContextCache.Delete(senderKey)
-	if strings.TrimSpace(botInput.Message()) == ".abort" {
+	if strings.TrimSpace(input.Message()) == ".abort" {
 		// abort
 		return nil, nil
 	}
 	fn := userContext.Next
-	res, err := fn(ctx, botInput)
+	res, err := fn(ctx, input)
 	if err != nil {
 		return nil, err
 	}

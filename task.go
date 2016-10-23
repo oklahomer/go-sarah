@@ -15,12 +15,6 @@ type ScheduledTaskConfig interface {
 	Destination() OutputDestination
 }
 
-type Task interface {
-	Identifier() string
-
-	Execute(context.Context) (*PluginResponse, error)
-}
-
 type scheduledTask struct {
 	identifier string
 

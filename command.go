@@ -151,7 +151,7 @@ func (builder *commandBuilder) ConfigStruct(config CommandConfig) *commandBuilde
 
 /*
 MatchPattern is a setter to provide command match pattern.
-This regular expression is used to find matching command with given BotInput.
+This regular expression is used to find matching command with given Input.
 */
 func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) *commandBuilder {
 	builder.matchPattern = pattern

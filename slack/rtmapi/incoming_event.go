@@ -72,7 +72,7 @@ type Message struct {
 	TimeStamp *TimeStamp             `json:"ts"`
 }
 
-// Let Message implement BotInput
+// Let Message implement Input
 
 /*
 SenderKey returns string representing message sender.
