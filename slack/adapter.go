@@ -51,7 +51,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.In
 	for {
 		conn, err := adapter.connect(ctx)
 		if err != nil {
-			errCh <- sarah.NewAdapterNonContinuableError(err.Error())
+			errCh <- sarah.NewBotNonContinuableError(err.Error())
 			return
 		}
 

@@ -41,7 +41,7 @@ func TestBotType_String(t *testing.T) {
 
 func resetStashedBuilder() {
 	stashedCommandBuilders = &commandBuilderStash{}
-	stashedScheduledTaskBuilder = map[BotType][]*scheduledTaskBuilder{}
+	stashedScheduledTaskBuilders = &scheduledTaskBuilderStash{}
 }
 
 type nullCommand struct {
@@ -135,13 +135,13 @@ func TestStopUnrecoverableAdapter(t *testing.T) {
 	adapterCtx, cancelAdapter := context.WithCancel(rootCtx)
 	errCh := make(chan error)
 
-	go stopUnrecoverableAdapter(errCh, cancelAdapter)
+	go stopUnrecoverableBot(errCh, cancelAdapter)
 	if err := adapterCtx.Err(); err != nil {
 		t.Error("ctx.Err() should be nil at this point")
 		return
 	}
 
-	errCh <- NewAdapterNonContinuableError("")
+	errCh <- NewBotNonContinuableError("")
 
 	time.Sleep(100 * time.Millisecond)
 	if err := adapterCtx.Err(); err == nil {

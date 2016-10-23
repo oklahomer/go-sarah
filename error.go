@@ -1,23 +1,23 @@
 package sarah
 
 /*
-AdapterNonContinuableError represents critical error that Adapter can't continue its operation.
-When Runner receives this, Runner must stop corresponding adapter.
+BotNonContinuableError represents critical error that Bot can't continue its operation.
+When Runner receives this, Runner must stop corresponding Bot.
 */
-type AdapterNonContinuableError struct {
+type BotNonContinuableError struct {
 	err string
 }
 
 /*
-Error returns detailed error about Adapter's non-continuable state.
+Error returns detailed error about Bot's non-continuable state.
 */
-func (e AdapterNonContinuableError) Error() string {
+func (e BotNonContinuableError) Error() string {
 	return e.err
 }
 
 /*
-NewAdapterNonContinuableError creates and return new AdapterNonContinuableError instance.
+NewBotNonContinuableError creates and return new BotNonContinuableError instance.
 */
-func NewAdapterNonContinuableError(errorContent string) error {
-	return &AdapterNonContinuableError{err: errorContent}
+func NewBotNonContinuableError(errorContent string) error {
+	return &BotNonContinuableError{err: errorContent}
 }

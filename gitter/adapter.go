@@ -37,7 +37,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.In
 	// fetch joined rooms
 	rooms, err := adapter.fetchRooms(ctx)
 	if err != nil {
-		errCh <- sarah.NewAdapterNonContinuableError(err.Error())
+		errCh <- sarah.NewBotNonContinuableError(err.Error())
 		return
 	}
 

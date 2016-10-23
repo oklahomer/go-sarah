@@ -63,7 +63,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		log.Infof("starting %s", botType.String())
 
 		// each Bot has its own context propagating Runner's lifecycle
-		adapterCtx, cancelAdapter := context.WithCancel(ctx)
+		botCtx, cancelBot := context.WithCancel(ctx)
 
 		// build commands with stashed builder settings
 		commands := stashedCommandBuilders.build(botType, bot.PluginConfigDir())
@@ -75,7 +75,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		tasks := stashedScheduledTaskBuilders.build(botType, bot.PluginConfigDir())
 		for _, task := range tasks {
 			runner.cron.AddFunc(task.config.Schedule(), func() {
-				res, err := task.Execute(adapterCtx)
+				res, err := task.Execute(botCtx)
 				if err != nil {
 					log.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
 					return
@@ -84,31 +84,31 @@ func (runner *Runner) Run(ctx context.Context) {
 				}
 
 				message := NewOutputMessage(task.config.Destination(), res.Content)
-				bot.SendMessage(adapterCtx, message)
+				bot.SendMessage(botCtx, message)
 			})
 		}
 
-		// run Adapter
+		// run Bot
 		inputReceiver := make(chan Input)
 		errCh := make(chan error)
-		go runner.respond(adapterCtx, bot, inputReceiver)
-		go stopUnrecoverableAdapter(errCh, cancelAdapter)
-		go bot.Run(adapterCtx, inputReceiver, errCh)
+		go runner.respond(botCtx, bot, inputReceiver)
+		go stopUnrecoverableBot(errCh, cancelBot)
+		go bot.Run(botCtx, inputReceiver, errCh)
 	}
 
 	runner.cron.Start()
 }
 
 /*
-stopUnrecoverableAdapter receives error from Adapter, check if the error is critical, and stop the adapter if required.
+stopUnrecoverableBot receives error from Bot, check if the error is critical, and stop the bot if required.
 */
-func stopUnrecoverableAdapter(errNotifier <-chan error, stopAdapter context.CancelFunc) {
+func stopUnrecoverableBot(errNotifier <-chan error, stopBot context.CancelFunc) {
 	for {
 		err := <-errNotifier
 		switch err := err.(type) {
-		case *AdapterNonContinuableError:
-			log.Errorf("stop unrecoverable adapter: %s", err.Error())
-			stopAdapter()
+		case *BotNonContinuableError:
+			log.Errorf("stop unrecoverable bot: %s", err.Error())
+			stopBot()
 			return
 		}
 	}
@@ -120,17 +120,17 @@ respond listens to incoming messages via channel.
 Each Adapter enqueues incoming messages to runner's listening channel, and respond() receives them.
 When corresponding command is found, command is executed and the result can be passed to Bot's SendMessage method.
 */
-func (runner *Runner) respond(adapterCtx context.Context, bot Bot, inputReceiver <-chan Input) {
+func (runner *Runner) respond(botCtx context.Context, bot Bot, inputReceiver <-chan Input) {
 	for {
 		select {
-		case <-adapterCtx.Done():
+		case <-botCtx.Done():
 			log.Info("stop responding to message due to context cancel")
 			return
 		case input := <-inputReceiver:
 			log.Debugf("responding to %#v", input)
 
 			runner.EnqueueJob(func() {
-				res, err := bot.Respond(adapterCtx, input)
+				res, err := bot.Respond(botCtx, input)
 				if err != nil {
 					log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
 					return
@@ -139,7 +139,7 @@ func (runner *Runner) respond(adapterCtx context.Context, bot Bot, inputReceiver
 				}
 
 				message := NewOutputMessage(input.ReplyTo(), res.Content)
-				bot.SendMessage(adapterCtx, message)
+				bot.SendMessage(botCtx, message)
 			})
 		}
 	}

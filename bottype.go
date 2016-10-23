@@ -1,6 +1,6 @@
 package sarah
 
-// BotType indicates what bot implementation a particular Adapter/Plugin is corresponding to.
+// BotType indicates what bot implementation a particular Bot/Plugin is corresponding to.
 type BotType string
 
 // String returns a stringified form of BotType
