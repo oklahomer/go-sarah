@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"golang.org/x/net/context"
 	"testing"
 	"time"
 )
@@ -15,10 +16,11 @@ func TestNew(t *testing.T) {
 
 func TestWorker_Run(t *testing.T) {
 	worker := New()
-	cancel := make(chan struct{})
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
 
 	// Start worker
-	err := worker.Run(cancel, 5)
+	err := worker.Run(ctx, 5)
 	if err != nil {
 		t.Fatalf("failed to run. %s", err.Error())
 	}
@@ -39,13 +41,13 @@ func TestWorker_Run(t *testing.T) {
 	}
 
 	// Error should return on multiple Run call
-	err = worker.Run(cancel, 5)
+	err = worker.Run(ctx, 5)
 	if err == nil {
 		t.Error("worker.Run is called multiple times")
 	}
 
 	// Stop worker
-	close(cancel)
+	cancel()
 	time.Sleep(100 * time.Millisecond)
 	if worker.IsRunning() != false {
 		t.Error("worker.IsRunning still returns true after cancelation")

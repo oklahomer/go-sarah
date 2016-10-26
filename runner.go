@@ -56,7 +56,7 @@ Run starts Bot interaction.
 At this point Runner starts its internal workers, runs each bot, and starts listening to incoming messages.
 */
 func (runner *Runner) Run(ctx context.Context) {
-	runner.worker.Run(ctx.Done(), 10)
+	runner.worker.Run(ctx, 10)
 
 	for _, bot := range runner.bots {
 		botType := bot.BotType()
