@@ -37,7 +37,7 @@ func (worker *Worker) Run(ctx context.Context, workerNum uint) error {
 	worker.mutex.Lock()
 	defer worker.mutex.Unlock()
 
-	if worker.isRunning == true {
+	if worker.isRunning {
 		return errors.New("workers are already running")
 	}
 

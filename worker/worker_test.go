@@ -19,6 +19,10 @@ func TestWorker_Run(t *testing.T) {
 	rootCtx := context.Background()
 	ctx, cancel := context.WithCancel(rootCtx)
 
+	if worker.isRunning {
+		t.Fatal("status says running before Run.")
+	}
+
 	// Start worker
 	err := worker.Run(ctx, 5)
 	if err != nil {
