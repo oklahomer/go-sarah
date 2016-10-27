@@ -3,149 +3,78 @@ package sarah
 import (
 	"golang.org/x/net/context"
 	"testing"
-	"time"
 )
 
-var (
-	FOO BotType = "foo"
-)
+const nullBotType BotType = "nullType"
 
-type NullAdapter struct {
-	botType BotType
+type nullAdapter struct {
 }
 
-func (adapter *NullAdapter) BotType() BotType {
-	return adapter.botType
+func (a *nullAdapter) BotType() BotType {
+	return nullBotType
 }
 
-func (adapter *NullAdapter) Run(_ context.Context, _ chan<- Input, _ chan<- error) {
-}
+func (a *nullAdapter) Run(_ context.Context, input chan<- Input, errChan chan<- error) {}
 
-func (adapter *NullAdapter) SendMessage(_ context.Context, _ Output) {
-}
+func (a *nullAdapter) SendMessage(_ context.Context, _ Output) {}
 
-func NewNullAdapter() *NullAdapter {
-	return NewNullAdapterWithBotType(FOO)
-}
-
-func NewNullAdapterWithBotType(botType BotType) *NullAdapter {
-	return &NullAdapter{botType: botType}
-}
-
-func TestBotType_String(t *testing.T) {
-	var BAR BotType = "myNewBotType"
-	if BAR.String() != "myNewBotType" {
-		t.Errorf("BotType does not return expected value. expected 'myNewBotType', but was '%s'.", BAR.String())
+func TestNewBot(t *testing.T) {
+	adapter := &nullAdapter{}
+	myBot := newBot(adapter, "")
+	if _, ok := myBot.(*bot); !ok {
+		t.Errorf("newBot did not return bot instance. %#v", myBot)
 	}
 }
 
-func resetStashedBuilder() {
-	stashedCommandBuilders = &commandBuilderStash{}
-	stashedScheduledTaskBuilders = &scheduledTaskBuilderStash{}
-}
+func TestBot_BotType(t *testing.T) {
+	adapter := &nullAdapter{}
+	bot := newBot(adapter, "")
 
-type nullCommand struct {
-}
-
-func (c *nullCommand) Identifier() string {
-	return "fooBarBuzz"
-}
-
-func (c *nullCommand) Execute(input Input) (*PluginResponse, error) {
-	return nil, nil
-}
-
-func (c *nullCommand) Example() string {
-	return "dummy"
-}
-
-func (c *nullCommand) Match(input string) bool {
-	return true
-}
-
-func (c *nullCommand) StripCommand(input string) string {
-	return input
-}
-
-func TestNewBotRunner(t *testing.T) {
-	runner := NewRunner()
-
-	if runner.bots == nil {
-		t.Error("botProperties is nil")
-	}
-
-	if runner.worker == nil {
-		t.Error("worker is nil")
+	if bot.BotType() != nullBotType {
+		t.Errorf("bot type is wrong %s", bot.BotType())
 	}
 }
 
-func TestBotRunner_AddAdapter(t *testing.T) {
-	adapter := NewNullAdapter()
+func TestBot_PluginConfigDir(t *testing.T) {
+	dummyPluginDir := "/dummy/path/to/config"
+	adapter := &nullAdapter{}
+	bot := newBot(adapter, dummyPluginDir)
 
-	runner := NewRunner()
-	runner.AddAdapter(adapter, "")
-
-	bot, ok := runner.bots[0].(*bot)
-	if !ok {
-		t.Fatal("registered bot is not type of default bot")
-	}
-
-	if bot.adapter != adapter {
-		t.Error("wrong adapter is stashed")
+	if bot.PluginConfigDir() != dummyPluginDir {
+		t.Errorf("plugin configuration file's location is wrong: %s", bot.PluginConfigDir())
 	}
 }
 
-func TestBotRunner_AddAdapter_DuplicationPanic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic did not occur")
-		}
-	}()
-	firstAdapter := NewNullAdapter()
+func TestBot_AppendCommand(t *testing.T) {
+	adapter := &nullAdapter{}
+	myBot := newBot(adapter, "")
 
-	var BAR BotType = "foo" // Same value as default FOO.
-	secondAdapter := NewNullAdapterWithBotType(BAR)
+	command := &abandonedCommand{}
+	myBot.AppendCommand(command)
 
-	runner := NewRunner()
-	runner.AddAdapter(firstAdapter, "")
-	runner.AddAdapter(secondAdapter, "")
-}
-
-func TestBotRunner_Run_Stop(t *testing.T) {
-	rootCtx := context.Background()
-	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
-	runner := NewRunner()
-	runner.Run(runnerCtx)
-
-	time.Sleep(300 * time.Millisecond)
-	if runner.worker.IsRunning() == false {
-		t.Error("worker is not running")
-	}
-
-	cancelRunner()
-
-	time.Sleep(300 * time.Millisecond)
-	if runner.worker.IsRunning() == true {
-		t.Error("worker is still running")
+	registeredCommands := myBot.(*bot).commands
+	if len(registeredCommands.cmd) != 1 {
+		t.Errorf("1 registered command should exists. %#v", registeredCommands)
 	}
 }
 
-func TestStopUnrecoverableAdapter(t *testing.T) {
-	rootCtx := context.Background()
-	adapterCtx, cancelAdapter := context.WithCancel(rootCtx)
-	errCh := make(chan error)
+func TestBot_Respond(t *testing.T) {
+	adapter := &nullAdapter{}
+	bot := newBot(adapter, "")
 
-	go stopUnrecoverableBot(errCh, cancelAdapter)
-	if err := adapterCtx.Err(); err != nil {
-		t.Error("ctx.Err() should be nil at this point")
-		return
+	command := &echoCommand{}
+	bot.AppendCommand(command)
+
+	input := &testInput{}
+	input.message = "echo"
+
+	response, err := bot.Respond(context.Background(), input)
+
+	if err != nil {
+		t.Errorf("error on Bot#Respond. %s", err.Error())
 	}
 
-	errCh <- NewBotNonContinuableError("")
-
-	time.Sleep(100 * time.Millisecond)
-	if err := adapterCtx.Err(); err == nil {
-		t.Error("expecting an error at this point")
-		return
+	if response.Content != input.Message() {
+		t.Errorf("unexpected response content. %#v", response.Content)
 	}
 }

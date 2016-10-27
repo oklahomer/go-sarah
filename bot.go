@@ -35,30 +35,30 @@ func (bot *bot) BotType() BotType {
 	return bot.adapter.BotType()
 }
 
-func (bot *bot) Respond(ctx context.Context, input Input) (*PluginResponse, error) {
+func (bot *bot) Respond(ctx context.Context, input Input) (res *PluginResponse, err error) {
 	senderKey := input.SenderKey()
 	userContext := bot.userContextCache.Get(senderKey)
 
 	if userContext == nil {
-		return bot.commands.ExecuteFirstMatched(ctx, input)
+		res, err = bot.commands.ExecuteFirstMatched(ctx, input)
+	} else {
+		bot.userContextCache.Delete(senderKey)
+		if strings.TrimSpace(input.Message()) == ".abort" {
+			// abort
+			return
+		}
+		res, err = (userContext.Next)(ctx, input)
 	}
 
-	bot.userContextCache.Delete(senderKey)
-	if strings.TrimSpace(input.Message()) == ".abort" {
-		// abort
-		return nil, nil
-	}
-	fn := userContext.Next
-	res, err := fn(ctx, input)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	if res != nil && res.Next != nil {
 		bot.userContextCache.Set(senderKey, NewUserContext(res.Next))
 	}
 
-	return res, err
+	return
 }
 
 func (bot *bot) SendMessage(ctx context.Context, output Output) {
