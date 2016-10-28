@@ -30,7 +30,7 @@ func (c *nullCommand) StripCommand(input string) string {
 }
 
 func TestNewBotRunner(t *testing.T) {
-	runner := NewRunner()
+	runner := NewRunner(NewConfig())
 
 	if runner.bots == nil {
 		t.Error("botProperties is nil")
@@ -44,7 +44,7 @@ func TestNewBotRunner(t *testing.T) {
 func TestBotRunner_AddAdapter(t *testing.T) {
 	adapter := &nullAdapter{}
 
-	runner := NewRunner()
+	runner := NewRunner(NewConfig())
 	runner.AddAdapter(adapter, "")
 
 	bot, ok := runner.bots[0].(*bot)
@@ -67,7 +67,7 @@ func TestBotRunner_AddAdapter(t *testing.T) {
 func TestBotRunner_Run_Stop(t *testing.T) {
 	rootCtx := context.Background()
 	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
-	runner := NewRunner()
+	runner := NewRunner(NewConfig())
 	runner.Run(runnerCtx)
 
 	time.Sleep(300 * time.Millisecond)

@@ -6,7 +6,6 @@ import (
 	"github.com/oklahomer/go-sarah/worker"
 	"github.com/robfig/cron"
 	"golang.org/x/net/context"
-	"time"
 )
 
 /*
@@ -18,16 +17,18 @@ Adapter is responsible for bot-specific implementation such as connection handli
 Developers can register desired number of Adapter and Commands to create own bot.
 */
 type Runner struct {
+	config *Config
 	bots   []Bot
 	worker *worker.Worker
 	cron   *cron.Cron
 }
 
 // NewRunner creates and return new Bot instance.
-func NewRunner() *Runner {
+func NewRunner(config *Config) *Runner {
 	return &Runner{
+		config: config,
 		bots:   []Bot{},
-		worker: worker.New(100),
+		worker: worker.New(config.worker.queueSize),
 		cron:   cron.New(),
 	}
 }
@@ -57,7 +58,7 @@ Run starts Bot interaction.
 At this point Runner starts its internal workers, runs each bot, and starts listening to incoming messages.
 */
 func (runner *Runner) Run(ctx context.Context) {
-	runner.worker.Run(ctx, 10, 60*time.Second)
+	runner.worker.Run(ctx, runner.config.worker.queueSize, runner.config.worker.superviseInterval)
 
 	for _, bot := range runner.bots {
 		botType := bot.BotType()
