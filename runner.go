@@ -6,6 +6,7 @@ import (
 	"github.com/oklahomer/go-sarah/worker"
 	"github.com/robfig/cron"
 	"golang.org/x/net/context"
+	"time"
 )
 
 /*
@@ -26,7 +27,7 @@ type Runner struct {
 func NewRunner() *Runner {
 	return &Runner{
 		bots:   []Bot{},
-		worker: worker.New(),
+		worker: worker.New(100),
 		cron:   cron.New(),
 	}
 }
@@ -56,7 +57,7 @@ Run starts Bot interaction.
 At this point Runner starts its internal workers, runs each bot, and starts listening to incoming messages.
 */
 func (runner *Runner) Run(ctx context.Context) {
-	runner.worker.Run(ctx, 10)
+	runner.worker.Run(ctx, 10, 60*time.Second)
 
 	for _, bot := range runner.bots {
 		botType := bot.BotType()

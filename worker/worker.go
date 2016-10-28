@@ -6,25 +6,26 @@ import (
 	"golang.org/x/net/context"
 	"runtime"
 	"sync"
+	"time"
 )
 
 /*
 Worker holds desired number of child workers when Run is called.
 */
 type Worker struct {
-	jobReceiver chan func()
-	mutex       *sync.Mutex
-	isRunning   bool
+	job       chan func()
+	mutex     *sync.Mutex
+	isRunning bool
 }
 
 /*
 New is a helper function that construct and return new Worker instance.
 */
-func New() *Worker {
+func New(queueSize uint) *Worker {
 	return &Worker{
-		jobReceiver: make(chan func(), 100),
-		mutex:       &sync.Mutex{},
-		isRunning:   false,
+		job:       make(chan func(), queueSize),
+		mutex:     &sync.Mutex{},
+		isRunning: false,
 	}
 }
 
@@ -32,7 +33,7 @@ func New() *Worker {
 Run creates as many child workers as specified and start those child workers.
 First argument, cancel channel, can be context.Context.Done to propagate upstream status change.
 */
-func (worker *Worker) Run(ctx context.Context, workerNum uint) error {
+func (worker *Worker) Run(ctx context.Context, workerNum uint, superviseInterval time.Duration) error {
 	log.Infof("start workers")
 	worker.mutex.Lock()
 	defer worker.mutex.Unlock()
@@ -53,6 +54,10 @@ func (worker *Worker) Run(ctx context.Context, workerNum uint) error {
 		worker.isRunning = false
 	}()
 
+	if superviseInterval > 0 {
+		go worker.superviseQueueLength(ctx, superviseInterval)
+	}
+
 	return nil
 }
 
@@ -64,7 +69,7 @@ func (worker *Worker) runChild(ctx context.Context, workerId uint) {
 		case <-ctx.Done():
 			log.Infof("stopping worker id: %d", workerId)
 			return
-		case job := <-worker.jobReceiver:
+		case job := <-worker.job:
 			log.Debugf("receiving job on worker: %d", workerId)
 			// To avoid given job's panic affect later jobs, wrap them with recover.
 			func() {
@@ -100,5 +105,19 @@ func (worker *Worker) IsRunning() bool {
 EnqueueJob appends new job to be executed.
 */
 func (worker *Worker) EnqueueJob(job func()) {
-	worker.jobReceiver <- job
+	worker.job <- job
+}
+
+func (worker *Worker) superviseQueueLength(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			log.Infof("worker queue length: %d", len(worker.job))
+		}
+	}
 }

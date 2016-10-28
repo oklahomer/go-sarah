@@ -7,15 +7,20 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	worker := New()
+	queueSize := 100
+	worker := New(uint(queueSize))
 
 	if worker.isRunning != false {
 		t.Error("unexpected worker state")
 	}
+
+	if cap(worker.job) != queueSize {
+		t.Errorf("expecting queue size of %d, but was %d.", queueSize, cap(worker.job))
+	}
 }
 
 func TestWorker_Run(t *testing.T) {
-	worker := New()
+	worker := New(100)
 	rootCtx := context.Background()
 	ctx, cancel := context.WithCancel(rootCtx)
 
@@ -24,7 +29,7 @@ func TestWorker_Run(t *testing.T) {
 	}
 
 	// Start worker
-	err := worker.Run(ctx, 5)
+	err := worker.Run(ctx, 5, 0)
 	if err != nil {
 		t.Fatalf("failed to run. %s", err.Error())
 	}
@@ -45,7 +50,7 @@ func TestWorker_Run(t *testing.T) {
 	}
 
 	// Error should return on multiple Run call
-	err = worker.Run(ctx, 5)
+	err = worker.Run(ctx, 5, 0)
 	if err == nil {
 		t.Error("worker.Run is called multiple times")
 	}
