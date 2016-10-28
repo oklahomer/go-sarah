@@ -1,9 +1,13 @@
 package sarah
 
 import (
-	"fmt"
+	"errors"
 	"golang.org/x/net/context"
 	"path"
+)
+
+var (
+	TaskInsufficientArgumentError = errors.New("Identifier, Func and ConfigStruct must be set.")
 )
 
 // commandFunc is a function type that represents command function
@@ -57,14 +61,8 @@ func (builder *scheduledTaskBuilder) ConfigStruct(config ScheduledTaskConfig) *s
 }
 
 func (builder *scheduledTaskBuilder) build(configDir string) (*scheduledTask, error) {
-	if builder.identifier == "" {
-		return nil, NewTaskInsufficientArgumentError("Identifier")
-	}
-	if builder.taskFunc == nil {
-		return nil, NewTaskInsufficientArgumentError("Func")
-	}
-	if builder.config == nil {
-		return nil, NewTaskInsufficientArgumentError("ConfigStruct")
+	if builder.identifier == "" || builder.taskFunc == nil || builder.config == nil {
+		return nil, TaskInsufficientArgumentError
 	}
 
 	taskConfig := builder.config
@@ -80,16 +78,4 @@ func (builder *scheduledTaskBuilder) build(configDir string) (*scheduledTask, er
 		taskFunc:   builder.taskFunc,
 		config:     builder.config,
 	}, nil
-}
-
-type TaskInsufficientArgumentError struct {
-	Err string
-}
-
-func (e *TaskInsufficientArgumentError) Error() string {
-	return e.Err
-}
-
-func NewTaskInsufficientArgumentError(argName string) *TaskInsufficientArgumentError {
-	return &TaskInsufficientArgumentError{Err: fmt.Sprintf("%s must be set.", argName)}
 }

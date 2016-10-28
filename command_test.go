@@ -18,10 +18,7 @@ func TestInsufficientSettings(t *testing.T) {
 	if _, err := builder.build("/path/"); err == nil {
 		t.Error("expected error not given.")
 	} else {
-		switch err.(type) {
-		case *CommandInsufficientArgumentError:
-		// O.K.
-		default:
+		if err != CommandInsufficientArgumentError {
 			t.Errorf("expected error not given. %#v", err)
 		}
 	}

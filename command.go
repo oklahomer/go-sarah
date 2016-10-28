@@ -1,7 +1,7 @@
 package sarah
 
 import (
-	"fmt"
+	"errors"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -13,6 +13,8 @@ import (
 var (
 	// NullConfig is an re-usable CommandConfig instance that can be used to config-free command.
 	NullConfig = &nullConfig{}
+
+	CommandInsufficientArgumentError = errors.New("Identifier, Example, MatchPattern, ConfigStruct and Func must be set.")
 )
 
 type ContextualFunc func(context.Context, Input) (*PluginResponse, error)
@@ -25,6 +27,7 @@ type PluginResponse struct {
 
 // Command defines interface that all Command must satisfy.
 type Command interface {
+	// Identifier returns unique id that represents this Command.
 	Identifier() string
 
 	Execute(context.Context, string, Input) (*PluginResponse, error)
@@ -172,20 +175,13 @@ func (builder *commandBuilder) Example(example string) *commandBuilder {
 
 // build builds new Command instance with provided values.
 func (builder *commandBuilder) build(configDir string) (Command, error) {
-	if builder.identifier == "" {
-		return nil, NewCommandInsufficientArgumentError("command identifier must be set.")
-	}
-	if builder.example == "" {
-		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command example must be set. id: %s", builder.identifier))
-	}
-	if builder.matchPattern == nil {
-		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command constructor must be set. id: %s", builder.identifier))
-	}
-	if builder.config == nil {
-		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command config struct must be set. id: %s", builder.identifier))
-	}
-	if builder.commandFunc == nil {
-		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command function must be set. id: %s", builder.identifier))
+	if builder.identifier == "" ||
+		builder.example == "" ||
+		builder.matchPattern == nil ||
+		builder.config == nil ||
+		builder.commandFunc == nil {
+
+		return nil, CommandInsufficientArgumentError
 	}
 
 	commandConfig := builder.config
@@ -208,21 +204,6 @@ func (builder *commandBuilder) build(configDir string) (Command, error) {
 		commandFunc:  builder.commandFunc,
 		config:       commandConfig,
 	}, nil
-}
-
-// CommandInsufficientArgumentError indicates an error that not enough argument is provided to commandBuilder.
-type CommandInsufficientArgumentError struct {
-	Err string
-}
-
-// Error returns the detailed error about missing argument.
-func (e *CommandInsufficientArgumentError) Error() string {
-	return e.Err
-}
-
-// NewCommandInsufficientArgumentError creates and returns new CommandInsufficientArgumentError instance.
-func NewCommandInsufficientArgumentError(err string) *CommandInsufficientArgumentError {
-	return &CommandInsufficientArgumentError{Err: err}
 }
 
 func readConfig(configPath string, config CommandConfig) error {
