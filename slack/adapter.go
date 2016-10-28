@@ -22,23 +22,23 @@ Adapter internally calls Slack Rest API and Real Time Messaging API to offer cli
 
 This implements sarah.Adapter interface, so this instance can be fed to sarah.Bot instance as below.
 
-  bot := sarah.NewBot()
-  bot.AddAdapter(slack.NewAdapter("myToken"), "/path/to/plugin/config.yml")
-  bot.Run()
+  runner := sarah.NewRunner(sarah.NewConfig())
+  runner.AddAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
+  runner.Run()
 */
 type Adapter struct {
-	// Clients that directly communicate with slack API
+	config       *Config
 	WebAPIClient *webapi.Client
 	RtmAPIClient *rtmapi.Client
 	messageQueue chan *textMessage
 }
 
-// NewAdapter creates new Slacker instance with given settings.
-func NewAdapter(token string) *Adapter {
+func NewAdapter(config *Config) *Adapter {
 	return &Adapter{
-		WebAPIClient: webapi.NewClient(&webapi.Config{Token: token}),
+		config:       config,
+		WebAPIClient: webapi.NewClient(&webapi.Config{Token: config.token}),
 		RtmAPIClient: rtmapi.NewClient(),
-		messageQueue: make(chan *textMessage, 100),
+		messageQueue: make(chan *textMessage, config.sendingQueueSize),
 	}
 }
 
@@ -88,7 +88,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.In
 }
 
 func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSender rtmapi.PayloadSender, tryPing chan struct{}) error {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(adapter.config.pingInterval)
 	defer ticker.Stop()
 
 	for {
@@ -118,12 +118,12 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 
 // connect fetches WebSocket endpoint information via Rest API and establishes WebSocket connection.
 func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) {
-	rtmInfo, err := fetchRtmInfo(ctx, adapter.WebAPIClient)
+	rtmInfo, err := fetchRtmInfo(ctx, adapter.WebAPIClient, adapter.config.retryLimit, adapter.config.retryInterval)
 	if err != nil {
 		return nil, err
 	}
 
-	return connectRtm(ctx, adapter.RtmAPIClient, rtmInfo)
+	return connectRtm(ctx, adapter.RtmAPIClient, rtmInfo, adapter.config.retryLimit, adapter.config.retryInterval)
 }
 
 func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, receivedMessage chan<- sarah.Input) {
@@ -214,25 +214,25 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 }
 
 // fetchRtmInfo fetches Real Time Messaging API information via Rest API endpoint with retries.
-func fetchRtmInfo(ctx context.Context, client *webapi.Client) (*webapi.RtmStart, error) {
+func fetchRtmInfo(ctx context.Context, starter webapi.RtmStarter, retrial uint, interval time.Duration) (*webapi.RtmStart, error) {
 	var rtmStart *webapi.RtmStart
-	err := retry.RetryInterval(10, func() error {
-		r, e := client.RtmStart(ctx)
+	err := retry.RetryInterval(retrial, func() error {
+		r, e := starter.RtmStart(ctx)
 		rtmStart = r
 		return e
-	}, 500*time.Millisecond)
+	}, interval)
 
 	return rtmStart, err
 }
 
 // connectRtm establishes WebSocket connection with retries.
-func connectRtm(ctx context.Context, client *rtmapi.Client, rtm *webapi.RtmStart) (rtmapi.Connection, error) {
+func connectRtm(ctx context.Context, connector rtmapi.Connector, rtm *webapi.RtmStart, retrial uint, interval time.Duration) (rtmapi.Connection, error) {
 	var conn rtmapi.Connection
-	err := retry.RetryInterval(10, func() error {
-		c, e := client.Connect(ctx, rtm.URL)
+	err := retry.RetryInterval(retrial, func() error {
+		c, e := connector.Connect(ctx, rtm.URL)
 		conn = c
 		return e
-	}, 500*time.Millisecond)
+	}, interval)
 
 	return conn, err
 }

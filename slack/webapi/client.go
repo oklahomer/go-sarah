@@ -19,6 +19,10 @@ type Config struct {
 	Token string
 }
 
+type RtmStarter interface {
+	RtmStart(context.Context) (*RtmStart, error)
+}
+
 type Client struct {
 	config *Config
 }

@@ -15,15 +15,17 @@ const (
 
 // Adapter stores REST/Streaming API clients' instances to let users interact with gitter.
 type Adapter struct {
+	config             *Config
 	restAPIClient      *RestAPIClient
 	streamingAPIClient *StreamingAPIClient
 }
 
 // NewAdapter creates and returns new Adapter instance.
-func NewAdapter(token string) *Adapter {
+func NewAdapter(config *Config) *Adapter {
 	return &Adapter{
-		restAPIClient:      NewRestAPIClient(token),
-		streamingAPIClient: NewStreamingAPIClient(token),
+		config:             config,
+		restAPIClient:      NewRestAPIClient(config.token),
+		streamingAPIClient: NewStreamingAPIClient(config.token),
 	}
 }
 
@@ -35,7 +37,7 @@ func (adapter *Adapter) BotType() sarah.BotType {
 // Run fetches all belonging Room and connects to them.
 func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errCh chan<- error) {
 	// fetch joined rooms
-	rooms, err := adapter.fetchRooms(ctx)
+	rooms, err := fetchRooms(ctx, adapter.restAPIClient, adapter.config.retryLimit, adapter.config.retryInterval)
 	if err != nil {
 		errCh <- sarah.NewBotNonContinuableError(err.Error())
 		return
@@ -68,7 +70,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 			return
 		default:
 			log.Infof("connecting to room: %s", room.ID)
-			conn, err := adapter.connectRoom(ctx, room)
+			conn, err := connectRoom(ctx, adapter.streamingAPIClient, room, adapter.config.retryLimit, adapter.config.retryInterval)
 			if err != nil {
 				log.Warnf("could not connect to room: %s", room.ID)
 				return
@@ -92,13 +94,13 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 	}
 }
 
-func (adapter *Adapter) fetchRooms(ctx context.Context) (*Rooms, error) {
+func fetchRooms(ctx context.Context, fetcher RoomsFetcher, retrial uint, interval time.Duration) (*Rooms, error) {
 	var rooms *Rooms
-	err := retry.RetryInterval(10, func() error {
-		r, e := adapter.restAPIClient.Rooms(ctx)
+	err := retry.RetryInterval(retrial, func() error {
+		r, e := fetcher.Rooms(ctx)
 		rooms = r
 		return e
-	}, 500*time.Millisecond)
+	}, interval)
 
 	return rooms, err
 }
@@ -127,16 +129,16 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage ch
 	}
 }
 
-func (adapter *Adapter) connectRoom(ctx context.Context, room *Room) (Connection, error) {
+func connectRoom(ctx context.Context, connector StreamConnector, room *Room, retrial uint, interval time.Duration) (Connection, error) {
 	var conn Connection
-	err := retry.RetryInterval(10, func() error {
-		r, e := adapter.streamingAPIClient.Connect(ctx, room)
+	err := retry.RetryInterval(retrial, func() error {
+		r, e := connector.Connect(ctx, room)
 		if e != nil {
 			log.Error(e)
 		}
 		conn = r
 		return e
-	}, 500*time.Millisecond)
+	}, interval)
 
 	return conn, err
 }
