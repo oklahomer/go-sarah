@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"path"
 	"regexp"
-	"strings"
 )
 
 var (
@@ -30,13 +29,15 @@ type Command interface {
 	// Identifier returns unique id that represents this Command.
 	Identifier() string
 
-	Execute(context.Context, string, Input) (*PluginResponse, error)
+	// Execute receives input from user and returns response.
+	Execute(context.Context, Input) (*PluginResponse, error)
 
+	// Example returns example of user input.
 	Example() string
 
+	// Match is used to judge if this command corresponds to given user input.
+	// If this returns true, Bot implementation should proceed to Execute with current user input.
 	Match(string) bool
-
-	StripMessage(string) string
 }
 
 type simpleCommand struct {
@@ -63,13 +64,15 @@ func (command *simpleCommand) Match(input string) bool {
 	return command.matchPattern.MatchString(input)
 }
 
-func (command *simpleCommand) StripMessage(input string) string {
-	text := command.matchPattern.ReplaceAllString(input, "")
-	return strings.TrimSpace(text)
+func (command *simpleCommand) Execute(ctx context.Context, input Input) (*PluginResponse, error) {
+	return command.commandFunc(ctx, input, command.config)
 }
 
-func (command *simpleCommand) Execute(ctx context.Context, strippedMessage string, input Input) (*PluginResponse, error) {
-	return command.commandFunc(ctx, strippedMessage, input, command.config)
+// StripMessage is a utility method that strips string from given message based on given regular expression.
+// This is to extract usable input value out of entire user message.
+// e.g. ".echo Hey!" becomes "Hey!"
+func StripMessage(pattern *regexp.Regexp, input string) string {
+	return pattern.ReplaceAllString(input, "")
 }
 
 // Commands stashes all registered Command.
@@ -113,7 +116,7 @@ func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) 
 		return nil, nil
 	}
 
-	return command.Execute(ctx, command.StripMessage(inputMessage), input)
+	return command.Execute(ctx, input)
 }
 
 type nullConfig struct{}
@@ -122,7 +125,7 @@ type nullConfig struct{}
 type CommandConfig interface{}
 
 // commandFunc is a function type that represents command function
-type commandFunc func(context.Context, string, Input, CommandConfig) (*PluginResponse, error)
+type commandFunc func(context.Context, Input, CommandConfig) (*PluginResponse, error)
 
 type commandBuilder struct {
 	identifier   string
