@@ -41,11 +41,11 @@ func TestNewBotRunner(t *testing.T) {
 	}
 }
 
-func TestBotRunner_AddAdapter(t *testing.T) {
+func TestBotRunner_RegisterAdapter(t *testing.T) {
 	adapter := &nullAdapter{}
 
 	runner := NewRunner(NewConfig())
-	runner.AddAdapter(adapter, "")
+	runner.RegisterAdapter(adapter, "")
 
 	bot, ok := runner.bots[0].(*bot)
 	if !ok {
@@ -61,7 +61,7 @@ func TestBotRunner_AddAdapter(t *testing.T) {
 			t.Error("expected panic did not occur")
 		}
 	}()
-	runner.AddAdapter(&nullAdapter{}, "")
+	runner.RegisterAdapter(&nullAdapter{}, "")
 }
 
 func TestBotRunner_Run_Stop(t *testing.T) {

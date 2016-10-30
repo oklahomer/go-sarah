@@ -9,18 +9,14 @@ import (
 	"time"
 )
 
-/*
-Worker holds desired number of child workers when Run is called.
-*/
+// Worker holds desired number of child workers when Run is called.
 type Worker struct {
 	job       chan func()
 	mutex     *sync.Mutex
 	isRunning bool
 }
 
-/*
-New is a helper function that construct and return new Worker instance.
-*/
+// New is a helper function that construct and return new Worker instance.
 func New(queueSize uint) *Worker {
 	return &Worker{
 		job:       make(chan func(), queueSize),
@@ -29,10 +25,8 @@ func New(queueSize uint) *Worker {
 	}
 }
 
-/*
-Run creates as many child workers as specified and start those child workers.
-First argument, cancel channel, can be context.Context.Done to propagate upstream status change.
-*/
+// Run creates as many child workers as specified and start those child workers.
+// First argument, cancel channel, can be context.Context.Done to propagate upstream status change.
 func (worker *Worker) Run(ctx context.Context, workerNum uint, superviseInterval time.Duration) error {
 	log.Infof("start workers")
 	worker.mutex.Lock()
@@ -94,16 +88,12 @@ func (worker *Worker) runChild(ctx context.Context, workerId uint) {
 	}
 }
 
-/*
-IsRunning returns current status of worker.
-*/
+// IsRunning returns current status of worker.
 func (worker *Worker) IsRunning() bool {
 	return worker.isRunning
 }
 
-/*
-EnqueueJob appends new job to be executed.
-*/
+// EnqueueJob appends new job to be executed.
 func (worker *Worker) EnqueueJob(job func()) {
 	worker.job <- job
 }

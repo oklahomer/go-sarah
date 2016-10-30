@@ -11,10 +11,11 @@ var (
 
 type commandBuilderStash map[BotType][]*commandBuilder
 
-/*
-AppendCommandBuilder appends given commandBuilder to internal stash.
-Stashed builder is used to configure and build Command instance on Runner's initialization.
-*/
+// AppendCommandBuilder appends given commandBuilder to internal stash.
+// Stashed builder is used to configure and build Command instance on Runner's initialization.
+//
+// They are built in appended order, which means commands are checked against user input in the appended order.
+// Therefore, append commands with higher priority or narrower regular expression match pattern.
 func AppendCommandBuilder(botType BotType, builder *commandBuilder) {
 	log.Infof("appending command builder for %s. builder %#v.", botType, builder)
 	stashedCommandBuilders.appendBuilder(botType, builder)
@@ -28,9 +29,6 @@ func (stash *commandBuilderStash) appendBuilder(botType BotType, builder *comman
 	val[botType] = append(val[botType], builder)
 }
 
-/*
-buildCommands configures and creates Command instances with given stashed CommandBuilders
-*/
 func (stash *commandBuilderStash) build(botType BotType, configDir string) []Command {
 	commands := []Command{}
 	builders, ok := (*stash)[botType]
@@ -52,6 +50,8 @@ func (stash *commandBuilderStash) build(botType BotType, configDir string) []Com
 
 type scheduledTaskBuilderStash map[BotType][]*scheduledTaskBuilder
 
+// AppendScheduledTaskBuilder appends given scheduledTaskBuilder to internal stash.
+// Stashed builder is used to configure and build ScheduledTask instance on Runner's initialization.
 func AppendScheduledTaskBuilder(botType BotType, builder *scheduledTaskBuilder) {
 	log.Infof("appending scheduled task builder for %s. builder %#v.", botType, builder)
 	stashedScheduledTaskBuilders.appendBuilder(botType, builder)
@@ -65,9 +65,7 @@ func (stash *scheduledTaskBuilderStash) appendBuilder(botType BotType, builder *
 	val[botType] = append(val[botType], builder)
 }
 
-/*
-buildCommands configures and creates Command instances with given stashed CommandBuilders
-*/
+// buildCommands configures and creates Command instances with given stashed CommandBuilders
 func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string) []*scheduledTask {
 	tasks := []*scheduledTask{}
 	builders, ok := (*stash)[botType]

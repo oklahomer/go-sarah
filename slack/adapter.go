@@ -17,15 +17,13 @@ const (
 
 var pingSignalChannelId string = "ping"
 
-/*
-Adapter internally calls Slack Rest API and Real Time Messaging API to offer clients easy way to communicate with Slack.
-
-This implements sarah.Adapter interface, so this instance can be fed to sarah.Bot instance as below.
-
-  runner := sarah.NewRunner(sarah.NewConfig())
-  runner.AddAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
-  runner.Run()
-*/
+// Adapter internally calls Slack Rest API and Real Time Messaging API to offer clients easy way to communicate with Slack.
+//
+// This implements sarah.Adapter interface, so this instance can be fed to sarah.Runner instance as below.
+//
+//  runner := sarah.NewRunner(sarah.NewConfig())
+//  runner.RegisterAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
+//  runner.Run()
 type Adapter struct {
 	config       *Config
 	WebAPIClient *webapi.Client
@@ -165,16 +163,14 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 	}
 }
 
-/*
-nonBlockSignal tries to send signal to given channel.
-If no goroutine is listening to the channel or is working on a task triggered by previous signal, this method skips
-signalling rather than blocks til somebody is ready to read channel.
-
-For signalling purpose, empty struct{} should be used.
-http://peter.bourgon.org/go-in-production/
-"Use struct{} as a sentinel value, rather than bool or interface{}. For example, (snip) a signal channel is chan struct{}.
-It unambiguously signals an explicit lack of information."
-*/
+// nonBlockSignal tries to send signal to given channel.
+// If no goroutine is listening to the channel or is working on a task triggered by previous signal, this method skips
+// signalling rather than blocks til somebody is ready to read channel.
+//
+// For signalling purpose, empty struct{} should be used.
+// http://peter.bourgon.org/go-in-production/
+//  "Use struct{} as a sentinel value, rather than bool or interface{}. For example, (snip) a signal channel is chan struct{}.
+//  It unambiguously signals an explicit lack of information."
 func nonBlockSignal(id string, target chan<- struct{}) {
 	select {
 	case target <- struct{}{}:

@@ -8,14 +8,12 @@ import (
 	"golang.org/x/net/context"
 )
 
-/*
-Runner is the core of sarah.
-
-This takes care of lifecycle of each bot implementation, internal job worker, and plugin execution;
-Adapter is responsible for bot-specific implementation such as connection handling, message reception and sending.
-
-Developers can register desired number of Adapter and Commands to create own bot.
-*/
+// Runner is the core of sarah.
+//
+// This takes care of lifecycle of each Bot implementation, internal job worker, and plugin execution;
+// Bot is responsible for bot-specific implementation such as connection handling, message reception and sending.
+//
+// Developers can register desired number of Bot and Commands to create own bot experience.
 type Runner struct {
 	config *Config
 	bots   []Bot
@@ -23,7 +21,7 @@ type Runner struct {
 	cron   *cron.Cron
 }
 
-// NewRunner creates and return new Bot instance.
+// NewRunner creates and return new Runner instance.
 func NewRunner(config *Config) *Runner {
 	return &Runner{
 		config: config,
@@ -33,15 +31,19 @@ func NewRunner(config *Config) *Runner {
 	}
 }
 
-func (runner *Runner) AppendBot(bot Bot) {
+// RegisterBot register given Bot implementation's instance to runner instance
+func (runner *Runner) RegisterBot(bot Bot) {
 	runner.bots = append(runner.bots, bot)
 }
 
-/*
-AddAdapter allows developer to register desired Adapter implementation.
-Bot and each adapter mainly communicate via designated channels to pass incoming and outgoing responses.
-*/
-func (runner *Runner) AddAdapter(adapter Adapter, pluginConfigDir string) {
+// RegisterAdapter allows developer to register desired Adapter implementation.
+// This internally creates an instance of default Bot implementation with given Adapter.
+// Created Bot instance is fed to Runner.AppendBot.
+//
+//  runner := sarah.NewRunner(sarah.NewConfig())
+//  runner.RegisterAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
+//  runner.Run()
+func (runner *Runner) RegisterAdapter(adapter Adapter, pluginConfigDir string) {
 	for _, bot := range runner.bots {
 		if bot.BotType() == adapter.BotType() {
 			panic(fmt.Sprintf("BotType (%s) conflicted with stored Adapter.", adapter.BotType()))
@@ -49,14 +51,11 @@ func (runner *Runner) AddAdapter(adapter Adapter, pluginConfigDir string) {
 	}
 
 	bot := newBot(adapter, pluginConfigDir)
-	runner.AppendBot(bot)
+	runner.RegisterBot(bot)
 }
 
-/*
-Run starts Bot interaction.
-
-At this point Runner starts its internal workers, runs each bot, and starts listening to incoming messages.
-*/
+// Run starts Bot interaction.
+// At this point Runner starts its internal workers, runs each bot, and starts listening to incoming messages.
 func (runner *Runner) Run(ctx context.Context) {
 	runner.worker.Run(ctx, runner.config.worker.queueSize, runner.config.worker.superviseInterval)
 
@@ -101,9 +100,7 @@ func (runner *Runner) Run(ctx context.Context) {
 	runner.cron.Start()
 }
 
-/*
-stopUnrecoverableBot receives error from Bot, check if the error is critical, and stop the bot if required.
-*/
+// stopUnrecoverableBot receives error from Bot, check if the error is critical, and stop the bot if required.
 func stopUnrecoverableBot(errNotifier <-chan error, stopBot context.CancelFunc) {
 	for {
 		err := <-errNotifier
@@ -116,12 +113,10 @@ func stopUnrecoverableBot(errNotifier <-chan error, stopBot context.CancelFunc) 
 	}
 }
 
-/*
-respond listens to incoming messages via channel.
-
-Each Adapter enqueues incoming messages to runner's listening channel, and respond() receives them.
-When corresponding command is found, command is executed and the result can be passed to Bot's SendMessage method.
-*/
+// respond listens to incoming messages via channel.
+//
+// Each Adapter enqueues incoming messages to runner's listening channel, and respond() receives them.
+// When corresponding command is found, command is executed and the result can be passed to Bot's SendMessage method.
 func (runner *Runner) respond(botCtx context.Context, bot Bot, inputReceiver <-chan Input) {
 	for {
 		select {

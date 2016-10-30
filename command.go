@@ -10,12 +10,19 @@ import (
 )
 
 var (
-	// NullConfig is an re-usable CommandConfig instance that can be used to config-free command.
+	// NullConfig is an re-usable CommandConfig instance that indicates absence of command configuration.
+	// e.g. NewCommandBuilder().ConfigStruct(NullConfig)
 	NullConfig = &nullConfig{}
 
+	// CommandInsufficientArgumentError depicts an error that not enough arguments are set to commandBuilder.
+	// This is returned on commandBuilder.build() inside of Runner.Run()
 	CommandInsufficientArgumentError = errors.New("Identifier, Example, MatchPattern, ConfigStruct and Func must be set.")
 )
 
+// ContextualFunc defines a function signature that defines user's next step.
+// When a function or instance method is given as PluginResponse.Next, Bot implementation must store this with Input.SenderKey.
+// On user's next input, inside of Bot.Respond, Bot retrieves stored ContextualFunc and execute this.
+// If PluginResponse.Next is given again as part of result, the same step must be followed.
 type ContextualFunc func(context.Context, Input) (*PluginResponse, error)
 
 // PluginResponse is returned by Command or Task when the execution is finished.
@@ -68,7 +75,7 @@ func (command *simpleCommand) Execute(ctx context.Context, input Input) (*Plugin
 	return command.commandFunc(ctx, input, command.config)
 }
 
-// StripMessage is a utility method that strips string from given message based on given regular expression.
+// StripMessage is a utility function that strips string from given message based on given regular expression.
 // This is to extract usable input value out of entire user message.
 // e.g. ".echo Hey!" becomes "Hey!"
 func StripMessage(pattern *regexp.Regexp, input string) string {
@@ -91,13 +98,11 @@ func (commands *Commands) Append(command Command) {
 	commands.cmd = append(commands.cmd, command)
 }
 
-/*
-FindFirstMatched look for first matching command by calling Command's Match method: First Command.Match to return true
-is considered as "first matched" and is returned.
-
-This check is run in the order of Command registration: Earlier the Commands.Append is called, the command is checked
-earlier. So register important Command first.
-*/
+// FindFirstMatched look for first matching command by calling Command's Match method: First Command.Match to return true
+// is considered as "first matched" and is returned.
+//
+// This check is run in the order of Command registration: Earlier the Commands.Append is called, the command is checked
+// earlier. So register important Command first.
 func (commands *Commands) FindFirstMatched(text string) Command {
 	for _, command := range commands.cmd {
 		if command.Match(text) {
@@ -135,10 +140,8 @@ type commandBuilder struct {
 	example      string
 }
 
-/*
-NewCommandBuilder returns new commandBuilder instance.
-This can be used to setup your desired bot Command. Pass this instance to sarah.AppendCommandBuilder, and the Command will be configured when Bot runs.
-*/
+// NewCommandBuilder returns new commandBuilder instance.
+// This can be used to setup your desired bot Command. Pass this instance to sarah.AppendCommandBuilder, and the Command will be configured when Bot runs.
 func NewCommandBuilder() *commandBuilder {
 	return &commandBuilder{}
 }
@@ -155,10 +158,8 @@ func (builder *commandBuilder) ConfigStruct(config CommandConfig) *commandBuilde
 	return builder
 }
 
-/*
-MatchPattern is a setter to provide command match pattern.
-This regular expression is used to find matching command with given Input.
-*/
+// MatchPattern is a setter to provide command match pattern.
+// This regular expression is used to find matching command with given Input.
 func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) *commandBuilder {
 	builder.matchPattern = pattern
 	return builder
