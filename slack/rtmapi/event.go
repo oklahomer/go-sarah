@@ -4,10 +4,8 @@ import (
 	"strings"
 )
 
-/*
-EventType represents the type of event sent from slack.
-Event is passed to client in a form of JSON string, which has a field named "type."
-*/
+// EventType represents the type of event sent from slack.
+// Event is passed to client in a form of JSON string, which has a field named "type."
 type EventType string
 
 // List of available EventTypes
@@ -24,10 +22,8 @@ var (
 	possibleEvents = [...]EventType{HELLO, MESSAGE, TEAM_MIGRATION_STARTED, PING, PONG}
 )
 
-/*
-UnmarshalText parses a given event value to EventType.
-This method is mainly used by encode/json.
-*/
+// UnmarshalText parses a given event value to EventType.
+// This method is mainly used by encode/json.
 func (eventType *EventType) UnmarshalText(b []byte) error {
 	str := string(b)
 	for _, val := range possibleEvents {
@@ -40,17 +36,13 @@ func (eventType *EventType) UnmarshalText(b []byte) error {
 	return nil
 }
 
-/*
-String returns the stringified event name, which corresponds to the one sent from/to slack RTM endpoint.
-*/
+// String returns the stringified event name, which corresponds to the one sent from/to slack RTM endpoint.
 func (eventType EventType) String() string {
 	return string(eventType)
 }
 
-/*
-MarshalText returns the stringified value of slack event.
-This method is mainly used by encode/json.
-*/
+// MarshalText returns the stringified value of slack event.
+// This method is mainly used by encode/json.
 func (eventType *EventType) MarshalText() ([]byte, error) {
 	str := eventType.String()
 
@@ -61,10 +53,8 @@ func (eventType *EventType) MarshalText() ([]byte, error) {
 	return []byte(str), nil
 }
 
-/*
-CommonEvent takes care of some common fields all incoming/outgoing event MUST have.
-https://api.slack.com/rtm#events
-*/
+// CommonEvent takes care of some common fields all incoming/outgoing event MUST have.
+// https://api.slack.com/rtm#events
 type CommonEvent struct {
 	Type EventType `json:"type,omitempty"`
 }
@@ -109,10 +99,8 @@ var (
 	}
 )
 
-/*
-UnmarshalText parses a given subtype value to SubType
-This method is mainly used by encode/json.
-*/
+// UnmarshalText parses a given subtype value to SubType
+// This method is mainly used by encode/json.
 func (subType *SubType) UnmarshalText(b []byte) error {
 	str := string(b)
 	for _, val := range possibleSubTypes {
@@ -125,17 +113,13 @@ func (subType *SubType) UnmarshalText(b []byte) error {
 	return nil
 }
 
-/*
-String returns the stringified subtype name, which corresponds to the one sent from/to slack RTM endpoint.
-*/
+// String returns the stringified subtype name, which corresponds to the one sent from/to slack RTM endpoint.
 func (subType SubType) String() string {
 	return string(subType)
 }
 
-/*
-MarshalText returns the stringified value of slack subtype.
-This method is mainly used by encode/json.
-*/
+// MarshalText returns the stringified value of slack subtype.
+// This method is mainly used by encode/json.
 func (subType *SubType) MarshalText() ([]byte, error) {
 	str := subType.String()
 
@@ -146,11 +130,9 @@ func (subType *SubType) MarshalText() ([]byte, error) {
 	return []byte(str), nil
 }
 
-/*
-CommonMessage contains some common fields of message event.
-See SubType field to distinguish corresponding event struct.
-https://api.slack.com/events/message#message_subtypes
-*/
+// CommonMessage contains some common fields of message event.
+// See SubType field to distinguish corresponding event struct.
+// https://api.slack.com/events/message#message_subtypes
 type CommonMessage struct {
 	Type EventType `json:"type,omitempty"`
 

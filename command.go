@@ -1,21 +1,29 @@
 package sarah
 
 import (
-	"fmt"
+	"errors"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path"
 	"regexp"
-	"strings"
 )
 
 var (
-	// NullConfig is an re-usable CommandConfig instance that can be used to config-free command.
+	// NullConfig is an re-usable CommandConfig instance that indicates absence of command configuration.
+	// e.g. NewCommandBuilder().ConfigStruct(NullConfig)
 	NullConfig = &nullConfig{}
+
+	// CommandInsufficientArgumentError depicts an error that not enough arguments are set to commandBuilder.
+	// This is returned on commandBuilder.build() inside of Runner.Run()
+	CommandInsufficientArgumentError = errors.New("Identifier, Example, MatchPattern, ConfigStruct and Func must be set.")
 )
 
-type ContextualFunc func(context.Context, BotInput) (*PluginResponse, error)
+// ContextualFunc defines a function signature that defines user's next step.
+// When a function or instance method is given as PluginResponse.Next, Bot implementation must store this with Input.SenderKey.
+// On user's next input, inside of Bot.Respond, Bot retrieves stored ContextualFunc and execute this.
+// If PluginResponse.Next is given again as part of result, the same step must be followed.
+type ContextualFunc func(context.Context, Input) (*PluginResponse, error)
 
 // PluginResponse is returned by Command or Task when the execution is finished.
 type PluginResponse struct {
@@ -25,15 +33,18 @@ type PluginResponse struct {
 
 // Command defines interface that all Command must satisfy.
 type Command interface {
+	// Identifier returns unique id that represents this Command.
 	Identifier() string
 
-	Execute(context.Context, string, BotInput) (*PluginResponse, error)
+	// Execute receives input from user and returns response.
+	Execute(context.Context, Input) (*PluginResponse, error)
 
+	// Example returns example of user input.
 	Example() string
 
+	// Match is used to judge if this command corresponds to given user input.
+	// If this returns true, Bot implementation should proceed to Execute with current user input.
 	Match(string) bool
-
-	StripMessage(string) string
 }
 
 type simpleCommand struct {
@@ -60,13 +71,15 @@ func (command *simpleCommand) Match(input string) bool {
 	return command.matchPattern.MatchString(input)
 }
 
-func (command *simpleCommand) StripMessage(input string) string {
-	text := command.matchPattern.ReplaceAllString(input, "")
-	return strings.TrimSpace(text)
+func (command *simpleCommand) Execute(ctx context.Context, input Input) (*PluginResponse, error) {
+	return command.commandFunc(ctx, input, command.config)
 }
 
-func (command *simpleCommand) Execute(ctx context.Context, strippedMessage string, input BotInput) (*PluginResponse, error) {
-	return command.commandFunc(ctx, strippedMessage, input, command.config)
+// StripMessage is a utility function that strips string from given message based on given regular expression.
+// This is to extract usable input value out of entire user message.
+// e.g. ".echo Hey!" becomes "Hey!"
+func StripMessage(pattern *regexp.Regexp, input string) string {
+	return pattern.ReplaceAllString(input, "")
 }
 
 // Commands stashes all registered Command.
@@ -85,13 +98,11 @@ func (commands *Commands) Append(command Command) {
 	commands.cmd = append(commands.cmd, command)
 }
 
-/*
-FindFirstMatched look for first matching command by calling Command's Match method: First Command.Match to return true
-is considered as "first matched" and is returned.
-
-This check is run in the order of Command registration: Earlier the Commands.Append is called, the command is checked
-earlier. So register important Command first.
-*/
+// FindFirstMatched look for first matching command by calling Command's Match method: First Command.Match to return true
+// is considered as "first matched" and is returned.
+//
+// This check is run in the order of Command registration: Earlier the Commands.Append is called, the command is checked
+// earlier. So register important Command first.
 func (commands *Commands) FindFirstMatched(text string) Command {
 	for _, command := range commands.cmd {
 		if command.Match(text) {
@@ -103,14 +114,14 @@ func (commands *Commands) FindFirstMatched(text string) Command {
 }
 
 // ExecuteFirstMatched tries find matching command with the given input, and execute it if one is available.
-func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input BotInput) (*PluginResponse, error) {
+func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) (*PluginResponse, error) {
 	inputMessage := input.Message()
 	command := commands.FindFirstMatched(inputMessage)
 	if command == nil {
 		return nil, nil
 	}
 
-	return command.Execute(ctx, command.StripMessage(inputMessage), input)
+	return command.Execute(ctx, input)
 }
 
 type nullConfig struct{}
@@ -119,7 +130,7 @@ type nullConfig struct{}
 type CommandConfig interface{}
 
 // commandFunc is a function type that represents command function
-type commandFunc func(context.Context, string, BotInput, CommandConfig) (*PluginResponse, error)
+type commandFunc func(context.Context, Input, CommandConfig) (*PluginResponse, error)
 
 type commandBuilder struct {
 	identifier   string
@@ -129,10 +140,8 @@ type commandBuilder struct {
 	example      string
 }
 
-/*
-NewCommandBuilder returns new commandBuilder instance.
-This can be used to setup your desired bot Command. Pass this instance to sarah.AppendCommandBuilder, and the Command will be configured when Bot runs.
-*/
+// NewCommandBuilder returns new commandBuilder instance.
+// This can be used to setup your desired bot Command. Pass this instance to sarah.AppendCommandBuilder, and the Command will be configured when Bot runs.
 func NewCommandBuilder() *commandBuilder {
 	return &commandBuilder{}
 }
@@ -149,10 +158,8 @@ func (builder *commandBuilder) ConfigStruct(config CommandConfig) *commandBuilde
 	return builder
 }
 
-/*
-MatchPattern is a setter to provide command match pattern.
-This regular expression is used to find matching command with given BotInput.
-*/
+// MatchPattern is a setter to provide command match pattern.
+// This regular expression is used to find matching command with given Input.
 func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) *commandBuilder {
 	builder.matchPattern = pattern
 	return builder
@@ -172,20 +179,13 @@ func (builder *commandBuilder) Example(example string) *commandBuilder {
 
 // build builds new Command instance with provided values.
 func (builder *commandBuilder) build(configDir string) (Command, error) {
-	if builder.identifier == "" {
-		return nil, NewCommandInsufficientArgumentError("command identifier must be set.")
-	}
-	if builder.example == "" {
-		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command example must be set. id: %s", builder.identifier))
-	}
-	if builder.matchPattern == nil {
-		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command constructor must be set. id: %s", builder.identifier))
-	}
-	if builder.config == nil {
-		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command config struct must be set. id: %s", builder.identifier))
-	}
-	if builder.commandFunc == nil {
-		return nil, NewCommandInsufficientArgumentError(fmt.Sprintf("command function must be set. id: %s", builder.identifier))
+	if builder.identifier == "" ||
+		builder.example == "" ||
+		builder.matchPattern == nil ||
+		builder.config == nil ||
+		builder.commandFunc == nil {
+
+		return nil, CommandInsufficientArgumentError
 	}
 
 	commandConfig := builder.config
@@ -208,21 +208,6 @@ func (builder *commandBuilder) build(configDir string) (Command, error) {
 		commandFunc:  builder.commandFunc,
 		config:       commandConfig,
 	}, nil
-}
-
-// CommandInsufficientArgumentError indicates an error that not enough argument is provided to commandBuilder.
-type CommandInsufficientArgumentError struct {
-	Err string
-}
-
-// Error returns the detailed error about missing argument.
-func (e *CommandInsufficientArgumentError) Error() string {
-	return e.Err
-}
-
-// NewCommandInsufficientArgumentError creates and returns new CommandInsufficientArgumentError instance.
-func NewCommandInsufficientArgumentError(err string) *CommandInsufficientArgumentError {
-	return &CommandInsufficientArgumentError{Err: err}
 }
 
 func readConfig(configPath string, config CommandConfig) error {

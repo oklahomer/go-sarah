@@ -12,14 +12,17 @@ import (
 )
 
 var (
-	identifier = "weather"
+	identifier   = "weather"
+	matchPattern = regexp.MustCompile(`^\.weather`)
 )
 
 type pluginConfig struct {
 	APIKey string `yaml:"api_key"`
 }
 
-func weather(ctx context.Context, strippedMessage string, input sarah.BotInput, config sarah.CommandConfig) (*sarah.PluginResponse, error) {
+func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.PluginResponse, error) {
+	strippedMessage := sarah.StripMessage(matchPattern, input.Message())
+
 	// Share client instance with later execution
 	conf, _ := config.(*pluginConfig)
 	client := worldweather.NewClient(worldweather.NewConfig(conf.APIKey))
@@ -36,8 +39,8 @@ func weather(ctx context.Context, strippedMessage string, input sarah.BotInput, 
 		errorDescription := resp.Data.Error[0].Message
 		return slack.NewStringResponseWithNext(
 			fmt.Sprintf("Error was returned: %s.\nInput location name to retry, please.", errorDescription),
-			func(c context.Context, i sarah.BotInput) (*sarah.PluginResponse, error) {
-				return weather(c, i.Message(), i, config)
+			func(c context.Context, i sarah.Input) (*sarah.PluginResponse, error) {
+				return weather(c, i, config)
 			},
 		), nil
 	}
@@ -126,7 +129,7 @@ func init() {
 	builder := sarah.NewCommandBuilder().
 		Identifier(identifier).
 		ConfigStruct(&pluginConfig{}).
-		MatchPattern(regexp.MustCompile(`^\.weather`)).
+		MatchPattern(matchPattern).
 		Func(weather).
 		Example(".echo knock knock")
 	sarah.AppendCommandBuilder(slack.SLACK, builder)

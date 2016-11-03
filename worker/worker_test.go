@@ -1,24 +1,35 @@
 package worker
 
 import (
+	"golang.org/x/net/context"
 	"testing"
 	"time"
 )
 
 func TestNew(t *testing.T) {
-	worker := New()
+	queueSize := 100
+	worker := New(uint(queueSize))
 
 	if worker.isRunning != false {
 		t.Error("unexpected worker state")
 	}
+
+	if cap(worker.job) != queueSize {
+		t.Errorf("expecting queue size of %d, but was %d.", queueSize, cap(worker.job))
+	}
 }
 
 func TestWorker_Run(t *testing.T) {
-	worker := New()
-	cancel := make(chan struct{})
+	worker := New(100)
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+
+	if worker.isRunning {
+		t.Fatal("status says running before Run.")
+	}
 
 	// Start worker
-	err := worker.Run(cancel, 5)
+	err := worker.Run(ctx, 5, 0)
 	if err != nil {
 		t.Fatalf("failed to run. %s", err.Error())
 	}
@@ -39,13 +50,13 @@ func TestWorker_Run(t *testing.T) {
 	}
 
 	// Error should return on multiple Run call
-	err = worker.Run(cancel, 5)
+	err = worker.Run(ctx, 5, 0)
 	if err == nil {
 		t.Error("worker.Run is called multiple times")
 	}
 
 	// Stop worker
-	close(cancel)
+	cancel()
 	time.Sleep(100 * time.Millisecond)
 	if worker.IsRunning() != false {
 		t.Error("worker.IsRunning still returns true after cancelation")

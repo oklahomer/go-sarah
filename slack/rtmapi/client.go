@@ -5,6 +5,10 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+type Connector interface {
+	Connect(context.Context, string) (Connection, error)
+}
+
 // Client utilizes Slack REST API.
 type Client struct {
 }

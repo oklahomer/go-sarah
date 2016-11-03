@@ -9,26 +9,25 @@ import (
 )
 
 func TestInsufficientSettings(t *testing.T) {
+	matchPattern := regexp.MustCompile(`^\.echo`)
+
 	builder := NewCommandBuilder().
 		Identifier("someID").
 		ConfigStruct(NullConfig).
-		MatchPattern(regexp.MustCompile(`^\.echo`)).
+		MatchPattern(matchPattern).
 		Example(".echo knock knock")
 
 	if _, err := builder.build("/path/"); err == nil {
 		t.Error("expected error not given.")
 	} else {
-		switch err.(type) {
-		case *CommandInsufficientArgumentError:
-		// O.K.
-		default:
+		if err != CommandInsufficientArgumentError {
 			t.Errorf("expected error not given. %#v", err)
 		}
 	}
 
-	builder.Func(func(_ context.Context, strippedMessage string, input BotInput, _ CommandConfig) (*PluginResponse, error) {
+	builder.Func(func(_ context.Context, input Input, _ CommandConfig) (*PluginResponse, error) {
 		return &PluginResponse{
-			Content: strippedMessage,
+			Content: StripMessage(matchPattern, input.Message()),
 		}, nil
 	})
 
@@ -43,7 +42,7 @@ func (abandonedCommand *abandonedCommand) Identifier() string {
 	return "arbitraryStringThatWouldNeverBeRecognized"
 }
 
-func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ string, _ BotInput) (*PluginResponse, error) {
+func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ Input) (*PluginResponse, error) {
 	return nil, nil
 }
 
@@ -55,18 +54,14 @@ func (abandonedCommand *abandonedCommand) Match(_ string) bool {
 	return false
 }
 
-func (abandonedCommand *abandonedCommand) StripMessage(_ string) string {
-	return ""
-}
-
 type echoCommand struct{}
 
 func (echoCommand *echoCommand) Identifier() string {
 	return "echo"
 }
 
-func (echoCommand *echoCommand) Execute(_ context.Context, strippedMessage string, input BotInput) (*PluginResponse, error) {
-	return &PluginResponse{Content: input.Message()}, nil
+func (echoCommand *echoCommand) Execute(_ context.Context, input Input) (*PluginResponse, error) {
+	return &PluginResponse{Content: regexp.MustCompile(`^\.echo`).ReplaceAllString(input.Message(), "")}, nil
 }
 
 func (echoCommand *echoCommand) Example() string {
@@ -75,10 +70,6 @@ func (echoCommand *echoCommand) Example() string {
 
 func (echoCommand *echoCommand) Match(msg string) bool {
 	return strings.HasPrefix(msg, "echo")
-}
-
-func (echoCommand *echoCommand) StripMessage(msg string) string {
-	return strings.TrimPrefix(msg, "echo")
 }
 
 type echoInput struct{}

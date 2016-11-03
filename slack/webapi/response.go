@@ -6,18 +6,14 @@ import (
 
 type TimeStamp int64
 
-/*
-APIResponse provides common fields shared by all API response.
-https://api.slack.com/web#basics
-*/
+// APIResponse provides common fields shared by all API response.
+// https://api.slack.com/web#basics
 type APIResponse struct {
 	OK bool `json:"ok"`
 }
 
-/*
-Self contains details on the authenticated user.
-https://api.slack.com/methods/rtm.start#response
-*/
+// Self contains details on the authenticated user.
+// https://api.slack.com/methods/rtm.start#response
 type Self struct {
 	ID             string    `json:"id"`
 	Name           string    `json:"name"`

@@ -13,6 +13,10 @@ const (
 	GITTER_STREAMING_API_ENDPOINT_FORMAT = "https://stream.gitter.im/%s/rooms/%s/chatMessages"
 )
 
+type StreamConnector interface {
+	Connect(context.Context, *Room) (Connection, error)
+}
+
 // StreamingAPIClient utilizes gitter streaming API.
 type StreamingAPIClient struct {
 	token      string

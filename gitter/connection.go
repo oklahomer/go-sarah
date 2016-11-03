@@ -81,7 +81,7 @@ func decodePayload(payload []byte) (*Message, error) {
 }
 
 // MessageWithRoom stashes received Message and additional Room information.
-// This implements BotInput.
+// This implements Input.
 type RoomMessage struct {
 	Room            *Room
 	ReceivedMessage *Message
@@ -115,24 +115,18 @@ func (message *RoomMessage) ReplyTo() sarah.OutputDestination {
 	return message.Room
 }
 
-/*
-MalformedPayloadError represents an error that given JSON payload is not properly formatted.
-e.g. required fields are not given, or payload is not a valid JSON string.
-*/
+// MalformedPayloadError represents an error that given JSON payload is not properly formatted.
+// e.g. required fields are not given, or payload is not a valid JSON string.
 type MalformedPayloadError struct {
 	Err string
 }
 
-/*
-Error returns its error string.
-*/
+// Error returns its error string.
 func (e *MalformedPayloadError) Error() string {
 	return e.Err
 }
 
-/*
-NewMalformedPayloadError creates new MalformedPayloadError instance with given arguments.
-*/
+// NewMalformedPayloadError creates new MalformedPayloadError instance with given arguments.
 func NewMalformedPayloadError(str string) *MalformedPayloadError {
 	return &MalformedPayloadError{Err: str}
 }

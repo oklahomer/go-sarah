@@ -17,28 +17,26 @@ const (
 
 var pingSignalChannelId string = "ping"
 
-/*
-Adapter internally calls Slack Rest API and Real Time Messaging API to offer clients easy way to communicate with Slack.
-
-This implements sarah.BotAdapter interface, so this instance can be fed to sarah.Bot instance as below.
-
-  bot := sarah.NewBot()
-  bot.AddAdapter(slack.NewAdapter("myToken"), "/path/to/plugin/config.yml")
-  bot.Run()
-*/
+// Adapter internally calls Slack Rest API and Real Time Messaging API to offer clients easy way to communicate with Slack.
+//
+// This implements sarah.Adapter interface, so this instance can be fed to sarah.Runner instance as below.
+//
+//  runner := sarah.NewRunner(sarah.NewConfig())
+//  runner.RegisterAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
+//  runner.Run()
 type Adapter struct {
-	// Clients that directly communicate with slack API
+	config       *Config
 	WebAPIClient *webapi.Client
 	RtmAPIClient *rtmapi.Client
 	messageQueue chan *textMessage
 }
 
-// NewAdapter creates new Slacker instance with given settings.
-func NewAdapter(token string) *Adapter {
+func NewAdapter(config *Config) *Adapter {
 	return &Adapter{
-		WebAPIClient: webapi.NewClient(&webapi.Config{Token: token}),
+		config:       config,
+		WebAPIClient: webapi.NewClient(&webapi.Config{Token: config.token}),
 		RtmAPIClient: rtmapi.NewClient(),
-		messageQueue: make(chan *textMessage, 100),
+		messageQueue: make(chan *textMessage, config.sendingQueueSize),
 	}
 }
 
@@ -47,11 +45,11 @@ func (adapter *Adapter) BotType() sarah.BotType {
 	return SLACK
 }
 
-func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.BotInput, errCh chan<- error) {
+func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errCh chan<- error) {
 	for {
 		conn, err := adapter.connect(ctx)
 		if err != nil {
-			errCh <- sarah.NewBotAdapterNonContinuableError(err.Error())
+			errCh <- sarah.NewBotNonContinuableError(err.Error())
 			return
 		}
 
@@ -88,7 +86,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Bo
 }
 
 func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSender rtmapi.PayloadSender, tryPing chan struct{}) error {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(adapter.config.pingInterval)
 	defer ticker.Stop()
 
 	for {
@@ -118,15 +116,15 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 
 // connect fetches WebSocket endpoint information via Rest API and establishes WebSocket connection.
 func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) {
-	rtmInfo, err := fetchRtmInfo(ctx, adapter.WebAPIClient)
+	rtmInfo, err := fetchRtmInfo(ctx, adapter.WebAPIClient, adapter.config.retryLimit, adapter.config.retryInterval)
 	if err != nil {
 		return nil, err
 	}
 
-	return connectRtm(ctx, adapter.RtmAPIClient, rtmInfo)
+	return connectRtm(ctx, adapter.RtmAPIClient, rtmInfo, adapter.config.retryLimit, adapter.config.retryInterval)
 }
 
-func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, receivedMessage chan<- sarah.BotInput) {
+func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, receivedMessage chan<- sarah.Input) {
 	for {
 		select {
 		case <-connCtx.Done():
@@ -165,16 +163,14 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 	}
 }
 
-/*
-nonBlockSignal tries to send signal to given channel.
-If no goroutine is listening to the channel or is working on a task triggered by previous signal, this method skips
-signalling rather than blocks til somebody is ready to read channel.
-
-For signalling purpose, empty struct{} should be used.
-http://peter.bourgon.org/go-in-production/
-"Use struct{} as a sentinel value, rather than bool or interface{}. For example, (snip) a signal channel is chan struct{}.
-It unambiguously signals an explicit lack of information."
-*/
+// nonBlockSignal tries to send signal to given channel.
+// If no goroutine is listening to the channel or is working on a task triggered by previous signal, this method skips
+// signalling rather than blocks til somebody is ready to read channel.
+//
+// For signalling purpose, empty struct{} should be used.
+// http://peter.bourgon.org/go-in-production/
+//  "Use struct{} as a sentinel value, rather than bool or interface{}. For example, (snip) a signal channel is chan struct{}.
+//  It unambiguously signals an explicit lack of information."
 func nonBlockSignal(id string, target chan<- struct{}) {
 	select {
 	case target <- struct{}{}:
@@ -190,7 +186,7 @@ type textMessage struct {
 }
 
 // SendMessage let Bot send message to Slack.
-func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.BotOutput) {
+func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	switch content := output.Content().(type) {
 	case string:
 		channel, ok := output.Destination().(*rtmapi.Channel)
@@ -214,25 +210,25 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.BotOutput)
 }
 
 // fetchRtmInfo fetches Real Time Messaging API information via Rest API endpoint with retries.
-func fetchRtmInfo(ctx context.Context, client *webapi.Client) (*webapi.RtmStart, error) {
+func fetchRtmInfo(ctx context.Context, starter webapi.RtmStarter, retrial uint, interval time.Duration) (*webapi.RtmStart, error) {
 	var rtmStart *webapi.RtmStart
-	err := retry.RetryInterval(10, func() error {
-		r, e := client.RtmStart(ctx)
+	err := retry.RetryInterval(retrial, func() error {
+		r, e := starter.RtmStart(ctx)
 		rtmStart = r
 		return e
-	}, 500*time.Millisecond)
+	}, interval)
 
 	return rtmStart, err
 }
 
 // connectRtm establishes WebSocket connection with retries.
-func connectRtm(ctx context.Context, client *rtmapi.Client, rtm *webapi.RtmStart) (rtmapi.Connection, error) {
+func connectRtm(ctx context.Context, connector rtmapi.Connector, rtm *webapi.RtmStart, retrial uint, interval time.Duration) (rtmapi.Connection, error) {
 	var conn rtmapi.Connection
-	err := retry.RetryInterval(10, func() error {
-		c, e := client.Connect(ctx, rtm.URL)
+	err := retry.RetryInterval(retrial, func() error {
+		c, e := connector.Connect(ctx, rtm.URL)
 		conn = c
 		return e
-	}, 500*time.Millisecond)
+	}, interval)
 
 	return conn, err
 }
@@ -251,12 +247,12 @@ func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc
 }
 
 // NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
-func NewPostMessageResponse(input sarah.BotInput, message string, attachments []*webapi.MessageAttachment) *sarah.PluginResponse {
+func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.PluginResponse {
 	return NewPostMessageResponseWithNext(input, message, attachments, nil)
 }
 
 // NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.
-func NewPostMessageResponseWithNext(input sarah.BotInput, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.PluginResponse {
+func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.PluginResponse {
 	inputMessage, _ := input.(*rtmapi.Message)
 	return &sarah.PluginResponse{
 		Content: webapi.NewPostMessageWithAttachments(inputMessage.Channel.Name, message, attachments),

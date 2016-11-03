@@ -8,18 +8,19 @@ import (
 )
 
 var (
-	identifier = "echo"
+	identifier   = "echo"
+	matchPattern = regexp.MustCompile(`^\.echo`)
 )
 
-func echo(_ context.Context, strippedMessage string, _ sarah.BotInput, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
-	return slack.NewStringResponse(strippedMessage), nil
+func echo(_ context.Context, input sarah.Input, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
+	return slack.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
 }
 
 func init() {
 	builder := sarah.NewCommandBuilder().
 		Identifier(identifier).
 		ConfigStruct(sarah.NullConfig).
-		MatchPattern(regexp.MustCompile(`^\.echo`)).
+		MatchPattern(matchPattern).
 		Func(echo).
 		Example(".echo knock knock")
 	sarah.AppendCommandBuilder(slack.SLACK, builder)

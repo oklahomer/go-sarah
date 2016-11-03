@@ -17,6 +17,10 @@ const (
 	GITTER_REST_API_ENDPOINT = "https://api.gitter.im/"
 )
 
+type RoomsFetcher interface {
+	Rooms(context.Context) (*Rooms, error)
+}
+
 // RestAPIClient utilizes gitter REST API.
 type RestAPIClient struct {
 	token      string
