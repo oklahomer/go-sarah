@@ -22,6 +22,6 @@ func init() {
 		ConfigStruct(sarah.NullConfig).
 		MatchPattern(matchPattern).
 		Func(echo).
-		Example(".echo knock knock")
+		InputExample(".echo knock knock")
 	sarah.AppendCommandBuilder(slack.SLACK, builder)
 }

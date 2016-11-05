@@ -17,7 +17,7 @@ func (c *nullCommand) Execute(input Input) (*PluginResponse, error) {
 	return nil, nil
 }
 
-func (c *nullCommand) Example() string {
+func (c *nullCommand) InputExample() string {
 	return "dummy"
 }
 

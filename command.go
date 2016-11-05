@@ -16,7 +16,7 @@ var (
 
 	// CommandInsufficientArgumentError depicts an error that not enough arguments are set to commandBuilder.
 	// This is returned on commandBuilder.build() inside of Runner.Run()
-	CommandInsufficientArgumentError = errors.New("Identifier, Example, MatchPattern, ConfigStruct and Func must be set.")
+	CommandInsufficientArgumentError = errors.New("Identifier, InputExample, MatchPattern, ConfigStruct and Func must be set.")
 )
 
 // ContextualFunc defines a function signature that defines user's next step.
@@ -39,8 +39,8 @@ type Command interface {
 	// Execute receives input from user and returns response.
 	Execute(context.Context, Input) (*PluginResponse, error)
 
-	// Example returns example of user input.
-	Example() string
+	// InputExample returns example of user input. This should be used to provide command usage for end users.
+	InputExample() string
 
 	// Match is used to judge if this command corresponds to given user input.
 	// If this returns true, Bot implementation should proceed to Execute with current user input.
@@ -63,7 +63,7 @@ func (command *simpleCommand) Identifier() string {
 	return command.identifier
 }
 
-func (command *simpleCommand) Example() string {
+func (command *simpleCommand) InputExample() string {
 	return command.example
 }
 
@@ -171,8 +171,8 @@ func (builder *commandBuilder) Func(function commandFunc) *commandBuilder {
 	return builder
 }
 
-// Example is a setter to provide example of command execution. This should be used to provide bot usage for end users.
-func (builder *commandBuilder) Example(example string) *commandBuilder {
+// InputExample is a setter to provide example of command execution. This should be used to provide command usage for end users.
+func (builder *commandBuilder) InputExample(example string) *commandBuilder {
 	builder.example = example
 	return builder
 }

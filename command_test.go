@@ -15,7 +15,7 @@ func TestInsufficientSettings(t *testing.T) {
 		Identifier("someID").
 		ConfigStruct(NullConfig).
 		MatchPattern(matchPattern).
-		Example(".echo knock knock")
+		InputExample(".echo knock knock")
 
 	if _, err := builder.build("/path/"); err == nil {
 		t.Error("expected error not given.")
@@ -46,7 +46,7 @@ func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ Input) (*
 	return nil, nil
 }
 
-func (abandonedCommand *abandonedCommand) Example() string {
+func (abandonedCommand *abandonedCommand) InputExample() string {
 	return ""
 }
 
@@ -64,7 +64,7 @@ func (echoCommand *echoCommand) Execute(_ context.Context, input Input) (*Plugin
 	return &PluginResponse{Content: regexp.MustCompile(`^\.echo`).ReplaceAllString(input.Message(), "")}, nil
 }
 
-func (echoCommand *echoCommand) Example() string {
+func (echoCommand *echoCommand) InputExample() string {
 	return ""
 }
 
