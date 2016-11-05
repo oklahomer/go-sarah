@@ -1,10 +1,9 @@
-package slack
+package worldweather
 
 import (
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
-	"github.com/oklahomer/go-sarah/plugins/worldweather"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/go-sarah/slack/webapi"
 	"golang.org/x/net/context"
@@ -25,7 +24,7 @@ func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig)
 
 	// Share client instance with later execution
 	conf, _ := config.(*pluginConfig)
-	client := worldweather.NewClient(worldweather.NewConfig(conf.APIKey))
+	client := NewClient(NewConfig(conf.APIKey))
 	resp, err := client.LocalWeather(ctx, strippedMessage)
 
 	// If error is returned with HTTP request level, just let it know and quit.
