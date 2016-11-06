@@ -13,7 +13,6 @@ func TestInsufficientSettings(t *testing.T) {
 
 	builder := NewCommandBuilder().
 		Identifier("someID").
-		ConfigStruct(NullConfig).
 		MatchPattern(matchPattern).
 		InputExample(".echo knock knock")
 
@@ -25,7 +24,7 @@ func TestInsufficientSettings(t *testing.T) {
 		}
 	}
 
-	builder.Func(func(_ context.Context, input Input, _ CommandConfig) (*PluginResponse, error) {
+	builder.Func(func(_ context.Context, input Input) (*PluginResponse, error) {
 		return &PluginResponse{
 			Content: StripMessage(matchPattern, input.Message()),
 		}, nil

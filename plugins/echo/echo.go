@@ -13,11 +13,11 @@ var (
 	matchPattern = regexp.MustCompile(`^\.echo`)
 )
 
-func slackEcho(_ context.Context, input sarah.Input, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
+func slackEcho(_ context.Context, input sarah.Input) (*sarah.PluginResponse, error) {
 	return slack.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
 }
 
-func gitterEcho(_ context.Context, input sarah.Input, _ sarah.CommandConfig) (*sarah.PluginResponse, error) {
+func gitterEcho(_ context.Context, input sarah.Input) (*sarah.PluginResponse, error) {
 	return gitter.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
 }
 
@@ -25,7 +25,6 @@ func init() {
 	// For slack interaction
 	slackBuilder := sarah.NewCommandBuilder().
 		Identifier(identifier).
-		ConfigStruct(sarah.NullConfig).
 		MatchPattern(matchPattern).
 		Func(slackEcho).
 		InputExample(".echo knock knock")
@@ -34,7 +33,6 @@ func init() {
 	// For gitter interaction
 	gitterBuilder := sarah.NewCommandBuilder().
 		Identifier(identifier).
-		ConfigStruct(sarah.NullConfig).
 		MatchPattern(matchPattern).
 		Func(gitterEcho).
 		InputExample(".echo knock knock")

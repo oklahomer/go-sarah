@@ -10,10 +10,6 @@ import (
 )
 
 var (
-	// NullConfig is an re-usable CommandConfig instance that indicates absence of command configuration.
-	// e.g. NewCommandBuilder().ConfigStruct(NullConfig)
-	NullConfig = &nullConfig{}
-
 	// CommandInsufficientArgumentError depicts an error that not enough arguments are set to commandBuilder.
 	// This is returned on commandBuilder.build() inside of Runner.Run()
 	CommandInsufficientArgumentError = errors.New("Identifier, InputExample, MatchPattern, ConfigStruct and Func must be set.")
@@ -129,8 +125,7 @@ type nullConfig struct{}
 // CommandConfig provides an interface that every command configuration must satisfy, which actually means empty.
 type CommandConfig interface{}
 
-// commandFunc is a function type that represents command function
-type commandFunc func(context.Context, Input, CommandConfig) (*PluginResponse, error)
+type commandFunc func(context.Context, Input, ...CommandConfig) (*PluginResponse, error)
 
 type commandBuilder struct {
 	identifier   string
@@ -152,12 +147,6 @@ func (builder *commandBuilder) Identifier(id string) *commandBuilder {
 	return builder
 }
 
-// ConfigStruct is a setter for CommandConfig instance. Passed CommandConfig is used in readConfig to read and set corresponding values.
-func (builder *commandBuilder) ConfigStruct(config CommandConfig) *commandBuilder {
-	builder.config = config
-	return builder
-}
-
 // MatchPattern is a setter to provide command match pattern.
 // This regular expression is used to find matching command with given Input.
 func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) *commandBuilder {
@@ -165,9 +154,25 @@ func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) *commandBuil
 	return builder
 }
 
-// Func is a setter to provide Command function.
-func (builder *commandBuilder) Func(function commandFunc) *commandBuilder {
-	builder.commandFunc = function
+// Func is a setter to provide command function that requires no configuration.
+// If ConfigurableFunc and Func are both called, later call overrides the previous one.
+func (builder *commandBuilder) Func(fn func(context.Context, Input) (*PluginResponse, error)) *commandBuilder {
+	builder.config = nil
+	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*PluginResponse, error) {
+		return fn(ctx, input)
+	}
+	return builder
+}
+
+// ConfigurableFunc is a setter to provide command function.
+// While Func let developers set simple function, this allows them to provide function that requires some sort of configuration struct.
+// On Runner.Run configuration is read from YAML file located at /path/to/config/dir/{commandIdentifier}.yaml and mapped to given CommandConfig struct.
+// The configuration is passed to command function as its third argument.
+func (builder *commandBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*PluginResponse, error)) *commandBuilder {
+	builder.config = config
+	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*PluginResponse, error) {
+		return fn(ctx, input, cfg[0])
+	}
 	return builder
 }
 
@@ -182,17 +187,13 @@ func (builder *commandBuilder) build(configDir string) (Command, error) {
 	if builder.identifier == "" ||
 		builder.example == "" ||
 		builder.matchPattern == nil ||
-		builder.config == nil ||
 		builder.commandFunc == nil {
 
 		return nil, CommandInsufficientArgumentError
 	}
 
 	commandConfig := builder.config
-	switch commandConfig.(type) {
-	case *nullConfig:
-	// Do nothing about configuration settings.
-	default:
+	if commandConfig != nil {
 		fileName := builder.identifier + ".yaml"
 		configPath := path.Join(configDir, fileName)
 		err := readConfig(configPath, commandConfig)

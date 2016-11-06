@@ -127,9 +127,8 @@ func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig)
 func init() {
 	builder := sarah.NewCommandBuilder().
 		Identifier(identifier).
-		ConfigStruct(&pluginConfig{}).
 		MatchPattern(matchPattern).
-		Func(weather).
+		ConfigurableFunc(&pluginConfig{}, weather).
 		InputExample(".echo knock knock")
 	sarah.AppendCommandBuilder(slack.SLACK, builder)
 }
