@@ -144,6 +144,6 @@ func connectRoom(ctx context.Context, connector StreamConnector, room *Room, ret
 }
 
 // NewStringResponse can be used by plugin command to return string response to gitter.
-func NewStringResponse(responseContent string) *sarah.PluginResponse {
-	return &sarah.PluginResponse{Content: responseContent}
+func NewStringResponse(responseContent string) *sarah.CommandResponse {
+	return &sarah.CommandResponse{Content: responseContent}
 }

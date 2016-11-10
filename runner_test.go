@@ -13,7 +13,7 @@ func (c *nullCommand) Identifier() string {
 	return "fooBarBuzz"
 }
 
-func (c *nullCommand) Execute(input Input) (*PluginResponse, error) {
+func (c *nullCommand) Execute(input Input) (*CommandResponse, error) {
 	return nil, nil
 }
 

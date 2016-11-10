@@ -233,28 +233,28 @@ func connectRtm(ctx context.Context, connector rtmapi.Connector, rtm *webapi.Rtm
 	return conn, err
 }
 
-// NewStringResponse creates new sarah.PluginResponse instance with given string.
-func NewStringResponse(responseContent string) *sarah.PluginResponse {
+// NewStringResponse creates new sarah.CommandResponse instance with given string.
+func NewStringResponse(responseContent string) *sarah.CommandResponse {
 	return NewStringResponseWithNext(responseContent, nil)
 }
 
-// NewStringResponseWithNext creates new sarah.PluginResponse instance with given string and next function to continue
-func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.PluginResponse {
-	return &sarah.PluginResponse{
+// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
+func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
+	return &sarah.CommandResponse{
 		Content: responseContent,
 		Next:    next,
 	}
 }
 
 // NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
-func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.PluginResponse {
+func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.CommandResponse {
 	return NewPostMessageResponseWithNext(input, message, attachments, nil)
 }
 
 // NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.
-func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.PluginResponse {
+func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
 	inputMessage, _ := input.(*rtmapi.Message)
-	return &sarah.PluginResponse{
+	return &sarah.CommandResponse{
 		Content: webapi.NewPostMessageWithAttachments(inputMessage.Channel.Name, message, attachments),
 		Next:    next,
 	}

@@ -25,7 +25,7 @@ func TestCachedUserContexts_CRUD(t *testing.T) {
 		t.Fatalf("nil should return on empty cache. %#v.", empty)
 	}
 
-	contexts.Set(key, NewUserContext(func(ctx context.Context, input Input) (*PluginResponse, error) { return nil, nil }))
+	contexts.Set(key, NewUserContext(func(ctx context.Context, input Input) (*CommandResponse, error) { return nil, nil }))
 	if val := contexts.Get(key); val == nil {
 		t.Fatal("expected value is not stored")
 	}
@@ -35,7 +35,7 @@ func TestCachedUserContexts_CRUD(t *testing.T) {
 		t.Fatalf("nil should return after cache deletion. %#v.", empty)
 	}
 
-	contexts.Set(key, NewUserContext(func(ctx context.Context, input Input) (*PluginResponse, error) { return nil, nil }))
+	contexts.Set(key, NewUserContext(func(ctx context.Context, input Input) (*CommandResponse, error) { return nil, nil }))
 	contexts.Flush()
 	if contexts.cache.ItemCount() > 0 {
 		t.Fatal("some value is stored after flush.")

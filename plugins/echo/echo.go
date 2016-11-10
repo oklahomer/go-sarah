@@ -13,11 +13,11 @@ var (
 	matchPattern = regexp.MustCompile(`^\.echo`)
 )
 
-func slackEcho(_ context.Context, input sarah.Input) (*sarah.PluginResponse, error) {
+func slackEcho(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 	return slack.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
 }
 
-func gitterEcho(_ context.Context, input sarah.Input) (*sarah.PluginResponse, error) {
+func gitterEcho(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 	return gitter.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
 }
 

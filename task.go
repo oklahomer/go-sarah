@@ -11,7 +11,7 @@ var (
 )
 
 // commandFunc is a function type that represents command function
-type taskFunc func(context.Context, ScheduledTaskConfig) (*PluginResponse, error)
+type taskFunc func(context.Context, ScheduledTaskConfig) (*CommandResponse, error)
 
 type ScheduledTaskConfig interface {
 	Schedule() string
@@ -31,7 +31,7 @@ func (task *scheduledTask) Identifier() string {
 	return task.identifier
 }
 
-func (task *scheduledTask) Execute(ctx context.Context) (*PluginResponse, error) {
+func (task *scheduledTask) Execute(ctx context.Context) (*CommandResponse, error) {
 	return task.taskFunc(ctx, task.config)
 }
 

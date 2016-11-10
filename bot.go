@@ -15,8 +15,8 @@ type Bot interface {
 	BotType() BotType
 
 	// Respond receives user input, look for corresponding command, execute it, and return response if possible.
-	// The returned *PluginResponse can be converted to Output and then passed to SendMessage.
-	Respond(context.Context, Input) (*PluginResponse, error)
+	// The returned *CommandResponse can be converted to Output and then passed to SendMessage.
+	Respond(context.Context, Input) (*CommandResponse, error)
 
 	// SendMessage sends message to destination depending on the Bot implementation.
 	// This is mainly used to send Bot.Respond's response or scheduled task's result.
@@ -61,7 +61,7 @@ func (bot *bot) BotType() BotType {
 	return bot.adapter.BotType()
 }
 
-func (bot *bot) Respond(ctx context.Context, input Input) (res *PluginResponse, err error) {
+func (bot *bot) Respond(ctx context.Context, input Input) (res *CommandResponse, err error) {
 	senderKey := input.SenderKey()
 	userContext := bot.userContextCache.Get(senderKey)
 

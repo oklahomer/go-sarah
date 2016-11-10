@@ -24,8 +24,8 @@ func TestInsufficientSettings(t *testing.T) {
 		}
 	}
 
-	builder.Func(func(_ context.Context, input Input) (*PluginResponse, error) {
-		return &PluginResponse{
+	builder.Func(func(_ context.Context, input Input) (*CommandResponse, error) {
+		return &CommandResponse{
 			Content: StripMessage(matchPattern, input.Message()),
 		}, nil
 	})
@@ -41,7 +41,7 @@ func (abandonedCommand *abandonedCommand) Identifier() string {
 	return "arbitraryStringThatWouldNeverBeRecognized"
 }
 
-func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ Input) (*PluginResponse, error) {
+func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ Input) (*CommandResponse, error) {
 	return nil, nil
 }
 
@@ -59,8 +59,8 @@ func (echoCommand *echoCommand) Identifier() string {
 	return "echo"
 }
 
-func (echoCommand *echoCommand) Execute(_ context.Context, input Input) (*PluginResponse, error) {
-	return &PluginResponse{Content: regexp.MustCompile(`^\.echo`).ReplaceAllString(input.Message(), "")}, nil
+func (echoCommand *echoCommand) Execute(_ context.Context, input Input) (*CommandResponse, error) {
+	return &CommandResponse{Content: regexp.MustCompile(`^\.echo`).ReplaceAllString(input.Message(), "")}, nil
 }
 
 func (echoCommand *echoCommand) InputExample() string {

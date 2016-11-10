@@ -16,13 +16,13 @@ var (
 )
 
 // ContextualFunc defines a function signature that defines user's next step.
-// When a function or instance method is given as PluginResponse.Next, Bot implementation must store this with Input.SenderKey.
+// When a function or instance method is given as CommandResponse.Next, Bot implementation must store this with Input.SenderKey.
 // On user's next input, inside of Bot.Respond, Bot retrieves stored ContextualFunc and execute this.
-// If PluginResponse.Next is given again as part of result, the same step must be followed.
-type ContextualFunc func(context.Context, Input) (*PluginResponse, error)
+// If CommandResponse.Next is given again as part of result, the same step must be followed.
+type ContextualFunc func(context.Context, Input) (*CommandResponse, error)
 
-// PluginResponse is returned by Command or Task when the execution is finished.
-type PluginResponse struct {
+// CommandResponse is returned by Command or Task when the execution is finished.
+type CommandResponse struct {
 	Content interface{}
 	Next    ContextualFunc
 }
@@ -33,7 +33,7 @@ type Command interface {
 	Identifier() string
 
 	// Execute receives input from user and returns response.
-	Execute(context.Context, Input) (*PluginResponse, error)
+	Execute(context.Context, Input) (*CommandResponse, error)
 
 	// InputExample returns example of user input. This should be used to provide command usage for end users.
 	InputExample() string
@@ -67,7 +67,7 @@ func (command *simpleCommand) Match(input string) bool {
 	return command.matchPattern.MatchString(input)
 }
 
-func (command *simpleCommand) Execute(ctx context.Context, input Input) (*PluginResponse, error) {
+func (command *simpleCommand) Execute(ctx context.Context, input Input) (*CommandResponse, error) {
 	return command.commandFunc(ctx, input, command.config)
 }
 
@@ -110,7 +110,7 @@ func (commands *Commands) FindFirstMatched(text string) Command {
 }
 
 // ExecuteFirstMatched tries find matching command with the given input, and execute it if one is available.
-func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) (*PluginResponse, error) {
+func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) (*CommandResponse, error) {
 	inputMessage := input.Message()
 	command := commands.FindFirstMatched(inputMessage)
 	if command == nil {
@@ -125,7 +125,7 @@ type nullConfig struct{}
 // CommandConfig provides an interface that every command configuration must satisfy, which actually means empty.
 type CommandConfig interface{}
 
-type commandFunc func(context.Context, Input, ...CommandConfig) (*PluginResponse, error)
+type commandFunc func(context.Context, Input, ...CommandConfig) (*CommandResponse, error)
 
 type commandBuilder struct {
 	identifier   string
@@ -156,9 +156,9 @@ func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) *commandBuil
 
 // Func is a setter to provide command function that requires no configuration.
 // If ConfigurableFunc and Func are both called, later call overrides the previous one.
-func (builder *commandBuilder) Func(fn func(context.Context, Input) (*PluginResponse, error)) *commandBuilder {
+func (builder *commandBuilder) Func(fn func(context.Context, Input) (*CommandResponse, error)) *commandBuilder {
 	builder.config = nil
-	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*PluginResponse, error) {
+	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 		return fn(ctx, input)
 	}
 	return builder
@@ -168,9 +168,9 @@ func (builder *commandBuilder) Func(fn func(context.Context, Input) (*PluginResp
 // While Func let developers set simple function, this allows them to provide function that requires some sort of configuration struct.
 // On Runner.Run configuration is read from YAML file located at /path/to/config/dir/{commandIdentifier}.yaml and mapped to given CommandConfig struct.
 // The configuration is passed to command function as its third argument.
-func (builder *commandBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*PluginResponse, error)) *commandBuilder {
+func (builder *commandBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*CommandResponse, error)) *commandBuilder {
 	builder.config = config
-	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*PluginResponse, error) {
+	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 		return fn(ctx, input, cfg[0])
 	}
 	return builder

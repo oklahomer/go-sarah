@@ -19,7 +19,7 @@ type pluginConfig struct {
 	APIKey string `yaml:"api_key"`
 }
 
-func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.PluginResponse, error) {
+func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.CommandResponse, error) {
 	strippedMessage := sarah.StripMessage(matchPattern, input.Message())
 
 	// Share client instance with later execution
@@ -38,7 +38,7 @@ func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig)
 		errorDescription := resp.Data.Error[0].Message
 		return slack.NewStringResponseWithNext(
 			fmt.Sprintf("Error was returned: %s.\nInput location name to retry, please.", errorDescription),
-			func(c context.Context, i sarah.Input) (*sarah.PluginResponse, error) {
+			func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 				return weather(c, i, config)
 			},
 		), nil
