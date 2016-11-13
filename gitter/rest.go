@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	// GITTER_REST_API_ENDPOINT defines base url of gitter REST API.
-	GITTER_REST_API_ENDPOINT = "https://api.gitter.im/"
+	// RestAPIEndpoint defines base url of gitter REST API.
+	RestAPIEndpoint = "https://api.gitter.im/"
 )
 
 type RoomsFetcher interface {
@@ -41,7 +41,7 @@ func NewRestAPIClient(token string) *RestAPIClient {
 }
 
 func (client *RestAPIClient) buildEndpoint(resourceFragments []string) *url.URL {
-	endpoint, _ := url.Parse(GITTER_REST_API_ENDPOINT)
+	endpoint, _ := url.Parse(RestAPIEndpoint)
 	fragments := append([]string{endpoint.Path, client.apiVersion}, resourceFragments...)
 	endpoint.Path = path.Join(fragments...)
 	return endpoint

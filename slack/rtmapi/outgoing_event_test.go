@@ -10,7 +10,7 @@ func TestMarshalPingEvent(t *testing.T) {
 	ping := &Ping{
 		OutgoingCommonEvent: OutgoingCommonEvent{
 			ID:          1,
-			CommonEvent: CommonEvent{Type: PING},
+			CommonEvent: CommonEvent{Type: PingEvent},
 		},
 	}
 	val, err := json.Marshal(ping)
@@ -31,7 +31,7 @@ func TestUnmarshalPingEvent(t *testing.T) {
 		return
 	}
 
-	if ping.Type != PING {
+	if ping.Type != PingEvent {
 		t.Errorf("something is wrong with unmarshaled result. %#v.", ping)
 	}
 

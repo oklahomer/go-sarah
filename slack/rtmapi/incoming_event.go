@@ -106,24 +106,24 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 	var mapping DecodedEvent
 
 	switch event.Type {
-	case UNSUPPORTED:
+	case UnsupportedEvent:
 		return nil, ErrUnsupportedEventType
-	case HELLO:
+	case HelloEvent:
 		mapping = &Hello{}
-	case MESSAGE:
+	case MessageEvent:
 		subTypedMessage := &CommonMessage{}
 		if err := json.Unmarshal(input, subTypedMessage); err != nil {
 			return nil, NewMalformedPayloadError(err.Error())
 		}
 		switch subTypedMessage.SubType {
-		case EMPTY:
+		case Empty:
 			mapping = &Message{}
 		default:
 			mapping = &MiscMessage{}
 		}
-	case TEAM_MIGRATION_STARTED:
+	case TeamMigrationStartedEvent:
 		mapping = &TeamMigrationStarted{}
-	case PONG:
+	case PongEvent:
 		mapping = &Pong{}
 	case "":
 		// type field is not given so string's zero value, empty string, is set.

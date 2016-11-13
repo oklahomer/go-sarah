@@ -30,7 +30,7 @@ func NewOutgoingMessage(eventID *OutgoingEventID, channel *Channel, text string)
 		OutgoingCommonEvent: OutgoingCommonEvent{
 			ID: eventID.Next(),
 			CommonEvent: CommonEvent{
-				Type: MESSAGE,
+				Type: MessageEvent,
 			},
 		},
 	}
@@ -47,7 +47,7 @@ func NewPing(eventID *OutgoingEventID) *Ping {
 	return &Ping{
 		OutgoingCommonEvent: OutgoingCommonEvent{
 			ID:          eventID.Next(),
-			CommonEvent: CommonEvent{Type: PING},
+			CommonEvent: CommonEvent{Type: PingEvent},
 		},
 	}
 }

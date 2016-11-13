@@ -5,9 +5,9 @@ import (
 )
 
 const (
-	// TIME_LAYOUT defines gitter-styled timestamp format.
+	// TimeFormat defines gitter-styled timestamp format.
 	// https://golang.org/pkg/time/#Time.Format
-	TIME_LAYOUT = "2006-01-02T15:04:05.999Z"
+	TimeFormat = "2006-01-02T15:04:05.999Z"
 )
 
 // TimeStamp represents gitter timestamp.
@@ -21,7 +21,7 @@ func (timeStamp *TimeStamp) UnmarshalText(b []byte) error {
 	str := string(b)
 	timeStamp.OriginalValue = str
 
-	t, err := time.Parse(TIME_LAYOUT, str)
+	t, err := time.Parse(TimeFormat, str)
 	if err != nil {
 		return err
 	}
