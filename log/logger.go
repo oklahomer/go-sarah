@@ -7,21 +7,21 @@ import (
 	"sync"
 )
 
-type LogLevel string
+type Level string
 
 var (
-	logger Logger = newDefaultLogger()
-	mutex         = &sync.Mutex{}
+	logger = newDefaultLogger()
+	mutex  = &sync.Mutex{}
 )
 
 const (
-	DebugLevel LogLevel = "DEBUG"
-	InfoLevel           = "INFO"
-	WarnLevel           = "WARN"
-	ErrorLevel          = "ERROR"
+	DebugLevel Level = "DEBUG"
+	InfoLevel        = "INFO"
+	WarnLevel        = "WARN"
+	ErrorLevel       = "ERROR"
 )
 
-func (level LogLevel) String() string {
+func (level Level) String() string {
 	return string(level)
 }
 
@@ -74,13 +74,13 @@ func (l *defaultLogger) Errorf(format string, args ...interface{}) {
 	l.outf(ErrorLevel, format, args...)
 }
 
-func (l *defaultLogger) out(level LogLevel, args ...interface{}) {
+func (l *defaultLogger) out(level Level, args ...interface{}) {
 	// combine level identifier and given arguments for variadic function call
 	leveledArgs := append([]interface{}{"[" + level.String() + "]"}, args...)
 	l.logger.Output(4, fmt.Sprintln(leveledArgs...))
 }
 
-func (l *defaultLogger) outf(level LogLevel, format string, args ...interface{}) {
+func (l *defaultLogger) outf(level Level, format string, args ...interface{}) {
 	// combine level identifier and given arguments for variadic function call
 	leveledArgs := append([]interface{}{level}, args...)
 	l.logger.Output(4, fmt.Sprintf("[%s] "+format, leveledArgs...))

@@ -1,7 +1,6 @@
 package retry
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 )
@@ -11,7 +10,7 @@ func TestRetry(t *testing.T) {
 	i := 0
 	err := Retry(trial, func() error {
 		i++
-		return errors.New(fmt.Sprintf("error on %d", i))
+		return fmt.Errorf("error on %d", i)
 	})
 
 	retryErr, ok := err.(*RetryErrors)
@@ -31,7 +30,7 @@ func TestSomeRetrial(t *testing.T) {
 	err := Retry(trial, func() error {
 		i++
 		if i >= trial {
-			return errors.New(fmt.Sprintf("error on %d", i))
+			fmt.Errorf("error on %d", i)
 		}
 
 		str = expectedStr

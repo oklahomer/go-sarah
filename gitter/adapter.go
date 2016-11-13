@@ -82,14 +82,14 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 				// Connection is intentionally closed by caller.
 				// No more interaction follows.
 				return
-			} else {
-				// TODO: Intentional connection close such as context.cancel also comes here.
-				// It would be nice if we could detect such event to distinguish intentional behaviour and unintentional connection error.
-				// But, the truth is, given error is just a privately defined error instance given by http package.
-				// var errRequestCanceled = errors.New("net/http: request canceled")
-				// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
-				log.Error(connErr.Error())
 			}
+
+			// TODO: Intentional connection close such as context.cancel also comes here.
+			// It would be nice if we could detect such event to distinguish intentional behaviour and unintentional connection error.
+			// But, the truth is, given error is just a privately defined error instance given by http package.
+			// var errRequestCanceled = errors.New("net/http: request canceled")
+			// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
+			log.Error(connErr.Error())
 		}
 	}
 }
