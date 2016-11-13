@@ -2,8 +2,8 @@ package webapi
 
 import (
 	"github.com/jarcoal/httpmock"
-	"github.com/oklahomer/go-sarah/httperror"
 	"golang.org/x/net/context"
+	"net/http"
 	"net/url"
 	"testing"
 )
@@ -50,26 +50,21 @@ func TestGetStatusError(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	statusCode := 404
-	responder := httpmock.NewStringResponder(statusCode, "foo bar")
 	httpmock.RegisterResponder(
 		"GET",
 		"https://slack.com/api/foo",
-		responder)
+		func(req *http.Request) (*http.Response, error) {
+			resp := httpmock.NewStringResponse(statusCode, "foo bar")
+			resp.Request = req // To let *http.Response.Request work
+			return resp, nil
+		})
 
 	client := NewClient(&Config{Token: "abc"})
 	dummyResponse := &GetResponseDummy{}
 	err := client.Get(context.TODO(), "foo", nil, dummyResponse)
 
-	switch e := err.(type) {
-	case nil:
+	if err == nil {
 		t.Errorf("error should return when %d is given.", statusCode)
-	case *httperror.ResponseError:
-		// OK
-		if e.Response.StatusCode != statusCode {
-			t.Errorf("error instance includes wrong status code of %d. expected %d.", e.Response.StatusCode, statusCode)
-		}
-	default:
-		t.Errorf("%#v is returned while httperror.ResponseError should be returned.", err)
 	}
 }
 
@@ -145,26 +140,21 @@ func TestPostStatusError(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	statusCode := 404
-	responder := httpmock.NewStringResponder(statusCode, "foo bar")
 	httpmock.RegisterResponder(
 		"POST",
 		"https://slack.com/api/foo",
-		responder)
+		func(req *http.Request) (*http.Response, error) {
+			resp := httpmock.NewStringResponse(statusCode, "foo bar")
+			resp.Request = req // To let *http.Response.Request work
+			return resp, nil
+		})
 
 	client := NewClient(&Config{Token: "abc"})
 	response := &APIResponse{}
 	err := client.Post(context.TODO(), "foo", url.Values{}, response)
 
-	switch e := err.(type) {
-	case nil:
+	if err == nil {
 		t.Errorf("error should return when %d is given.", statusCode)
-	case *httperror.ResponseError:
-		// OK
-		if e.Response.StatusCode != statusCode {
-			t.Errorf("error instance includes wrong status code of %d. expected %d.", e.Response.StatusCode, statusCode)
-		}
-	default:
-		t.Errorf("%#v is returned while httperror.ResponseError should be returned.", err)
 	}
 }
 

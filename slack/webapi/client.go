@@ -2,12 +2,13 @@ package webapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/oklahomer/go-sarah/httperror"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 )
 
@@ -62,7 +63,7 @@ func (client *Client) Get(ctx context.Context, slackMethod string, queryParams *
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return httperror.NewResponseError(fmt.Sprintf("response status error. status: %d.", resp.StatusCode), resp)
+		return statusErr(resp)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -77,10 +78,28 @@ func (client *Client) Get(ctx context.Context, slackMethod string, queryParams *
 	return nil
 }
 
+func statusErr(resp *http.Response) error {
+	reqDump, reqErr := httputil.DumpRequestOut(resp.Request, true)
+	if reqErr != nil {
+		reqDump = []byte("N/A")
+	}
+
+	resDump, resErr := httputil.DumpResponse(resp, true)
+	if resErr != nil {
+		resDump = []byte("N/A")
+	}
+
+	return errors.New(fmt.Sprintf("response status error. Status: %d.\nRequest: %s\nResponse: %s", resp.StatusCode, string(reqDump), string(resDump)))
+}
+
 func (client *Client) RtmStart(ctx context.Context) (*RtmStart, error) {
 	rtmStart := &RtmStart{}
 	if err := client.Get(ctx, "rtm.start", nil, &rtmStart); err != nil {
 		return nil, err
+	}
+
+	if rtmStart.OK != true {
+		return nil, errors.New(fmt.Sprintf("Error on rtm.start : %s", rtmStart.Error))
 	}
 
 	return rtmStart, nil
@@ -102,7 +121,7 @@ func (client *Client) Post(ctx context.Context, slackMethod string, bodyParam ur
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return httperror.NewResponseError(fmt.Sprintf("response status error. status: %d.", resp.StatusCode), resp)
+		return statusErr(resp)
 	}
 
 	response, err := ioutil.ReadAll(resp.Body)

@@ -9,7 +9,8 @@ type TimeStamp int64
 // APIResponse provides common fields shared by all API response.
 // https://api.slack.com/web#basics
 type APIResponse struct {
-	OK bool `json:"ok"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error"`
 }
 
 // Self contains details on the authenticated user.
