@@ -127,6 +127,15 @@ type CommandConfig interface{}
 
 type commandFunc func(context.Context, Input, ...CommandConfig) (*CommandResponse, error)
 
+type CommandBuilder interface {
+	Identifier(string) CommandBuilder
+	MatchPattern(*regexp.Regexp) CommandBuilder
+	Func(func(context.Context, Input) (*CommandResponse, error)) CommandBuilder
+	ConfigurableFunc(CommandConfig, func(context.Context, Input, CommandConfig) (*CommandResponse, error)) CommandBuilder
+	InputExample(string) CommandBuilder
+	build(string) (Command, error)
+}
+
 type commandBuilder struct {
 	identifier   string
 	matchPattern *regexp.Regexp
@@ -137,26 +146,26 @@ type commandBuilder struct {
 
 // NewCommandBuilder returns new commandBuilder instance.
 // This can be used to setup your desired bot Command. Pass this instance to sarah.AppendCommandBuilder, and the Command will be configured when Bot runs.
-func NewCommandBuilder() *commandBuilder {
+func NewCommandBuilder() CommandBuilder {
 	return &commandBuilder{}
 }
 
 // Identifier is a setter for Command identifier.
-func (builder *commandBuilder) Identifier(id string) *commandBuilder {
+func (builder *commandBuilder) Identifier(id string) CommandBuilder {
 	builder.identifier = id
 	return builder
 }
 
 // MatchPattern is a setter to provide command match pattern.
 // This regular expression is used to find matching command with given Input.
-func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) *commandBuilder {
+func (builder *commandBuilder) MatchPattern(pattern *regexp.Regexp) CommandBuilder {
 	builder.matchPattern = pattern
 	return builder
 }
 
 // Func is a setter to provide command function that requires no configuration.
 // If ConfigurableFunc and Func are both called, later call overrides the previous one.
-func (builder *commandBuilder) Func(fn func(context.Context, Input) (*CommandResponse, error)) *commandBuilder {
+func (builder *commandBuilder) Func(fn func(context.Context, Input) (*CommandResponse, error)) CommandBuilder {
 	builder.config = nil
 	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 		return fn(ctx, input)
@@ -168,7 +177,7 @@ func (builder *commandBuilder) Func(fn func(context.Context, Input) (*CommandRes
 // While Func let developers set simple function, this allows them to provide function that requires some sort of configuration struct.
 // On Runner.Run configuration is read from YAML file located at /path/to/config/dir/{commandIdentifier}.yaml and mapped to given CommandConfig struct.
 // The configuration is passed to command function as its third argument.
-func (builder *commandBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*CommandResponse, error)) *commandBuilder {
+func (builder *commandBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*CommandResponse, error)) CommandBuilder {
 	builder.config = config
 	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 		return fn(ctx, input, cfg[0])
@@ -177,7 +186,7 @@ func (builder *commandBuilder) ConfigurableFunc(config CommandConfig, fn func(co
 }
 
 // InputExample is a setter to provide example of command execution. This should be used to provide command usage for end users.
-func (builder *commandBuilder) InputExample(example string) *commandBuilder {
+func (builder *commandBuilder) InputExample(example string) CommandBuilder {
 	builder.example = example
 	return builder
 }
