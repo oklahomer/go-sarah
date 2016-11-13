@@ -9,13 +9,13 @@ import (
 
 func TestUnmarshalEventType(t *testing.T) {
 	var eventType EventType
-	if err := eventType.UnmarshalText([]byte(HELLO)); err != nil {
+	if err := eventType.UnmarshalText([]byte(HelloEvent)); err != nil {
 		t.Errorf("error on valid event type unmarshal. %s.", err.Error())
 		return
 	}
 
-	if strings.Compare(string(eventType), string(HELLO)) != 0 {
-		t.Errorf("event type, %s, is wrong. expecting %s.", eventType, HELLO)
+	if strings.Compare(string(eventType), string(HelloEvent)) != 0 {
+		t.Errorf("event type, %s, is wrong. expecting %s.", eventType, HelloEvent)
 	}
 }
 
@@ -26,16 +26,16 @@ func TestUnmarshalInvalidEventType(t *testing.T) {
 		return
 	}
 
-	if strings.Compare(string(eventType), string(UNSUPPORTED)) != 0 {
-		t.Errorf("event type, %s, is wrong. expecting %s.", eventType, UNSUPPORTED)
+	if strings.Compare(string(eventType), string(UnsupportedEvent)) != 0 {
+		t.Errorf("event type, %s, is wrong. expecting %s.", eventType, UnsupportedEvent)
 	}
 }
 
 func TestMarshalEventType(t *testing.T) {
-	eventType := EventType(HELLO)
+	eventType := EventType(HelloEvent)
 	if b, e := eventType.MarshalText(); e == nil {
-		if !bytes.Equal(b, []byte(HELLO)) {
-			t.Errorf("marshaled value is wrong %s. expected %s.", string(b), string(HELLO))
+		if !bytes.Equal(b, []byte(HelloEvent)) {
+			t.Errorf("marshaled value is wrong %s. expected %s.", string(b), string(HelloEvent))
 		}
 	} else {
 		t.Errorf("error on marshal slack event type. %s.", e.Error())
@@ -45,8 +45,8 @@ func TestMarshalEventType(t *testing.T) {
 func TestMarshalZeroValuedEventType(t *testing.T) {
 	var eventType EventType
 	if b, e := eventType.MarshalText(); e == nil {
-		if !bytes.Equal(b, []byte(UNSUPPORTED)) {
-			t.Errorf("marshaled value is wrong %s. expected %s.", string(b), string(UNSUPPORTED))
+		if !bytes.Equal(b, []byte(UnsupportedEvent)) {
+			t.Errorf("marshaled value is wrong %s. expected %s.", string(b), string(UnsupportedEvent))
 		}
 	} else {
 		t.Errorf("error on marshal slack event type. %s.", e.Error())
@@ -61,16 +61,16 @@ func TestUnmarshalCommonEvent(t *testing.T) {
 		return
 	}
 
-	if parsedEvent.Type != MESSAGE {
+	if parsedEvent.Type != MessageEvent {
 		t.Errorf("type field is not properly parsed. %s", parsedEvent.Type)
 	}
 
 }
 
 func TestMarshalCommonEvent(t *testing.T) {
-	event := CommonEvent{Type: MESSAGE}
+	event := CommonEvent{Type: MessageEvent}
 	if b, err := json.Marshal(event); err == nil {
-		if !strings.Contains(string(b), string(MESSAGE)) {
+		if !strings.Contains(string(b), string(MessageEvent)) {
 			t.Errorf(`returned text doesn't contain "message". %s.`, string(b))
 		}
 	} else {

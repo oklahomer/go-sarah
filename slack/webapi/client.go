@@ -2,7 +2,6 @@ package webapi
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
@@ -89,7 +88,7 @@ func statusErr(resp *http.Response) error {
 		resDump = []byte("N/A")
 	}
 
-	return errors.New(fmt.Sprintf("response status error. Status: %d.\nRequest: %s\nResponse: %s", resp.StatusCode, string(reqDump), string(resDump)))
+	return fmt.Errorf("response status error. Status: %d.\nRequest: %s\nResponse: %s", resp.StatusCode, string(reqDump), string(resDump))
 }
 
 func (client *Client) RtmStart(ctx context.Context) (*RtmStart, error) {
@@ -99,7 +98,7 @@ func (client *Client) RtmStart(ctx context.Context) (*RtmStart, error) {
 	}
 
 	if rtmStart.OK != true {
-		return nil, errors.New(fmt.Sprintf("Error on rtm.start : %s", rtmStart.Error))
+		return nil, fmt.Errorf("Error on rtm.start : %s", rtmStart.Error)
 	}
 
 	return rtmStart, nil

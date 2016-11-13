@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	// GITTER_STREAMING_API_ENDPOINT_FORMAT defines basic url format of gitter streaming API.
-	GITTER_STREAMING_API_ENDPOINT_FORMAT = "https://stream.gitter.im/%s/rooms/%s/chatMessages"
+	// StreamingAPIEndpointFormat defines basic url format of gitter streaming API.
+	StreamingAPIEndpointFormat = "https://stream.gitter.im/%s/rooms/%s/chatMessages"
 )
 
 type StreamConnector interface {
@@ -38,7 +38,7 @@ func NewStreamingAPIClient(token string) *StreamingAPIClient {
 }
 
 func (client *StreamingAPIClient) buildEndpoint(room *Room) *url.URL {
-	endpoint, _ := url.Parse(fmt.Sprintf(GITTER_STREAMING_API_ENDPOINT_FORMAT, client.apiVersion, room.ID))
+	endpoint, _ := url.Parse(fmt.Sprintf(StreamingAPIEndpointFormat, client.apiVersion, room.ID))
 	return endpoint
 }
 

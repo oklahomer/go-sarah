@@ -10,16 +10,16 @@ type EventType string
 
 // List of available EventTypes
 const (
-	UNSUPPORTED            EventType = "unsupported"
-	HELLO                            = "hello"
-	MESSAGE                          = "message"
-	TEAM_MIGRATION_STARTED           = "team_migration_started"
-	PING                             = "ping"
-	PONG                             = "pong"
+	UnsupportedEvent          EventType = "unsupported"
+	HelloEvent                          = "hello"
+	MessageEvent                        = "message"
+	TeamMigrationStartedEvent           = "team_migration_started"
+	PingEvent                           = "ping"
+	PongEvent                           = "pong"
 )
 
 var (
-	possibleEvents = [...]EventType{HELLO, MESSAGE, TEAM_MIGRATION_STARTED, PING, PONG}
+	possibleEvents = [...]EventType{HelloEvent, MessageEvent, TeamMigrationStartedEvent, PingEvent, PongEvent}
 )
 
 // UnmarshalText parses a given event value to EventType.
@@ -32,7 +32,7 @@ func (eventType *EventType) UnmarshalText(b []byte) error {
 			return nil
 		}
 	}
-	*eventType = UNSUPPORTED
+	*eventType = UnsupportedEvent
 	return nil
 }
 
@@ -47,7 +47,7 @@ func (eventType *EventType) MarshalText() ([]byte, error) {
 	str := eventType.String()
 
 	if strings.Compare(str, "") == 0 {
-		return []byte(UNSUPPORTED), nil
+		return []byte(UnsupportedEvent), nil
 	}
 
 	return []byte(str), nil
@@ -64,38 +64,38 @@ type SubType string
 
 const (
 	// List of available SubTypes
-	EMPTY             SubType = "" // can be absent
-	BOT_MESSAGE               = "bot_message"
-	CHANNEL_ARCHIVE           = "channel_archive"
-	CHANNEL_JOIN              = "channel_join"
-	CHANNEL_LEAVE             = "channel_leave"
-	CHANNEL_NAME              = "channel_name"
-	CHANNEL_PURPOSE           = "channel_purpose"
-	CHANNEL_TOPIC             = "channel_topic"
-	CHANNEL_UNARCHIVE         = "channel_unarchive"
-	FILE_COMMENT              = "file_comment"
-	FILE_MENTION              = "file_mention"
-	FILE_SHARE                = "file_share"
-	GROUP_ARCHIVE             = "group_archive"
-	GROUP_JOIN                = "group_join"
-	GROUP_LEAVE               = "group_leave"
-	GROUP_NAME                = "group_name"
-	GROUP_PURPOSE             = "group_purpose"
-	GROUP_TOPIC               = "group_topic"
-	GROUP_UNARCHIVE           = "group_unarchive"
-	ME_MESSAGE                = "me_message"
-	MESSAGE_CHANGED           = "message_changed"
-	MESSAGE_DELETED           = "message_deleted"
-	PINNED_ITEM               = "pinned_item"
-	UNPINNED_ITEM             = "unpinned_item"
+	Empty            SubType = "" // can be absent
+	BotMessage               = "bot_message"
+	ChannelArchive           = "channel_archive"
+	ChannelJoin              = "channel_join"
+	ChannelLeave             = "channel_leave"
+	ChannelName              = "channel_name"
+	ChannelPurpose           = "channel_purpose"
+	ChannelTopic             = "channel_topic"
+	ChannelUnarchive         = "channel_unarchive"
+	FileComment              = "file_comment"
+	FileMention              = "file_mention"
+	FileShare                = "file_share"
+	GroupArchive             = "group_archive"
+	GroupJoin                = "group_join"
+	GroupLeave               = "group_leave"
+	GroupName                = "group_name"
+	GroupPurpose             = "group_purpose"
+	GroupTopic               = "group_topic"
+	GroupUnarchive           = "group_unarchive"
+	MeMessage                = "me_message"
+	MessageChanged           = "message_changed"
+	MessageDeleted           = "message_deleted"
+	PinnedItem               = "pinned_item"
+	UnpinnedItem             = "unpinned_item"
 )
 
 var (
 	possibleSubTypes = [...]SubType{
-		BOT_MESSAGE, CHANNEL_ARCHIVE, CHANNEL_JOIN, CHANNEL_LEAVE, CHANNEL_NAME, CHANNEL_PURPOSE, CHANNEL_TOPIC,
-		CHANNEL_UNARCHIVE, FILE_COMMENT, FILE_MENTION, FILE_SHARE, GROUP_ARCHIVE, GROUP_JOIN, GROUP_LEAVE,
-		GROUP_NAME, GROUP_PURPOSE, GROUP_TOPIC, GROUP_UNARCHIVE, ME_MESSAGE, MESSAGE_CHANGED, MESSAGE_DELETED,
-		PINNED_ITEM, UNPINNED_ITEM,
+		BotMessage, ChannelArchive, ChannelJoin, ChannelLeave, ChannelName, ChannelPurpose, ChannelTopic,
+		ChannelUnarchive, FileComment, FileMention, FileShare, GroupArchive, GroupJoin, GroupLeave,
+		GroupName, GroupPurpose, GroupTopic, GroupUnarchive, MeMessage, MessageChanged, MessageDeleted,
+		PinnedItem, UnpinnedItem,
 	}
 )
 
@@ -109,7 +109,7 @@ func (subType *SubType) UnmarshalText(b []byte) error {
 			return nil
 		}
 	}
-	*subType = EMPTY
+	*subType = Empty
 	return nil
 }
 

@@ -82,21 +82,21 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 				// Connection is intentionally closed by caller.
 				// No more interaction follows.
 				return
-			} else {
-				// TODO: Intentional connection close such as context.cancel also comes here.
-				// It would be nice if we could detect such event to distinguish intentional behaviour and unintentional connection error.
-				// But, the truth is, given error is just a privately defined error instance given by http package.
-				// var errRequestCanceled = errors.New("net/http: request canceled")
-				// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
-				log.Error(connErr.Error())
 			}
+
+			// TODO: Intentional connection close such as context.cancel also comes here.
+			// It would be nice if we could detect such event to distinguish intentional behaviour and unintentional connection error.
+			// But, the truth is, given error is just a privately defined error instance given by http package.
+			// var errRequestCanceled = errors.New("net/http: request canceled")
+			// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
+			log.Error(connErr.Error())
 		}
 	}
 }
 
 func fetchRooms(ctx context.Context, fetcher RoomsFetcher, retrial uint, interval time.Duration) (*Rooms, error) {
 	var rooms *Rooms
-	err := retry.RetryInterval(retrial, func() error {
+	err := retry.WithInterval(retrial, func() error {
 		r, e := fetcher.Rooms(ctx)
 		rooms = r
 		return e
@@ -110,7 +110,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage ch
 	for {
 		message, err := messageReceiver.Receive()
 
-		if err == EmptyPayloadError {
+		if err == ErrEmptyPayload {
 			// https://developer.gitter.im/docs/streaming-api
 			// Parsers must be tolerant of occasional extra newline characters placed between messages.
 			// These characters are sent as periodic "keep-alive" messages to tell clients and NAT firewalls
@@ -131,7 +131,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage ch
 
 func connectRoom(ctx context.Context, connector StreamConnector, room *Room, retrial uint, interval time.Duration) (Connection, error) {
 	var conn Connection
-	err := retry.RetryInterval(retrial, func() error {
+	err := retry.WithInterval(retrial, func() error {
 		r, e := connector.Connect(ctx, room)
 		if e != nil {
 			log.Error(e)

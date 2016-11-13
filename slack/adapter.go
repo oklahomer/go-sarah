@@ -15,7 +15,7 @@ const (
 	SLACK sarah.BotType = "slack"
 )
 
-var pingSignalChannelId string = "ping"
+var pingSignalChannelID = "ping"
 
 // Adapter internally calls Slack Rest API and Real Time Messaging API to offer clients easy way to communicate with Slack.
 //
@@ -78,9 +78,8 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.In
 			// Connection is intentionally closed by caller.
 			// No more interaction follows.
 			return
-		} else {
-			log.Error(connErr.Error())
 		}
+		log.Error(connErr.Error())
 	}
 
 }
@@ -103,7 +102,7 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 				}
 			}
 		case <-ticker.C:
-			nonBlockSignal(pingSignalChannelId, tryPing)
+			nonBlockSignal(pingSignalChannelID, tryPing)
 		case <-tryPing:
 			log.Debug("send ping")
 			if err := payloadSender.Ping(); err != nil {
@@ -133,14 +132,14 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 		default:
 			payload, err := payloadReceiver.Receive()
 			// TODO should io.EOF and io.ErrUnexpectedEOF treated differently than other errors?
-			if err == rtmapi.EmptyPayloadError {
+			if err == rtmapi.ErrEmptyPayload {
 				continue
-			} else if err == rtmapi.UnsupportedEventTypeError {
+			} else if err == rtmapi.ErrUnsupportedEventType {
 				continue
 			} else if err != nil {
 				// connection might not be stable or is closed already.
 				log.Debugf("ping caused by '%s'", err.Error())
-				nonBlockSignal(pingSignalChannelId, tryPing)
+				nonBlockSignal(pingSignalChannelID, tryPing)
 				continue
 			}
 
@@ -212,7 +211,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 // fetchRtmInfo fetches Real Time Messaging API information via Rest API endpoint with retries.
 func fetchRtmInfo(ctx context.Context, starter webapi.RtmStarter, retrial uint, interval time.Duration) (*webapi.RtmStart, error) {
 	var rtmStart *webapi.RtmStart
-	err := retry.RetryInterval(retrial, func() error {
+	err := retry.WithInterval(retrial, func() error {
 		r, e := starter.RtmStart(ctx)
 		rtmStart = r
 		return e
@@ -224,7 +223,7 @@ func fetchRtmInfo(ctx context.Context, starter webapi.RtmStarter, retrial uint, 
 // connectRtm establishes WebSocket connection with retries.
 func connectRtm(ctx context.Context, connector rtmapi.Connector, rtm *webapi.RtmStart, retrial uint, interval time.Duration) (rtmapi.Connection, error) {
 	var conn rtmapi.Connection
-	err := retry.RetryInterval(retrial, func() error {
+	err := retry.WithInterval(retrial, func() error {
 		c, e := connector.Connect(ctx, rtm.URL)
 		conn = c
 		return e

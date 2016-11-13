@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	TaskInsufficientArgumentError = errors.New("Identifier, Func and ConfigStruct must be set.")
+	ErrTaskInsufficientArgument = errors.New("Identifier, Func and ConfigStruct must be set.")
 )
 
 // commandFunc is a function type that represents command function
@@ -35,34 +35,41 @@ func (task *scheduledTask) Execute(ctx context.Context) (*CommandResponse, error
 	return task.taskFunc(ctx, task.config)
 }
 
+type ScheduledTaskBuilder interface {
+	Identifier(string) ScheduledTaskBuilder
+	Func(taskFunc) ScheduledTaskBuilder
+	ConfigStruct(ScheduledTaskConfig) ScheduledTaskBuilder
+	build(string) (*scheduledTask, error)
+}
+
 type scheduledTaskBuilder struct {
 	identifier string
 	taskFunc   taskFunc
 	config     ScheduledTaskConfig
 }
 
-func NewScheduledTaskBuilder() *scheduledTaskBuilder {
+func NewScheduledTaskBuilder() ScheduledTaskBuilder {
 	return &scheduledTaskBuilder{}
 }
 
-func (builder *scheduledTaskBuilder) Identifier(id string) *scheduledTaskBuilder {
+func (builder *scheduledTaskBuilder) Identifier(id string) ScheduledTaskBuilder {
 	builder.identifier = id
 	return builder
 }
 
-func (builder *scheduledTaskBuilder) Func(function taskFunc) *scheduledTaskBuilder {
+func (builder *scheduledTaskBuilder) Func(function taskFunc) ScheduledTaskBuilder {
 	builder.taskFunc = function
 	return builder
 }
 
-func (builder *scheduledTaskBuilder) ConfigStruct(config ScheduledTaskConfig) *scheduledTaskBuilder {
+func (builder *scheduledTaskBuilder) ConfigStruct(config ScheduledTaskConfig) ScheduledTaskBuilder {
 	builder.config = config
 	return builder
 }
 
 func (builder *scheduledTaskBuilder) build(configDir string) (*scheduledTask, error) {
 	if builder.identifier == "" || builder.taskFunc == nil || builder.config == nil {
-		return nil, TaskInsufficientArgumentError
+		return nil, ErrTaskInsufficientArgument
 	}
 
 	taskConfig := builder.config

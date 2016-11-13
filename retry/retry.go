@@ -6,15 +6,15 @@ import (
 	"time"
 )
 
-type RetryErrors struct {
+type Errors struct {
 	Errors []error
 }
 
-func NewRetryErrors() *RetryErrors {
-	return &RetryErrors{Errors: []error{}}
+func NewErrors() *Errors {
+	return &Errors{Errors: []error{}}
 }
 
-func (e *RetryErrors) Error() string {
+func (e *Errors) Error() string {
 	errs := []string{}
 	for _, err := range e.Errors {
 		errs = append(errs, err.Error())
@@ -22,27 +22,27 @@ func (e *RetryErrors) Error() string {
 	return strings.Join(errs, "\n")
 }
 
-func (e *RetryErrors) append(err error) {
+func (e *Errors) appendError(err error) {
 	e.Errors = append(e.Errors, err)
 }
 
 func Retry(trial uint, function func() error) error {
-	return RetryInterval(trial, function, 0*time.Second)
+	return WithInterval(trial, function, 0*time.Second)
 }
 
-func RetryInterval(trial uint, function func() error, interval time.Duration) error {
-	return RetryBackOff(trial, interval, 0, function)
+func WithInterval(trial uint, function func() error, interval time.Duration) error {
+	return WithBackOff(trial, interval, 0, function)
 }
 
-func RetryBackOff(trial uint, meanInterval time.Duration, randFactor float64, function func() error) error {
-	errors := NewRetryErrors()
+func WithBackOff(trial uint, meanInterval time.Duration, randFactor float64, function func() error) error {
+	errors := NewErrors()
 	for trial > 0 {
 		trial--
-		if err := function(); err == nil {
+		err := function()
+		if err == nil {
 			return nil
-		} else {
-			errors.append(err)
 		}
+		errors.appendError(err)
 
 		if trial <= 0 {
 			break

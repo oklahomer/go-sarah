@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	EmptyPayloadError = errors.New("empty payload was given")
+	ErrEmptyPayload = errors.New("empty payload was given")
 )
 
 type MessageReceiver interface {
@@ -69,7 +69,7 @@ func decodePayload(payload []byte) (*Message, error) {
 	// that the connection is still alive during low message volume periods.
 	payload = bytes.TrimSpace(payload)
 	if len(payload) == 0 {
-		return nil, EmptyPayloadError
+		return nil, ErrEmptyPayload
 	}
 
 	message := &Message{}

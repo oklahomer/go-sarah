@@ -2,7 +2,6 @@ package worldweather
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
@@ -64,7 +63,7 @@ func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return errors.New(fmt.Sprintf("response status error. status: %d.", resp.StatusCode))
+		return fmt.Errorf("response status error. status: %d", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
