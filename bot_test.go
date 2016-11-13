@@ -68,13 +68,9 @@ func TestBot_Respond(t *testing.T) {
 	input := &testInput{}
 	input.message = "echo"
 
-	response, err := bot.Respond(context.Background(), input)
+	err := bot.Respond(context.Background(), input)
 
 	if err != nil {
 		t.Errorf("error on Bot#Respond. %s", err.Error())
-	}
-
-	if response.Content != input.Message() {
-		t.Errorf("unexpected response content. %#v", response.Content)
 	}
 }

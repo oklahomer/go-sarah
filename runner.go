@@ -127,16 +127,11 @@ func (runner *Runner) respond(botCtx context.Context, bot Bot, inputReceiver <-c
 			log.Debugf("responding to %#v", input)
 
 			runner.EnqueueJob(func() {
-				res, err := bot.Respond(botCtx, input)
+				err := bot.Respond(botCtx, input)
 				if err != nil {
 					log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
 					return
-				} else if res == nil {
-					return
 				}
-
-				message := NewOutputMessage(input.ReplyTo(), res.Content)
-				bot.SendMessage(botCtx, message)
 			})
 		}
 	}
