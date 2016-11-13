@@ -133,9 +133,9 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 		default:
 			payload, err := payloadReceiver.Receive()
 			// TODO should io.EOF and io.ErrUnexpectedEOF treated differently than other errors?
-			if err == rtmapi.EmptyPayloadError {
+			if err == rtmapi.ErrEmptyPayload {
 				continue
-			} else if err == rtmapi.UnsupportedEventTypeError {
+			} else if err == rtmapi.ErrUnsupportedEventType {
 				continue
 			} else if err != nil {
 				// connection might not be stable or is closed already.

@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	EmptyPayloadError = errors.New("empty payload was given")
+	ErrEmptyPayload = errors.New("empty payload was given")
 )
 
 type DecodedPayload interface{}
@@ -80,12 +80,12 @@ func decodePayload(incoming json.RawMessage) (DecodedPayload, error) {
 		return decodedEvent, nil
 	}
 
-	if eventDecodeErr == UnsupportedEventTypeError {
+	if eventDecodeErr == ErrUnsupportedEventType {
 		log.Infof("unsupported event type is fed. %s.", string(incoming))
 		return nil, eventDecodeErr
 	}
 
-	if eventDecodeErr == EventTypeNotGivenError {
+	if eventDecodeErr == ErrEventTypeNotGiven {
 		// When incoming object can't be treated as Event, try treat this as WebSocketReply.
 		reply, replyDecodeErr := DecodeReply(incoming)
 		if replyDecodeErr != nil {

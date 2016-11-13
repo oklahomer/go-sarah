@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	// CommandInsufficientArgumentError depicts an error that not enough arguments are set to commandBuilder.
+	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to commandBuilder.
 	// This is returned on commandBuilder.build() inside of Runner.Run()
-	CommandInsufficientArgumentError = errors.New("Identifier, InputExample, MatchPattern, ConfigStruct and Func must be set.")
+	ErrCommandInsufficientArgument = errors.New("Identifier, InputExample, MatchPattern, ConfigStruct and Func must be set.")
 )
 
 // ContextualFunc defines a function signature that defines user's next step.
@@ -189,7 +189,7 @@ func (builder *commandBuilder) build(configDir string) (Command, error) {
 		builder.matchPattern == nil ||
 		builder.commandFunc == nil {
 
-		return nil, CommandInsufficientArgumentError
+		return nil, ErrCommandInsufficientArgument
 	}
 
 	commandConfig := builder.config

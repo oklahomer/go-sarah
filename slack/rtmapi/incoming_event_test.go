@@ -34,21 +34,21 @@ func TestDecodeEvent(t *testing.T) {
 			`{"type": "", "channel": "C2147483705"}`,
 			output{
 				nil,
-				UnsupportedEventTypeError,
+				ErrUnsupportedEventType,
 			},
 		},
 		{
 			`{"type": "foo", "channel": "C2147483705"}`,
 			output{
 				nil,
-				UnsupportedEventTypeError,
+				ErrUnsupportedEventType,
 			},
 		},
 		{
 			`{"channel": "C2147483705"}`,
 			output{
 				nil,
-				EventTypeNotGivenError,
+				ErrEventTypeNotGiven,
 			},
 		},
 	}

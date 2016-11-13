@@ -110,7 +110,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage ch
 	for {
 		message, err := messageReceiver.Receive()
 
-		if err == EmptyPayloadError {
+		if err == ErrEmptyPayload {
 			// https://developer.gitter.im/docs/streaming-api
 			// Parsers must be tolerant of occasional extra newline characters placed between messages.
 			// These characters are sent as periodic "keep-alive" messages to tell clients and NAT firewalls

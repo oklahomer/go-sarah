@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	TaskInsufficientArgumentError = errors.New("Identifier, Func and ConfigStruct must be set.")
+	ErrTaskInsufficientArgument = errors.New("Identifier, Func and ConfigStruct must be set.")
 )
 
 // commandFunc is a function type that represents command function
@@ -62,7 +62,7 @@ func (builder *scheduledTaskBuilder) ConfigStruct(config ScheduledTaskConfig) *s
 
 func (builder *scheduledTaskBuilder) build(configDir string) (*scheduledTask, error) {
 	if builder.identifier == "" || builder.taskFunc == nil || builder.config == nil {
-		return nil, TaskInsufficientArgumentError
+		return nil, ErrTaskInsufficientArgument
 	}
 
 	taskConfig := builder.config

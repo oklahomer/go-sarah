@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	UnsupportedEventTypeError = errors.New("given type is not supported.")
-	EventTypeNotGivenError    = errors.New("type field is not given")
+	ErrUnsupportedEventType = errors.New("given type is not supported.")
+	ErrEventTypeNotGiven    = errors.New("type field is not given")
 )
 
 // Hello event is sent from slack when WebSocket connection is successfully established.
@@ -107,7 +107,7 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 
 	switch event.Type {
 	case UNSUPPORTED:
-		return nil, UnsupportedEventTypeError
+		return nil, ErrUnsupportedEventType
 	case HELLO:
 		mapping = &Hello{}
 	case MESSAGE:
@@ -127,7 +127,7 @@ func DecodeEvent(input json.RawMessage) (DecodedEvent, error) {
 		mapping = &Pong{}
 	case "":
 		// type field is not given so string's zero value, empty string, is set.
-		return nil, EventTypeNotGivenError
+		return nil, ErrEventTypeNotGiven
 	default:
 		// What?? Even if the type field is not given, "" should be set and there for case check for "" should
 		// catch that.
