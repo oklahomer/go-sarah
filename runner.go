@@ -78,7 +78,7 @@ func (runner *Runner) Run(ctx context.Context) {
 			runner.cron.AddFunc(task.config.Schedule(), func() {
 				res, err := task.Execute(botCtx)
 				if err != nil {
-					log.Error(fmt.Sprintf("error on scheduled task: %s", task.Identifier))
+					log.Errorf("error on scheduled task: %s", task.Identifier())
 					return
 				} else if res == nil {
 					return

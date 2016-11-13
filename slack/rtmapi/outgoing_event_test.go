@@ -32,7 +32,7 @@ func TestUnmarshalPingEvent(t *testing.T) {
 	}
 
 	if ping.Type != PING {
-		t.Errorf("something is wrong with unmarshaled result. %s.", ping)
+		t.Errorf("something is wrong with unmarshaled result. %#v.", ping)
 	}
 
 	if ping.ID != 123 {
