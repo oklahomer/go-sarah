@@ -96,7 +96,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 
 func fetchRooms(ctx context.Context, fetcher RoomsFetcher, retrial uint, interval time.Duration) (*Rooms, error) {
 	var rooms *Rooms
-	err := retry.RetryInterval(retrial, func() error {
+	err := retry.WithInterval(retrial, func() error {
 		r, e := fetcher.Rooms(ctx)
 		rooms = r
 		return e
@@ -131,7 +131,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage ch
 
 func connectRoom(ctx context.Context, connector StreamConnector, room *Room, retrial uint, interval time.Duration) (Connection, error) {
 	var conn Connection
-	err := retry.RetryInterval(retrial, func() error {
+	err := retry.WithInterval(retrial, func() error {
 		r, e := connector.Connect(ctx, room)
 		if e != nil {
 			log.Error(e)

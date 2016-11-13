@@ -55,16 +55,16 @@ func (worker *Worker) Run(ctx context.Context, workerNum uint, superviseInterval
 	return nil
 }
 
-func (worker *Worker) runChild(ctx context.Context, workerId uint) {
-	log.Infof("start worker id: %d.", workerId)
+func (worker *Worker) runChild(ctx context.Context, workerID uint) {
+	log.Infof("start worker id: %d.", workerID)
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("stopping worker id: %d", workerId)
+			log.Infof("stopping worker id: %d", workerID)
 			return
 		case job := <-worker.job:
-			log.Debugf("receiving job on worker: %d", workerId)
+			log.Debugf("receiving job on worker: %d", workerID)
 			// To avoid given job's panic affect later jobs, wrap them with recover.
 			func() {
 				defer func() {

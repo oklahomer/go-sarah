@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrUnsupportedEventType = errors.New("given type is not supported.")
+	ErrUnsupportedEventType = errors.New("given type is not supported")
 	ErrEventTypeNotGiven    = errors.New("type field is not given")
 )
 

@@ -13,7 +13,7 @@ func TestRetry(t *testing.T) {
 		return fmt.Errorf("error on %d", i)
 	})
 
-	retryErr, ok := err.(*RetryErrors)
+	retryErr, ok := err.(*Errors)
 	if !ok {
 		t.Errorf("returned error is not RetryErrors. %#v", err)
 	}

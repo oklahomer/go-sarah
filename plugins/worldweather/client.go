@@ -63,7 +63,7 @@ func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("response status error. status: %d.", resp.StatusCode)
+		return fmt.Errorf("response status error. status: %d", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
