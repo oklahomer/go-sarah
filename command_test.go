@@ -16,7 +16,7 @@ func TestInsufficientSettings(t *testing.T) {
 		MatchPattern(matchPattern).
 		InputExample(".echo knock knock")
 
-	if _, err := builder.build("/path/"); err == nil {
+	if _, err := builder.Build("/path/"); err == nil {
 		t.Error("expected error not given.")
 	} else {
 		if err != ErrCommandInsufficientArgument {
@@ -30,7 +30,7 @@ func TestInsufficientSettings(t *testing.T) {
 		}, nil
 	})
 
-	if _, err := builder.build(""); err != nil {
+	if _, err := builder.Build(""); err != nil {
 		t.Errorf("something is wrong with command construction. %#v", err)
 	}
 }

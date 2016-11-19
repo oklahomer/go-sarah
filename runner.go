@@ -38,7 +38,7 @@ func (runner *Runner) RegisterBot(bot Bot) {
 
 // RegisterAdapter allows developer to register desired Adapter implementation.
 // This internally creates an instance of default Bot implementation with given Adapter.
-// Created Bot instance is fed to Runner.AppendBot.
+// Created Bot instance is fed to Runner.RegisterBot.
 //
 //  runner := sarah.NewRunner(sarah.NewConfig())
 //  runner.RegisterAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
