@@ -1,4 +1,5 @@
 language: go
+sudo: false
 
 go:
   - 1.6
@@ -7,10 +8,12 @@ go:
 
 before_install:
   - export PATH=$HOME/gopath/bin:$PATH
+  - go get github.com/mattn/goveralls
 
 script:
   - go test -race ./...
   - go test -cover ./...
+  - goveralls -service=travis-ci
 
 matrix:
   allow_failures:
