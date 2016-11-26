@@ -5,6 +5,45 @@ import (
 	"testing"
 )
 
+type DummyBot struct {
+	BotTypeValue BotType
+
+	RespondFunc func(context.Context, Input) error
+
+	SendMessageFunc func(context.Context, Output)
+
+	AppendCommandFunc func(Command)
+
+	RunFunc func(context.Context, chan<- Input, chan<- error)
+
+	PluginConfigDirFunc func() string
+}
+
+func (bot *DummyBot) BotType() BotType {
+	return bot.BotTypeValue
+}
+
+func (bot *DummyBot) Respond(ctx context.Context, input Input) error {
+	return bot.RespondFunc(ctx, input)
+}
+
+func (bot *DummyBot) SendMessage(ctx context.Context, output Output) {
+	bot.SendMessageFunc(ctx, output)
+}
+
+func (bot *DummyBot) AppendCommand(command Command) {
+	bot.AppendCommandFunc(command)
+}
+
+func (bot *DummyBot) Run(ctx context.Context, input chan<- Input, errCh chan<- error) {
+	bot.RunFunc(ctx, input, errCh)
+}
+
+func (bot *DummyBot) PluginConfigDir() string {
+	return bot.PluginConfigDirFunc()
+}
+
+// TODO switch to use DummyAdapter on following commit
 const nullBotType BotType = "nullType"
 
 type nullAdapter struct {
