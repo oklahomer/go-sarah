@@ -2,6 +2,7 @@ package sarah
 
 import (
 	"golang.org/x/net/context"
+	"regexp"
 	"testing"
 )
 
@@ -43,73 +44,112 @@ func (bot *DummyBot) PluginConfigDir() string {
 	return bot.PluginConfigDirFunc()
 }
 
-// TODO switch to use DummyAdapter on following commit
-const nullBotType BotType = "nullType"
-
-type nullAdapter struct {
-}
-
-func (a *nullAdapter) BotType() BotType {
-	return nullBotType
-}
-
-func (a *nullAdapter) Run(_ context.Context, input chan<- Input, errChan chan<- error) {}
-
-func (a *nullAdapter) SendMessage(_ context.Context, _ Output) {}
-
-func TestNewBot(t *testing.T) {
-	adapter := &nullAdapter{}
+func Test_newBot(t *testing.T) {
+	adapter := &DummyAdapter{}
 	myBot := newBot(adapter, "")
 	if _, ok := myBot.(*bot); !ok {
-		t.Errorf("newBot did not return bot instance. %#v", myBot)
+		t.Errorf("newBot did not return bot instance: %#v.", myBot)
 	}
 }
 
 func TestBot_BotType(t *testing.T) {
-	adapter := &nullAdapter{}
+	var botType BotType = "slack"
+	adapter := &DummyAdapter{}
+	adapter.BotTypeValue = botType
 	bot := newBot(adapter, "")
 
-	if bot.BotType() != nullBotType {
-		t.Errorf("bot type is wrong %s", bot.BotType())
+	if bot.BotType() != botType {
+		t.Errorf("Bot type is wrong: %s.", bot.BotType())
 	}
 }
 
 func TestBot_PluginConfigDir(t *testing.T) {
 	dummyPluginDir := "/dummy/path/to/config"
-	adapter := &nullAdapter{}
+	adapter := &DummyAdapter{}
 	bot := newBot(adapter, dummyPluginDir)
 
 	if bot.PluginConfigDir() != dummyPluginDir {
-		t.Errorf("plugin configuration file's location is wrong: %s", bot.PluginConfigDir())
+		t.Errorf("Plugin configuration file's location is wrong: %s.", bot.PluginConfigDir())
 	}
 }
 
 func TestBot_AppendCommand(t *testing.T) {
-	adapter := &nullAdapter{}
+	adapter := &DummyAdapter{}
 	myBot := newBot(adapter, "")
 
-	command := &abandonedCommand{}
+	command := &DummyCommand{}
 	myBot.AppendCommand(command)
 
 	registeredCommands := myBot.(*bot).commands
 	if len(registeredCommands.cmd) != 1 {
-		t.Errorf("1 registered command should exists. %#v", registeredCommands)
+		t.Errorf("1 registered command should exists: %#v.", registeredCommands)
 	}
 }
 
 func TestBot_Respond(t *testing.T) {
-	adapter := &nullAdapter{}
+	adapterProcessed := false
+	adapter := &DummyAdapter{}
+	adapter.SendMessageFunc = func(_ context.Context, _ Output) {
+		adapterProcessed = true
+	}
 	bot := newBot(adapter, "")
 
-	command := &echoCommand{}
+	command := &DummyCommand{}
+	command.MatchFunc = func(str string) bool {
+		return true
+	}
+	command.ExecuteFunc = func(_ context.Context, input Input) (*CommandResponse, error) {
+		return &CommandResponse{Content: regexp.MustCompile(`^\.echo`).ReplaceAllString(input.Message(), "")}, nil
+	}
 	bot.AppendCommand(command)
 
 	input := &testInput{}
-	input.message = "echo"
+	input.message = ".echo foo"
 
 	err := bot.Respond(context.Background(), input)
 
 	if err != nil {
-		t.Errorf("error on Bot#Respond. %s", err.Error())
+		t.Errorf("Error on Bot#Respond. %s", err.Error())
+	}
+
+	if adapterProcessed == false {
+		t.Error("Adapter.SendMessage is not called.")
+	}
+}
+
+func TestBot_Run(t *testing.T) {
+	adapterProcessed := false
+	adapter := &DummyAdapter{}
+	adapter.RunFunc = func(_ context.Context, _ chan<- Input, _ chan<- error) {
+		adapterProcessed = true
+	}
+	bot := newBot(adapter, "")
+
+	inputReceiver := make(chan Input)
+	errCh := make(chan error)
+	rootCtx := context.Background()
+	botCtx, cancelBot := context.WithCancel(rootCtx)
+	defer cancelBot()
+	bot.Run(botCtx, inputReceiver, errCh)
+
+	if adapterProcessed == false {
+		t.Error("Adapter.Run is not called.")
+	}
+}
+
+func TestBot_SendMessage(t *testing.T) {
+	adapterProcessed := false
+	adapter := &DummyAdapter{}
+	adapter.SendMessageFunc = func(_ context.Context, _ Output) {
+		adapterProcessed = true
+	}
+	bot := newBot(adapter, "")
+
+	output := NewOutputMessage(struct{}{}, struct{}{})
+	ctx := context.Background()
+	bot.SendMessage(ctx, output)
+
+	if adapterProcessed == false {
+		t.Error("Adapter.SendMessage is not called.")
 	}
 }

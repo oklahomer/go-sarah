@@ -8,6 +8,32 @@ import (
 	"time"
 )
 
+type DummyCommand struct {
+	IdentifierValue string
+
+	ExecuteFunc func(context.Context, Input) (*CommandResponse, error)
+
+	InputExampleFunc func() string
+
+	MatchFunc func(string) bool
+}
+
+func (command *DummyCommand) Identifier() string {
+	return command.IdentifierValue
+}
+
+func (command *DummyCommand) Execute(ctx context.Context, input Input) (*CommandResponse, error) {
+	return command.ExecuteFunc(ctx, input)
+}
+
+func (command *DummyCommand) InputExample() string {
+	return command.InputExampleFunc()
+}
+
+func (command *DummyCommand) Match(str string) bool {
+	return command.MatchFunc(str)
+}
+
 func TestInsufficientSettings(t *testing.T) {
 	matchPattern := regexp.MustCompile(`^\.echo`)
 
@@ -35,6 +61,7 @@ func TestInsufficientSettings(t *testing.T) {
 	}
 }
 
+// TODO switch to use DummyCommand on following commit
 type abandonedCommand struct{}
 
 func (abandonedCommand *abandonedCommand) Identifier() string {
