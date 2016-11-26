@@ -12,7 +12,7 @@ import (
 // Worker holds desired number of child workers when Run is called.
 type Worker struct {
 	job       chan func()
-	mutex     *sync.Mutex
+	mutex     *sync.RWMutex
 	isRunning bool
 }
 
@@ -20,7 +20,7 @@ type Worker struct {
 func New(queueSize uint) *Worker {
 	return &Worker{
 		job:       make(chan func(), queueSize),
-		mutex:     &sync.Mutex{},
+		mutex:     &sync.RWMutex{},
 		isRunning: false,
 	}
 }
@@ -45,6 +45,8 @@ func (worker *Worker) Run(ctx context.Context, workerNum uint, superviseInterval
 	// update status to false on cancellation
 	go func() {
 		<-ctx.Done()
+		worker.mutex.Lock()
+		defer worker.mutex.Unlock()
 		worker.isRunning = false
 	}()
 
@@ -90,6 +92,8 @@ func (worker *Worker) runChild(ctx context.Context, workerID uint) {
 
 // IsRunning returns current status of worker.
 func (worker *Worker) IsRunning() bool {
+	worker.mutex.RLock()
+	defer worker.mutex.RUnlock()
 	return worker.isRunning
 }
 

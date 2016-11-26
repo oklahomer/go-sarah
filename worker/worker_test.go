@@ -2,6 +2,7 @@ package worker
 
 import (
 	"golang.org/x/net/context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -40,14 +41,21 @@ func TestWorker_Run(t *testing.T) {
 	})
 
 	// Check if job runs
+	mutex := &sync.RWMutex{}
 	isFinished := false
 	worker.EnqueueJob(func() {
+		mutex.Lock()
+		defer mutex.Unlock()
 		isFinished = true
 	})
 	time.Sleep(100 * time.Millisecond)
-	if isFinished == false {
-		t.Error("job is not executed")
-	}
+	func() {
+		mutex.RLock()
+		defer mutex.RUnlock()
+		if isFinished == false {
+			t.Error("job is not executed")
+		}
+	}()
 
 	// Error should return on multiple Run call
 	err = worker.Run(ctx, 5, 0)
