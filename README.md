@@ -25,7 +25,7 @@ func main() {
                         return slack.NewStringResponse(input.Message()), nil
                 }).
                 InputExample(".echo knock knock")
-        sarah.AppendCommandBuilder(slack.SLACK, echoBuilder)
+        sarah.StashCommandBuilder(slack.SLACK, echoBuilder)
 
         // Create a builder for a bit complex command that requires config struct.
         // Configuration file is read on Runner.Run, and command is built with fully configured config struct.
@@ -39,7 +39,7 @@ func main() {
                         return slack.NewStringResponse("return something"), nil
                 }).
                 InputExample(".echo knock knock")
-        sarah.AppendCommandBuilder(slack.SLACK, configCommandBuilder)
+        sarah.StashCommandBuilder(slack.SLACK, configCommandBuilder)
         
         // Initialize Runner
         runner := sarah.NewRunner(sarah.NewConfig())

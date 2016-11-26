@@ -130,5 +130,5 @@ func init() {
 		MatchPattern(matchPattern).
 		ConfigurableFunc(&pluginConfig{}, weather).
 		InputExample(".echo knock knock")
-	sarah.AppendCommandBuilder(slack.SLACK, builder)
+	sarah.StashCommandBuilder(slack.SLACK, builder)
 }
