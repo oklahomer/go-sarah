@@ -1,0 +1,20 @@
+language: go
+
+go:
+  - 1.6
+  - 1.7
+  - tip
+
+before_install:
+  - export PATH=$HOME/gopath/bin:$PATH
+
+script:
+  - go test -race ./...
+  - go test -cover ./...
+
+matrix:
+  allow_failures:
+   - go: tip
+
+git:
+  depth: 10
