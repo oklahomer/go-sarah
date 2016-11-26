@@ -103,8 +103,8 @@ func TestBot_Respond(t *testing.T) {
 	}
 	bot.AppendCommand(command)
 
-	input := &testInput{}
-	input.message = ".echo foo"
+	input := &DummyInput{}
+	input.MessageValue = ".echo foo"
 
 	err := bot.Respond(context.Background(), input)
 
@@ -146,8 +146,7 @@ func TestBot_SendMessage(t *testing.T) {
 	bot := newBot(adapter, "")
 
 	output := NewOutputMessage(struct{}{}, struct{}{})
-	ctx := context.Background()
-	bot.SendMessage(ctx, output)
+	bot.SendMessage(context.TODO(), output)
 
 	if adapterProcessed == false {
 		t.Error("Adapter.SendMessage is not called.")

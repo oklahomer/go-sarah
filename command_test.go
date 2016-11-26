@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 )
 
 type DummyCommand struct {
@@ -61,89 +60,50 @@ func TestInsufficientSettings(t *testing.T) {
 	}
 }
 
-// TODO switch to use DummyCommand on following commit
-type abandonedCommand struct{}
-
-func (abandonedCommand *abandonedCommand) Identifier() string {
-	return "arbitraryStringThatWouldNeverBeRecognized"
-}
-
-func (abandonedCommand *abandonedCommand) Execute(_ context.Context, _ Input) (*CommandResponse, error) {
-	return nil, nil
-}
-
-func (abandonedCommand *abandonedCommand) InputExample() string {
-	return ""
-}
-
-func (abandonedCommand *abandonedCommand) Match(_ string) bool {
-	return false
-}
-
-type echoCommand struct{}
-
-func (echoCommand *echoCommand) Identifier() string {
-	return "echo"
-}
-
-func (echoCommand *echoCommand) Execute(_ context.Context, input Input) (*CommandResponse, error) {
-	return &CommandResponse{Content: regexp.MustCompile(`^\.echo`).ReplaceAllString(input.Message(), "")}, nil
-}
-
-func (echoCommand *echoCommand) InputExample() string {
-	return ""
-}
-
-func (echoCommand *echoCommand) Match(msg string) bool {
-	return strings.HasPrefix(msg, "echo")
-}
-
-type echoInput struct{}
-
-func (echoInput *echoInput) SenderKey() string {
-	return "uniqueValue"
-}
-
-func (echoInput *echoInput) Message() string {
-	return "echo foo"
-}
-
-func (echoInput *echoInput) SentAt() time.Time {
-	return time.Now()
-}
-
-func (echoInput *echoInput) ReplyTo() OutputDestination {
-	return nil
-}
-
 func TestCommands_FindFirstMatched(t *testing.T) {
 	commands := NewCommands()
-	commands.Append(&abandonedCommand{})
-	commands.Append(&echoCommand{})
-	commands.Append(&abandonedCommand{})
 
-	echo := commands.FindFirstMatched("echo")
-	if echo == nil {
-		t.Error("expected command is not found")
-		return
+	irrelevantCommand := &DummyCommand{}
+	irrelevantCommand.MatchFunc = func(msg string) bool {
+		return false
+	}
+	commands.Append(irrelevantCommand)
+
+	echoCommand := &DummyCommand{}
+	echoCommand.MatchFunc = func(msg string) bool {
+		return strings.HasPrefix(msg, "echo")
+	}
+	echoCommand.ExecuteFunc = func(_ context.Context, _ Input) (*CommandResponse, error) {
+		return &CommandResponse{Content: ""}, nil
+	}
+	commands.Append(echoCommand)
+
+	irrelevantCommand2 := &DummyCommand{}
+	irrelevantCommand2.MatchFunc = func(msg string) bool {
+		return false
+	}
+	commands.Append(irrelevantCommand2)
+
+	matchedCommand := commands.FindFirstMatched("echo")
+	if matchedCommand == nil {
+		t.Fatal("Expected command is not found.")
 	}
 
-	switch echo.(type) {
-	case *echoCommand:
-	// O.K.
-	default:
-		t.Errorf("expecting echoCommand's pointer, but was %#v.", echo)
-		return
+	if matchedCommand != echoCommand {
+		t.Fatalf("Expected command instance not returned: %#v.", matchedCommand)
 	}
 
-	response, err := commands.ExecuteFirstMatched(context.TODO(), &echoInput{})
+	input := &DummyInput{}
+	input.MessageValue = "echo foo"
+
+	response, err := commands.ExecuteFirstMatched(context.TODO(), input)
 	if err != nil {
-		t.Errorf("unexpected error on commands execution: %#v", err)
+		t.Errorf("Unexpected error on command execution: %#v.", err)
 		return
 	}
 
 	if response == nil {
-		t.Error("response expected, but was not returned")
+		t.Error("Response expected, but was not returned.")
 		return
 	}
 
@@ -151,6 +111,6 @@ func TestCommands_FindFirstMatched(t *testing.T) {
 	case string:
 	//OK
 	default:
-		t.Errorf("expected string, but was %#v", v)
+		t.Errorf("Expected string, but was %#v.", v)
 	}
 }
