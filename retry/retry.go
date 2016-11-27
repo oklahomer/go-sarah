@@ -31,22 +31,25 @@ func Retry(trial uint, function func() error) error {
 }
 
 func WithInterval(trial uint, function func() error, interval time.Duration) error {
-	return WithBackOff(trial, interval, 0, function)
+	return WithBackOff(trial, function, interval, 0)
 }
 
-func WithBackOff(trial uint, meanInterval time.Duration, randFactor float64, function func() error) error {
-	errors := NewErrors()
+func WithBackOff(trial uint, function func() error, meanInterval time.Duration, randFactor float64) error {
+	errs := NewErrors()
 	for trial > 0 {
 		trial--
 		err := function()
 		if err == nil {
 			return nil
 		}
-		errors.appendError(err)
+		errs.appendError(err)
 
 		if trial <= 0 {
+			// All trials failed
 			break
-		} else if randFactor <= 0 || meanInterval <= 0 {
+		}
+
+		if randFactor <= 0 || meanInterval <= 0 {
 			time.Sleep(meanInterval)
 		} else {
 			interval := randInterval(meanInterval, randFactor)
@@ -54,14 +57,16 @@ func WithBackOff(trial uint, meanInterval time.Duration, randFactor float64, fun
 		}
 	}
 
-	if len(errors.Errors) > 0 {
-		return errors
-	}
-
-	return nil
+	return errs
 }
 
 func randInterval(intervalDuration time.Duration, randFactor float64) time.Duration {
+	if randFactor < 0 {
+		randFactor = 0
+	} else if randFactor > 1 {
+		randFactor = 1
+	}
+
 	interval := float64(intervalDuration)
 	delta := randFactor * interval
 	minInterval := interval - delta
