@@ -10,33 +10,33 @@
 		{
 			"importpath": "github.com/patrickmn/go-cache",
 			"repository": "https://github.com/patrickmn/go-cache",
-			"revision": "1881a9bccb818787f68c52bfba648c6cf34c34fa",
+			"revision": "e7a9def80f35fe1b170b7b8b68871d59dea117e1",
 			"branch": "master"
 		},
 		{
 			"importpath": "github.com/robfig/cron",
 			"repository": "https://github.com/robfig/cron",
-			"revision": "ab4c16f3a09641bd19d65f55b3d8d6edda7a8e05",
+			"revision": "9585fd555638e77bba25f25db5c44b41f264aeb7",
 			"branch": "master"
 		},
 		{
 			"importpath": "golang.org/x/net/context",
 			"repository": "https://go.googlesource.com/net",
-			"revision": "6250b412798208e6c90b03b7c4f226de5aa299e2",
+			"revision": "4971afdc2f162e82d185353533d3cf16188a9f4e",
 			"branch": "master",
 			"path": "/context"
 		},
 		{
 			"importpath": "golang.org/x/net/websocket",
 			"repository": "https://go.googlesource.com/net",
-			"revision": "bc3663df0ac92f928d419e31e0d2af22e683a5a2",
+			"revision": "4971afdc2f162e82d185353533d3cf16188a9f4e",
 			"branch": "master",
 			"path": "/websocket"
 		},
 		{
 			"importpath": "gopkg.in/yaml.v2",
 			"repository": "https://gopkg.in/yaml.v2",
-			"revision": "a83829b6f1293c91addabc89d0571c246397bbf4",
+			"revision": "a5b47d31c556af34a302ce5d659e6fea44d90de0",
 			"branch": "v2"
 		}
 	]
