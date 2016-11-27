@@ -1,9 +1,9 @@
 package sarah
 
 import (
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"strings"
-	"time"
 )
 
 // Bot provides interface for each bot implementation.
@@ -47,11 +47,11 @@ type bot struct {
 	pluginConfigDir  string
 }
 
-func newBot(adapter Adapter, configDir string) Bot {
+func newBot(adapter Adapter, cacheConfig *CacheConfig, configDir string) Bot {
 	return &bot{
 		adapter:          adapter,
 		commands:         NewCommands(),
-		userContextCache: NewCachedUserContexts(3*time.Minute, 10*time.Minute),
+		userContextCache: NewCachedUserContexts(cacheConfig),
 		pluginConfigDir:  configDir,
 	}
 }
@@ -62,7 +62,11 @@ func (bot *bot) BotType() BotType {
 
 func (bot *bot) Respond(ctx context.Context, input Input) error {
 	senderKey := input.SenderKey()
-	userContext := bot.userContextCache.Get(senderKey)
+	userContext, cacheErr := bot.userContextCache.Get(senderKey)
+	if cacheErr != nil {
+		log.Error(cacheErr.Error())
+		return nil
+	}
 
 	var res *CommandResponse
 	var err error

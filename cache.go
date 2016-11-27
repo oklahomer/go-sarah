@@ -1,10 +1,22 @@
 package sarah
 
 import (
-	"github.com/oklahomer/go-sarah/log"
+	"fmt"
 	"github.com/patrickmn/go-cache"
 	"time"
 )
+
+type CacheConfig struct {
+	ExpiresIn       time.Duration
+	CleanupInterval time.Duration
+}
+
+func NewCacheConfig() *CacheConfig {
+	return &CacheConfig{
+		ExpiresIn:       3 * time.Minute,
+		CleanupInterval: 10 * time.Minute,
+	}
+}
 
 type UserContext struct {
 	Next ContextualFunc
@@ -20,24 +32,23 @@ type CachedUserContexts struct {
 	cache *cache.Cache
 }
 
-func NewCachedUserContexts(expire, cleanupInterval time.Duration) *CachedUserContexts {
+func NewCachedUserContexts(config *CacheConfig) *CachedUserContexts {
 	return &CachedUserContexts{
-		cache: cache.New(expire, cleanupInterval),
+		cache: cache.New(config.ExpiresIn, config.CleanupInterval),
 	}
 }
 
-func (contexts *CachedUserContexts) Get(key string) *UserContext {
+func (contexts *CachedUserContexts) Get(key string) (*UserContext, error) {
 	val, hasKey := contexts.cache.Get(key)
 	if !hasKey || val == nil {
-		return nil
+		return nil, nil
 	}
 
 	switch v := val.(type) {
 	case *UserContext:
-		return v
+		return v, nil
 	default:
-		log.Errorf("cached value has illegal type of %#v", v)
-		return nil
+		return nil, fmt.Errorf("cached value has illegal type of %T", v)
 	}
 }
 

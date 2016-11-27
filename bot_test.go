@@ -46,7 +46,7 @@ func (bot *DummyBot) PluginConfigDir() string {
 
 func Test_newBot(t *testing.T) {
 	adapter := &DummyAdapter{}
-	myBot := newBot(adapter, "")
+	myBot := newBot(adapter, NewCacheConfig(), "")
 	if _, ok := myBot.(*bot); !ok {
 		t.Errorf("newBot did not return bot instance: %#v.", myBot)
 	}
@@ -56,7 +56,7 @@ func TestBot_BotType(t *testing.T) {
 	var botType BotType = "slack"
 	adapter := &DummyAdapter{}
 	adapter.BotTypeValue = botType
-	bot := newBot(adapter, "")
+	bot := newBot(adapter, NewCacheConfig(), "")
 
 	if bot.BotType() != botType {
 		t.Errorf("Bot type is wrong: %s.", bot.BotType())
@@ -66,7 +66,7 @@ func TestBot_BotType(t *testing.T) {
 func TestBot_PluginConfigDir(t *testing.T) {
 	dummyPluginDir := "/dummy/path/to/config"
 	adapter := &DummyAdapter{}
-	bot := newBot(adapter, dummyPluginDir)
+	bot := newBot(adapter, NewCacheConfig(), dummyPluginDir)
 
 	if bot.PluginConfigDir() != dummyPluginDir {
 		t.Errorf("Plugin configuration file's location is wrong: %s.", bot.PluginConfigDir())
@@ -75,7 +75,7 @@ func TestBot_PluginConfigDir(t *testing.T) {
 
 func TestBot_AppendCommand(t *testing.T) {
 	adapter := &DummyAdapter{}
-	myBot := newBot(adapter, "")
+	myBot := newBot(adapter, NewCacheConfig(), "")
 
 	command := &DummyCommand{}
 	myBot.AppendCommand(command)
@@ -92,7 +92,7 @@ func TestBot_Respond(t *testing.T) {
 	adapter.SendMessageFunc = func(_ context.Context, _ Output) {
 		adapterProcessed = true
 	}
-	bot := newBot(adapter, "")
+	bot := newBot(adapter, NewCacheConfig(), "")
 
 	command := &DummyCommand{}
 	command.MatchFunc = func(str string) bool {
@@ -123,7 +123,7 @@ func TestBot_Run(t *testing.T) {
 	adapter.RunFunc = func(_ context.Context, _ chan<- Input, _ chan<- error) {
 		adapterProcessed = true
 	}
-	bot := newBot(adapter, "")
+	bot := newBot(adapter, NewCacheConfig(), "")
 
 	inputReceiver := make(chan Input)
 	errCh := make(chan error)
@@ -143,7 +143,7 @@ func TestBot_SendMessage(t *testing.T) {
 	adapter.SendMessageFunc = func(_ context.Context, _ Output) {
 		adapterProcessed = true
 	}
-	bot := newBot(adapter, "")
+	bot := newBot(adapter, NewCacheConfig(), "")
 
 	output := NewOutputMessage(struct{}{}, struct{}{})
 	bot.SendMessage(context.TODO(), output)

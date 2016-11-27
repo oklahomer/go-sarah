@@ -9,12 +9,14 @@ import (
 )
 
 type Config struct {
-	Worker *worker.Config
+	Worker      *worker.Config
+	CacheConfig *CacheConfig
 }
 
 func NewConfig() *Config {
 	return &Config{
-		Worker: worker.NewConfig(),
+		Worker:      worker.NewConfig(),
+		CacheConfig: NewCacheConfig(),
 	}
 }
 
@@ -58,7 +60,7 @@ func (runner *Runner) RegisterAdapter(adapter Adapter, pluginConfigDir string) {
 		}
 	}
 
-	bot := newBot(adapter, pluginConfigDir)
+	bot := newBot(adapter, runner.config.CacheConfig, pluginConfigDir)
 	runner.RegisterBot(bot)
 }
 
