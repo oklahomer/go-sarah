@@ -12,10 +12,6 @@ func TestNewRunner(t *testing.T) {
 	if runner.bots == nil {
 		t.Error("BotProperties is nil.")
 	}
-
-	if runner.worker == nil {
-		t.Error("Worker is nil.")
-	}
 }
 
 func TestRunner_RegisterBot(t *testing.T) {
@@ -69,17 +65,7 @@ func TestRunner_Run(t *testing.T) {
 	runner := NewRunner(NewConfig())
 	runner.Run(runnerCtx)
 
-	time.Sleep(300 * time.Millisecond)
-	if runner.worker.IsRunning() == false {
-		t.Error("Worker is not running.")
-	}
-
 	cancelRunner()
-
-	time.Sleep(300 * time.Millisecond)
-	if runner.worker.IsRunning() == true {
-		t.Error("Worker is still running.")
-	}
 }
 
 func Test_stopUnrecoverableBot(t *testing.T) {

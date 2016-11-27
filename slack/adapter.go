@@ -34,9 +34,9 @@ type Adapter struct {
 func NewAdapter(config *Config) *Adapter {
 	return &Adapter{
 		config:       config,
-		WebAPIClient: webapi.NewClient(&webapi.Config{Token: config.token}),
+		WebAPIClient: webapi.NewClient(&webapi.Config{Token: config.Token}),
 		RtmAPIClient: rtmapi.NewClient(),
-		messageQueue: make(chan *textMessage, config.sendingQueueSize),
+		messageQueue: make(chan *textMessage, config.SendingQueueSize),
 	}
 }
 
@@ -85,7 +85,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.In
 }
 
 func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSender rtmapi.PayloadSender, tryPing chan struct{}) error {
-	ticker := time.NewTicker(adapter.config.pingInterval)
+	ticker := time.NewTicker(adapter.config.PingInterval)
 	defer ticker.Stop()
 
 	for {
@@ -115,12 +115,12 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 
 // connect fetches WebSocket endpoint information via Rest API and establishes WebSocket connection.
 func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) {
-	rtmInfo, err := fetchRtmInfo(ctx, adapter.WebAPIClient, adapter.config.retryLimit, adapter.config.retryInterval)
+	rtmInfo, err := fetchRtmInfo(ctx, adapter.WebAPIClient, adapter.config.RetryLimit, adapter.config.RetryInterval)
 	if err != nil {
 		return nil, err
 	}
 
-	return connectRtm(ctx, adapter.RtmAPIClient, rtmInfo, adapter.config.retryLimit, adapter.config.retryInterval)
+	return connectRtm(ctx, adapter.RtmAPIClient, rtmInfo, adapter.config.RetryLimit, adapter.config.RetryInterval)
 }
 
 func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, receivedMessage chan<- sarah.Input) {

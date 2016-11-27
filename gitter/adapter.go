@@ -24,8 +24,8 @@ type Adapter struct {
 func NewAdapter(config *Config) *Adapter {
 	return &Adapter{
 		config:             config,
-		restAPIClient:      NewRestAPIClient(config.token),
-		streamingAPIClient: NewStreamingAPIClient(config.token),
+		restAPIClient:      NewRestAPIClient(config.Token),
+		streamingAPIClient: NewStreamingAPIClient(config.Token),
 	}
 }
 
@@ -37,7 +37,7 @@ func (adapter *Adapter) BotType() sarah.BotType {
 // Run fetches all belonging Room and connects to them.
 func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errCh chan<- error) {
 	// fetch joined rooms
-	rooms, err := fetchRooms(ctx, adapter.restAPIClient, adapter.config.retryLimit, adapter.config.retryInterval)
+	rooms, err := fetchRooms(ctx, adapter.restAPIClient, adapter.config.RetryLimit, adapter.config.RetryInterval)
 	if err != nil {
 		errCh <- sarah.NewBotNonContinuableError(err.Error())
 		return
@@ -70,7 +70,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 			return
 		default:
 			log.Infof("connecting to room: %s", room.ID)
-			conn, err := connectRoom(ctx, adapter.streamingAPIClient, room, adapter.config.retryLimit, adapter.config.retryInterval)
+			conn, err := connectRoom(ctx, adapter.streamingAPIClient, room, adapter.config.RetryLimit, adapter.config.RetryInterval)
 			if err != nil {
 				log.Warnf("could not connect to room: %s", room.ID)
 				return

@@ -7,66 +7,48 @@ import (
 	"time"
 )
 
-func TestNew(t *testing.T) {
-	queueSize := 100
-	worker := New(uint(queueSize))
-
-	if worker.isRunning != false {
-		t.Error("unexpected worker state")
+func TestNewConfig(t *testing.T) {
+	config := NewConfig()
+	if config.QueueSize == 0 {
+		t.Error("Default value is not set for QueueSize.")
 	}
 
-	if cap(worker.job) != queueSize {
-		t.Errorf("expecting queue size of %d, but was %d.", queueSize, cap(worker.job))
+	if config.SuperviseInterval == 0 {
+		t.Error("Default value is not set for SuperviseInterval.")
+	}
+
+	if config.WorkerNum == 0 {
+		t.Error("Default value is not set for WorkerNum.")
 	}
 }
 
-func TestWorker_Run(t *testing.T) {
-	worker := New(100)
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-
-	if worker.isRunning {
-		t.Fatal("status says running before Run.")
-	}
-
-	// Start worker
-	err := worker.Run(ctx, 5, 0)
-	if err != nil {
-		t.Fatalf("failed to run. %s", err.Error())
-	}
-
-	// panic won't affect
-	worker.EnqueueJob(func() {
-		panic("My house is on FIRE!!")
-	})
-
-	// Check if job runs
+func TestRun(t *testing.T) {
 	mutex := &sync.RWMutex{}
+
+	rootCtx := context.Background()
+	workerCtx, cancelWorker := context.WithCancel(rootCtx)
+	defer cancelWorker()
+	job := Run(workerCtx, NewConfig())
+
 	isFinished := false
-	worker.EnqueueJob(func() {
+	job <- func() {
 		mutex.Lock()
 		defer mutex.Unlock()
 		isFinished = true
-	})
+	}
+
 	time.Sleep(100 * time.Millisecond)
 	func() {
 		mutex.RLock()
 		defer mutex.RUnlock()
 		if isFinished == false {
-			t.Error("job is not executed")
+			t.Fatal("Job is not executed.")
 		}
 	}()
 
-	// Error should return on multiple Run call
-	err = worker.Run(ctx, 5, 0)
-	if err == nil {
-		t.Error("worker.Run is called multiple times")
+	// panic won't affect main process
+	job <- func() {
+		panic("Panic! Catch me!!")
 	}
-
-	// Stop worker
-	cancel()
 	time.Sleep(100 * time.Millisecond)
-	if worker.IsRunning() != false {
-		t.Error("worker.IsRunning still returns true after cancelation")
-	}
 }
