@@ -28,11 +28,18 @@ func NewUserContext(next ContextualFunc) *UserContext {
 	}
 }
 
+type UserContexts interface {
+	Get(string) (*UserContext, error)
+	Set(string, *UserContext)
+	Delete(string)
+	Flush()
+}
+
 type CachedUserContexts struct {
 	cache *cache.Cache
 }
 
-func NewCachedUserContexts(config *CacheConfig) *CachedUserContexts {
+func NewCachedUserContexts(config *CacheConfig) UserContexts {
 	return &CachedUserContexts{
 		cache: cache.New(config.ExpiresIn, config.CleanupInterval),
 	}

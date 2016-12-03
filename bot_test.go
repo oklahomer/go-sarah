@@ -1,8 +1,9 @@
 package sarah
 
 import (
+	"errors"
 	"golang.org/x/net/context"
-	"regexp"
+	"reflect"
 	"testing"
 )
 
@@ -56,64 +57,162 @@ func TestBot_BotType(t *testing.T) {
 	var botType BotType = "slack"
 	adapter := &DummyAdapter{}
 	adapter.BotTypeValue = botType
-	bot := newBot(adapter, NewCacheConfig(), "")
+	myBot := &bot{adapter: adapter}
 
-	if bot.BotType() != botType {
-		t.Errorf("Bot type is wrong: %s.", bot.BotType())
+	if myBot.BotType() != botType {
+		t.Errorf("Bot type is wrong: %s.", myBot.BotType())
 	}
 }
 
 func TestBot_PluginConfigDir(t *testing.T) {
 	dummyPluginDir := "/dummy/path/to/config"
-	adapter := &DummyAdapter{}
-	bot := newBot(adapter, NewCacheConfig(), dummyPluginDir)
+	myBot := &bot{pluginConfigDir: dummyPluginDir}
 
-	if bot.PluginConfigDir() != dummyPluginDir {
-		t.Errorf("Plugin configuration file's location is wrong: %s.", bot.PluginConfigDir())
+	if myBot.PluginConfigDir() != dummyPluginDir {
+		t.Errorf("Plugin configuration file's location is wrong: %s.", myBot.PluginConfigDir())
 	}
 }
 
 func TestBot_AppendCommand(t *testing.T) {
-	adapter := &DummyAdapter{}
-	myBot := newBot(adapter, NewCacheConfig(), "")
+	myBot := &bot{commands: NewCommands()}
 
 	command := &DummyCommand{}
 	myBot.AppendCommand(command)
 
-	registeredCommands := myBot.(*bot).commands
+	registeredCommands := myBot.commands
 	if len(registeredCommands.cmd) != 1 {
 		t.Errorf("1 registered command should exists: %#v.", registeredCommands)
 	}
 }
 
-func TestBot_Respond(t *testing.T) {
-	adapterProcessed := false
-	adapter := &DummyAdapter{}
-	adapter.SendMessageFunc = func(_ context.Context, _ Output) {
-		adapterProcessed = true
+func TestBot_Respond_CacheAcquisitionError(t *testing.T) {
+	cacheError := errors.New("cache error")
+	dummyCache := &DummyCachedUserContexts{}
+	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
+		return nil, cacheError
 	}
-	bot := newBot(adapter, NewCacheConfig(), "")
 
-	command := &DummyCommand{}
-	command.MatchFunc = func(str string) bool {
-		return true
+	myBot := &bot{
+		userContextCache: dummyCache,
 	}
-	command.ExecuteFunc = func(_ context.Context, input Input) (*CommandResponse, error) {
-		return &CommandResponse{Content: regexp.MustCompile(`^\.echo`).ReplaceAllString(input.Message(), "")}, nil
+
+	dummyInput := &DummyInput{}
+	dummyInput.SenderKeyValue = "senderKey"
+
+	err := myBot.Respond(context.TODO(), dummyInput)
+	if err != cacheError {
+		t.Errorf("Expected error was not returned: %#v.", err)
 	}
-	bot.AppendCommand(command)
+}
 
-	input := &DummyInput{}
-	input.MessageValue = ".echo foo"
+func TestBot_Respond_WithoutContext(t *testing.T) {
+	dummyCache := &DummyCachedUserContexts{}
+	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
+		return nil, nil
+	}
 
-	err := bot.Respond(context.Background(), input)
+	myBot := &bot{
+		userContextCache: dummyCache,
+		commands:         NewCommands(),
+	}
 
+	dummyInput := &DummyInput{}
+	dummyInput.SenderKeyValue = "senderKey"
+	dummyInput.MessageValue = ".echo foo"
+
+	err := myBot.Respond(context.TODO(), dummyInput)
 	if err != nil {
-		t.Errorf("Error on Bot#Respond. %s", err.Error())
+		t.Errorf("Unexpected error is returned: %#v.", err)
+	}
+}
+
+func TestBot_Respond_WithContext(t *testing.T) {
+	dummyCache := &DummyCachedUserContexts{}
+	dummyCache.DeleteFunc = func(_ string) {
+		return
+	}
+	nextFunc := func(_ context.Context, input Input) (*CommandResponse, error) {
+		return nil, nil
+	}
+	responseContent := &struct{}{}
+	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
+		return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
+			return &CommandResponse{
+				Content: responseContent,
+				Next:    nextFunc,
+			}, nil
+		}), nil
 	}
 
-	if adapterProcessed == false {
-		t.Error("Adapter.SendMessage is not called.")
+	var givenNext ContextualFunc
+	dummyCache.SetFunc = func(_ string, userContext *UserContext) {
+		givenNext = userContext.Next
+	}
+
+	var passedContent interface{}
+	var passedDestination OutputDestination
+	dummyAdapter := &DummyAdapter{}
+	dummyAdapter.SendMessageFunc = func(_ context.Context, output Output) {
+		passedContent = output.Content()
+		passedDestination = output.Destination()
+	}
+	myBot := &bot{
+		adapter:          dummyAdapter,
+		userContextCache: dummyCache,
+		commands:         NewCommands(),
+	}
+
+	replyDestination := "replyTo"
+	dummyInput := &DummyInput{}
+	dummyInput.SenderKeyValue = "senderKey"
+	dummyInput.MessageValue = ".echo foo"
+	dummyInput.ReplyToValue = replyDestination
+
+	err := myBot.Respond(context.TODO(), dummyInput)
+	if err != nil {
+		t.Errorf("Unexpected error is returned: %#v.", err)
+	}
+
+	if reflect.ValueOf(givenNext).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
+		t.Errorf("Expected Next step is not passed: %#v.", givenNext)
+	}
+
+	if passedContent != responseContent {
+		t.Errorf("Expected message content is not passed: %#v.", passedContent)
+	}
+	if passedDestination != replyDestination {
+		t.Errorf("Expected reply destination is not passed: %#v.", passedDestination)
+	}
+}
+
+func TestBot_Respond_Abort(t *testing.T) {
+	dummyCache := &DummyCachedUserContexts{}
+	isCacheDeleted := false
+	dummyCache.DeleteFunc = func(_ string) {
+		isCacheDeleted = true
+	}
+	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
+		return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
+			panic("Don't call me!!!")
+		}), nil
+	}
+
+	myBot := &bot{
+		userContextCache: dummyCache,
+	}
+
+	replyDestination := "replyTo"
+	dummyInput := &DummyInput{}
+	dummyInput.SenderKeyValue = "senderKey"
+	dummyInput.MessageValue = ".abort"
+	dummyInput.ReplyToValue = replyDestination
+
+	err := myBot.Respond(context.TODO(), dummyInput)
+	if err != nil {
+		t.Errorf("Unexpected error returned: %#v.", err)
+	}
+	if isCacheDeleted == false {
+		t.Error("Cached context is not deleted.")
 	}
 }
 

@@ -1,7 +1,6 @@
 package sarah
 
 import (
-	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"strings"
 )
@@ -43,7 +42,7 @@ type Bot interface {
 type bot struct {
 	adapter          Adapter
 	commands         *Commands
-	userContextCache *CachedUserContexts
+	userContextCache UserContexts
 	pluginConfigDir  string
 }
 
@@ -64,8 +63,7 @@ func (bot *bot) Respond(ctx context.Context, input Input) error {
 	senderKey := input.SenderKey()
 	userContext, cacheErr := bot.userContextCache.Get(senderKey)
 	if cacheErr != nil {
-		log.Error(cacheErr.Error())
-		return nil
+		return cacheErr
 	}
 
 	var res *CommandResponse
@@ -85,7 +83,11 @@ func (bot *bot) Respond(ctx context.Context, input Input) error {
 		return err
 	}
 
-	if res != nil && res.Next != nil {
+	if res == nil {
+		return nil
+	}
+
+	if res.Next != nil {
 		bot.userContextCache.Set(senderKey, NewUserContext(res.Next))
 	}
 
