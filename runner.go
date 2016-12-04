@@ -85,18 +85,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		// build scheduled task with stashed builder settings
 		tasks := stashedScheduledTaskBuilders.build(botType, bot.PluginConfigDir())
 		for _, task := range tasks {
-			runner.cron.AddFunc(task.config.Schedule(), func() {
-				res, err := task.Execute(botCtx)
-				if err != nil {
-					log.Errorf("error on scheduled task: %s", task.Identifier())
-					return
-				} else if res == nil {
-					return
-				}
-
-				message := NewOutputMessage(task.config.Destination(), res.Content)
-				bot.SendMessage(botCtx, message)
-			})
+			setupScheduledTask(runner.cron, bot, botCtx, task)
 		}
 
 		// run Bot
@@ -108,6 +97,21 @@ func (runner *Runner) Run(ctx context.Context) {
 	}
 
 	runner.cron.Start()
+}
+
+func setupScheduledTask(c *cron.Cron, bot Bot, botCtx context.Context, task *scheduledTask) {
+	c.AddFunc(task.config.Schedule(), func() {
+		res, err := task.Execute(botCtx)
+		if err != nil {
+			log.Errorf("error on scheduled task: %s", task.Identifier())
+			return
+		} else if res == nil {
+			return
+		}
+
+		message := NewOutputMessage(task.config.Destination(), res.Content)
+		bot.SendMessage(botCtx, message)
+	})
 }
 
 // stopUnrecoverableBot receives error from Bot, check if the error is critical, and stop the bot if required.
