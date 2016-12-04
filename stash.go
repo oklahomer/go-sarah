@@ -74,7 +74,7 @@ func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string)
 	}
 
 	for _, builder := range builders {
-		task, err := builder.build(configDir)
+		task, err := builder.Build(configDir)
 		if err != nil {
 			log.Errorf("can't configure scheduled task: %s. %#v.", err.Error(), builder)
 			continue

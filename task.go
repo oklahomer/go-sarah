@@ -60,7 +60,7 @@ func (builder *ScheduledTaskBuilder) ConfigStruct(config ScheduledTaskConfig) *S
 	return builder
 }
 
-func (builder *ScheduledTaskBuilder) build(configDir string) (*scheduledTask, error) {
+func (builder *ScheduledTaskBuilder) Build(configDir string) (*scheduledTask, error) {
 	if builder.identifier == "" || builder.taskFunc == nil || builder.config == nil {
 		return nil, ErrTaskInsufficientArgument
 	}

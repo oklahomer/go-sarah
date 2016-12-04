@@ -87,9 +87,8 @@ func TestRunner_Run(t *testing.T) {
 
 	// Prepare scheduled task to be configured on the fly
 	dummyTaskConfig := &DummyScheduledTaskConfig{}
-	dummyTaskConfig.ScheduleValue = "0 30 * * * *"
 	taskBuilder := NewScheduledTaskBuilder().
-		Identifier("dummy").
+		Identifier("scheduled").
 		ConfigStruct(dummyTaskConfig).
 		Func(func(context.Context, ScheduledTaskConfig) (*CommandResponse, error) {
 			return nil, nil
@@ -104,7 +103,7 @@ func TestRunner_Run(t *testing.T) {
 		passedCommand = cmd
 	}
 	bot.PluginConfigDirFunc = func() string {
-		return "testdata/commandBuilder"
+		return "testdata/taskbuilder"
 	}
 	bot.RunFunc = func(_ context.Context, _ chan<- Input, _ chan<- error) {
 		return
