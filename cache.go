@@ -7,8 +7,8 @@ import (
 )
 
 type CacheConfig struct {
-	ExpiresIn       time.Duration
-	CleanupInterval time.Duration
+	ExpiresIn       time.Duration `json:"expires_in" yaml:"expires_in"`
+	CleanupInterval time.Duration `json:"cleanup_interval" yaml:"cleanup_interval"`
 }
 
 func NewCacheConfig() *CacheConfig {
