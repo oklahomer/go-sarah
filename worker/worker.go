@@ -8,11 +8,13 @@ import (
 )
 
 type Config struct {
-	WorkerNum         uint
-	QueueSize         uint
-	SuperviseInterval time.Duration
+	WorkerNum         uint          `json:"worker_num" yaml:"worker_num"`
+	QueueSize         uint          `json:"queue_size" yaml:"queue_size"`
+	SuperviseInterval time.Duration `json:"supervise_interval" yaml:"supervise_interval"`
 }
 
+// NewConfig returns Config instance with default configuration values.
+// To Override with desired value, pass the returned instance to json.Unmarshal or yaml.Unmarshal.
 func NewConfig() *Config {
 	// Set default values.
 	return &Config{
