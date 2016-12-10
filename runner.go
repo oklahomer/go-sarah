@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	Worker      *worker.Config
-	CacheConfig *CacheConfig
+	Worker      *worker.Config `json:"worker" yaml:"worker"`
+	CacheConfig *CacheConfig   `json:"cache" yaml:"cache"`
 }
 
 func NewConfig() *Config {
