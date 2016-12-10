@@ -2,25 +2,25 @@ package sarah
 
 import "time"
 
-type testInput struct {
-	senderKey string
-	message   string
-	sentAt    time.Time
-	replyTo   OutputDestination
+type DummyInput struct {
+	SenderKeyValue string
+	MessageValue   string
+	SentAtValue    time.Time
+	ReplyToValue   OutputDestination
 }
 
-func (i *testInput) SenderKey() string {
-	return i.senderKey
+func (i *DummyInput) SenderKey() string {
+	return i.SenderKeyValue
 }
 
-func (i *testInput) Message() string {
-	return i.message
+func (i *DummyInput) Message() string {
+	return i.MessageValue
 }
 
-func (i *testInput) SentAt() time.Time {
-	return i.sentAt
+func (i *DummyInput) SentAt() time.Time {
+	return i.SentAtValue
 }
 
-func (i *testInput) ReplyTo() OutputDestination {
-	return i.replyTo
+func (i *DummyInput) ReplyTo() OutputDestination {
+	return i.ReplyToValue
 }

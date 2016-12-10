@@ -3,7 +3,6 @@ package sarah
 import (
 	"golang.org/x/net/context"
 	"strings"
-	"time"
 )
 
 // Bot provides interface for each bot implementation.
@@ -43,15 +42,15 @@ type Bot interface {
 type bot struct {
 	adapter          Adapter
 	commands         *Commands
-	userContextCache *CachedUserContexts
+	userContextCache UserContexts
 	pluginConfigDir  string
 }
 
-func newBot(adapter Adapter, configDir string) Bot {
+func newBot(adapter Adapter, cacheConfig *CacheConfig, configDir string) Bot {
 	return &bot{
 		adapter:          adapter,
 		commands:         NewCommands(),
-		userContextCache: NewCachedUserContexts(3*time.Minute, 10*time.Minute),
+		userContextCache: NewCachedUserContexts(cacheConfig),
 		pluginConfigDir:  configDir,
 	}
 }
@@ -62,7 +61,10 @@ func (bot *bot) BotType() BotType {
 
 func (bot *bot) Respond(ctx context.Context, input Input) error {
 	senderKey := input.SenderKey()
-	userContext := bot.userContextCache.Get(senderKey)
+	userContext, cacheErr := bot.userContextCache.Get(senderKey)
+	if cacheErr != nil {
+		return cacheErr
+	}
 
 	var res *CommandResponse
 	var err error
@@ -81,7 +83,11 @@ func (bot *bot) Respond(ctx context.Context, input Input) error {
 		return err
 	}
 
-	if res != nil && res.Next != nil {
+	if res == nil {
+		return nil
+	}
+
+	if res.Next != nil {
 		bot.userContextCache.Set(senderKey, NewUserContext(res.Next))
 	}
 

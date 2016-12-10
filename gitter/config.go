@@ -3,16 +3,16 @@ package gitter
 import "time"
 
 type Config struct {
-	token         string
-	retryLimit    uint
-	retryInterval time.Duration
+	Token         string
+	RetryLimit    uint
+	RetryInterval time.Duration
 }
 
 func NewConfig(token string) *Config {
 	// minimal configuration
 	return &Config{
-		token:         token,
-		retryLimit:    10,
-		retryInterval: 500 * time.Millisecond,
+		Token:         token,
+		RetryLimit:    10,
+		RetryInterval: 500 * time.Millisecond,
 	}
 }

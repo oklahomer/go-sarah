@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/oklahomer/go-sarah.svg?branch=master)](https://travis-ci.org/oklahomer/go-sarah) [![Coverage Status](https://coveralls.io/repos/github/oklahomer/go-sarah/badge.svg?branch=master)](https://coveralls.io/github/oklahomer/go-sarah?branch=master)
+
 Sarah is a general purpose bot framework named after author's firstborn daughter.
 
 While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
@@ -25,7 +27,7 @@ func main() {
                         return slack.NewStringResponse(input.Message()), nil
                 }).
                 InputExample(".echo knock knock")
-        sarah.AppendCommandBuilder(slack.SLACK, echoBuilder)
+        sarah.StashCommandBuilder(slack.SLACK, echoBuilder)
 
         // Create a builder for a bit complex command that requires config struct.
         // Configuration file is read on Runner.Run, and command is built with fully configured config struct.
@@ -39,7 +41,7 @@ func main() {
                         return slack.NewStringResponse("return something"), nil
                 }).
                 InputExample(".echo knock knock")
-        sarah.AppendCommandBuilder(slack.SLACK, configCommandBuilder)
+        sarah.StashCommandBuilder(slack.SLACK, configCommandBuilder)
         
         // Initialize Runner
         runner := sarah.NewRunner(sarah.NewConfig())

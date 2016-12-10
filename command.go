@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"path"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -75,7 +76,7 @@ func (command *simpleCommand) Execute(ctx context.Context, input Input) (*Comman
 // This is to extract usable input value out of entire user message.
 // e.g. ".echo Hey!" becomes "Hey!"
 func StripMessage(pattern *regexp.Regexp, input string) string {
-	return pattern.ReplaceAllString(input, "")
+	return strings.TrimSpace(pattern.ReplaceAllString(input, ""))
 }
 
 // Commands stashes all registered Command.

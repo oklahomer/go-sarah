@@ -11,13 +11,13 @@ var (
 
 type commandBuilderStash map[BotType][]*CommandBuilder
 
-// AppendCommandBuilder appends given CommandBuilder to internal stash.
+// StashCommandBuilder adds given CommandBuilder to internal stash.
 // Stashed builder is used to configure and build Command instance on Runner's initialization.
 //
-// They are built in appended order, which means commands are checked against user input in the appended order.
+// They are built in stashed order, which means commands are checked against user input in the appended order.
 // Therefore, append commands with higher priority or narrower regular expression match pattern.
-func AppendCommandBuilder(botType BotType, builder *CommandBuilder) {
-	log.Infof("appending command builder for %s. builder %#v.", botType, builder)
+func StashCommandBuilder(botType BotType, builder *CommandBuilder) {
+	log.Infof("stashing command builder for %s. builder %#v.", botType, builder)
 	stashedCommandBuilders.appendBuilder(botType, builder)
 }
 
@@ -50,10 +50,10 @@ func (stash *commandBuilderStash) build(botType BotType, configDir string) []Com
 
 type scheduledTaskBuilderStash map[BotType][]*ScheduledTaskBuilder
 
-// AppendScheduledTaskBuilder appends given ScheduledTaskBuilder to internal stash.
+// StashScheduledTaskBuilder adds given ScheduledTaskBuilder to internal stash.
 // Stashed builder is used to configure and build ScheduledTask instance on Runner's initialization.
-func AppendScheduledTaskBuilder(botType BotType, builder *ScheduledTaskBuilder) {
-	log.Infof("appending scheduled task builder for %s. builder %#v.", botType, builder)
+func StashScheduledTaskBuilder(botType BotType, builder *ScheduledTaskBuilder) {
+	log.Infof("stashing scheduled task builder for %s. builder %#v.", botType, builder)
 	stashedScheduledTaskBuilders.appendBuilder(botType, builder)
 }
 
@@ -74,7 +74,7 @@ func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string)
 	}
 
 	for _, builder := range builders {
-		task, err := builder.build(configDir)
+		task, err := builder.Build(configDir)
 		if err != nil {
 			log.Errorf("can't configure scheduled task: %s. %#v.", err.Error(), builder)
 			continue

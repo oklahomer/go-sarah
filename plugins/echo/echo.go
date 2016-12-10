@@ -28,7 +28,7 @@ func init() {
 		MatchPattern(matchPattern).
 		Func(slackEcho).
 		InputExample(".echo knock knock")
-	sarah.AppendCommandBuilder(slack.SLACK, slackBuilder)
+	sarah.StashCommandBuilder(slack.SLACK, slackBuilder)
 
 	// For gitter interaction
 	gitterBuilder := sarah.NewCommandBuilder().
@@ -36,5 +36,5 @@ func init() {
 		MatchPattern(matchPattern).
 		Func(gitterEcho).
 		InputExample(".echo knock knock")
-	sarah.AppendCommandBuilder(gitter.GITTER, gitterBuilder)
+	sarah.StashCommandBuilder(gitter.GITTER, gitterBuilder)
 }
