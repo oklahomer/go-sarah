@@ -14,6 +14,8 @@ import	(
         "github.com/oklahomer/go-sarah"
         "github.com/oklahomer/go-sarah/slack"
         "golang.org/x/net/context"
+        "gopkg.in/yaml.v2"
+        "io/ioutil"
         "regexp"
         "time"
 )
@@ -45,8 +47,12 @@ func main() {
         
         // Initialize Runner
         runner := sarah.NewRunner(sarah.NewConfig())
+
         // Setup slack adapter and add this instance to runner
-        adapter := slack.NewAdapter(slack.NewConfig("dummyToken"))
+        configBuf, _ := ioutil.ReadFile("/path/to/adapter/config.yaml")
+        slackConfig := slack.NewConfig()
+        yaml.Unmarshal(configBuf, slackConfig)
+        adapter := slack.NewAdapter(slackConfig)
         runner.RegisterAdapter(adapter, "/path/to/plugin/config/dir/")
 
         // Start interaction

@@ -1,12 +1,35 @@
 package sarah
 
 import (
+	"fmt"
 	"github.com/robfig/cron"
 	"golang.org/x/net/context"
+	"gopkg.in/yaml.v2"
 	"regexp"
 	"testing"
 	"time"
 )
+
+func TestNewConfig_UnmarshalNestedYaml(t *testing.T) {
+	config := NewConfig()
+	oldQueueSize := config.Worker.QueueSize
+	oldWorkerNum := config.Worker.WorkerNum
+	newWorkerNum := oldWorkerNum + 100
+
+	yamlBytes := []byte(fmt.Sprintf("worker:\n  worker_num: %d", newWorkerNum))
+
+	if err := yaml.Unmarshal(yamlBytes, config); err != nil {
+		t.Fatalf("Error on parsing given YAML structure: %s. %s.", string(yamlBytes), err.Error())
+	}
+
+	if config.Worker.QueueSize != oldQueueSize {
+		t.Errorf("QueueSize should stay when YAML value is not given: %d.", config.Worker.QueueSize)
+	}
+
+	if config.Worker.WorkerNum != newWorkerNum {
+		t.Errorf("WorkerNum is not overridden with YAML value: %d.", config.Worker.WorkerNum)
+	}
+}
 
 func TestNewRunner(t *testing.T) {
 	config := NewConfig()
