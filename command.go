@@ -2,6 +2,7 @@ package sarah
 
 import (
 	"errors"
+	"fmt"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -210,6 +211,17 @@ func (builder *CommandBuilder) Build(configDir string) (Command, error) {
 		commandFunc:  builder.commandFunc,
 		config:       commandConfig,
 	}, nil
+}
+
+// MustBuild is like Build but panics if any error occurs on Build.
+// It simplifies safe initialization of global variables holding built Command instances.
+func (builder *CommandBuilder) MustBuild() Command {
+	command, err := builder.Build("")
+	if err != nil {
+		panic(fmt.Sprintf("Error on building command: %s", err.Error()))
+	}
+
+	return command
 }
 
 func readConfig(configPath string, config CommandConfig) error {

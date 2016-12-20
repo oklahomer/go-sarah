@@ -157,6 +157,30 @@ func TestCommandBuilder_Build(t *testing.T) {
 	}
 }
 
+func TestCommandBuilder_MustBuild(t *testing.T) {
+	builder := &CommandBuilder{}
+	builder.Identifier("dummy").
+		MatchPattern(regexp.MustCompile(`^\.echo`)).
+		InputExample(".echo knock knock")
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic did not occur.")
+			}
+		}()
+		builder.MustBuild()
+	}()
+
+	builder.Func(func(_ context.Context, input Input) (*CommandResponse, error) {
+		return nil, nil
+	})
+	command := builder.MustBuild()
+	if command.Identifier() != builder.identifier {
+		t.Error("Provided identifier is not set.")
+	}
+}
+
 func TestNewCommands(t *testing.T) {
 	commands := NewCommands()
 	if commands.cmd == nil {
