@@ -7,7 +7,7 @@ import (
 )
 
 type AttachmentField struct {
-	Title string `json:"title"`
+	Title string `json:"title,omitempty"`
 	Value string `json:"value"`
 	Short bool   `json:"short,omitempty"`
 }
