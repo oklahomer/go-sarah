@@ -46,7 +46,7 @@ type User struct {
 	Deleted           bool                   `json:"deleted"`
 	Color             string                 `json:"color"`
 	RealName          string                 `json:"real_name"`
-	TZ                string                 `json:"tz,omitempty"`
+	TZ                string                 `json:"tz"`
 	TZLabel           string                 `json:"tz_label"`
 	TZOffset          int                    `json:"tz_offset"`
 	Profile           UserProfile            `json:"profile"`
@@ -88,15 +88,15 @@ type Channel struct {
 	ID                 string    `json:"id"`
 	Created            TimeStamp `json:"created"`
 	IsOpen             bool      `json:"is_open"`
-	LastRead           string    `json:"last_read,omitempty"`
-	Latest             *Message  `json:"latest,omitempty"`
-	UnreadCount        int       `json:"unread_count,omitempty"`
-	UnreadCountDisplay int       `json:"unread_count_display,omitempty"`
+	LastRead           string    `json:"last_read"`
+	Latest             *Message  `json:"latest"`
+	UnreadCount        int       `json:"unread_count"`
+	UnreadCountDisplay int       `json:"unread_count_display"`
 	Name               string    `json:"name"`
 	Creator            string    `json:"creator"`
 	IsArchived         bool      `json:"is_archived"`
 	Members            []string  `json:"members"`
-	NumMembers         int       `json:"num_members,omitempty"`
+	NumMembers         int       `json:"num_members"`
 	Topic              Topic     `json:"topic"`
 	Purpose            Purpose   `json:"purpose"`
 	IsChannel          bool      `json:"is_channel"`
@@ -108,15 +108,15 @@ type Group struct {
 	ID                 string    `json:"id"`
 	Created            TimeStamp `json:"created"`
 	IsOpen             bool      `json:"is_open"`
-	LastRead           string    `json:"last_read,omitempty"`
-	Latest             *Message  `json:"latest,omitempty"`
-	UnreadCount        int       `json:"unread_count,omitempty"`
-	UnreadCountDisplay int       `json:"unread_count_display,omitempty"`
+	LastRead           string    `json:"last_read"`
+	Latest             *Message  `json:"latest"`
+	UnreadCount        int       `json:"unread_count"`
+	UnreadCountDisplay int       `json:"unread_count_display"`
 	Name               string    `json:"name"`
 	Creator            string    `json:"creator"`
 	IsArchived         bool      `json:"is_archived"`
 	Members            []string  `json:"members"`
-	NumMembers         int       `json:"num_members,omitempty"`
+	NumMembers         int       `json:"num_members"`
 	Topic              Topic     `json:"topic"`
 	Purpose            Purpose   `json:"purpose"`
 	IsGroup            bool      `json:"is_group"`
@@ -137,10 +137,10 @@ type IM struct {
 	ID                 string                 `json:"id"`
 	Created            TimeStamp              `json:"created"`
 	IsOpen             bool                   `json:"is_open"`
-	LastRead           string                 `json:"last_read,omitempty"`
-	Latest             *Message               `json:"latest,omitempty"`
-	UnreadCount        int                    `json:"unread_count,omitempty"`
-	UnreadCountDisplay int                    `json:"unread_count_display,omitempty"`
+	LastRead           string                 `json:"last_read"`
+	Latest             *Message               `json:"latest"`
+	UnreadCount        int                    `json:"unread_count"`
+	UnreadCountDisplay int                    `json:"unread_count_display"`
 	IsIM               bool                   `json:"is_im"`
 	Sender             *common.UserIdentifier `json:"user"`
 	IsUserDeleted      bool                   `json:"is_user_deleted"`
@@ -151,13 +151,13 @@ type RtmStart struct {
 	APIResponse
 
 	// TODO consider net/url
-	URL string `json:"url,omitempty"`
+	URL string `json:"url"`
 
-	Self     *Self     `json:"self,omitempty"`
-	Team     *Team     `json:"team,omitempty"`
-	Users    []User    `json:"users,omitempty"`
-	Channels []Channel `json:"channels,omitempty"`
-	Groups   []Group   `json:"groups,omitempty"`
-	Bots     []Bot     `json:"bots,omitempty"`
-	IMs      []IM      `json:"ims,omitempty"`
+	Self     *Self     `json:"self"`
+	Team     *Team     `json:"team"`
+	Users    []User    `json:"users"`
+	Channels []Channel `json:"channels"`
+	Groups   []Group   `json:"groups"`
+	Bots     []Bot     `json:"bots"`
+	IMs      []IM      `json:"ims"`
 }

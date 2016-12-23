@@ -134,9 +134,9 @@ func (subType *SubType) MarshalText() ([]byte, error) {
 // See SubType field to distinguish corresponding event struct.
 // https://api.slack.com/events/message#message_subtypes
 type CommonMessage struct {
-	Type EventType `json:"type,omitempty"`
+	Type EventType `json:"type"`
 
 	// Regular user message and some miscellaneous message share the common type of "message."
 	// So take a look at subtype to distinguish. Regular user message has empty subtype.
-	SubType SubType `json:"subtype,omitempty"`
+	SubType SubType `json:"subtype"`
 }
