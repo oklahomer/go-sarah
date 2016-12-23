@@ -45,36 +45,34 @@ func (bot *DummyBot) PluginConfigDir() string {
 	return bot.PluginConfigDirFunc()
 }
 
-func Test_newBot(t *testing.T) {
+func Test_NewBot(t *testing.T) {
 	adapter := &DummyAdapter{}
-	myBot := newBot(adapter, NewCacheConfig(), "")
-	if _, ok := myBot.(*bot); !ok {
+	myBot := NewBot(adapter, NewCacheConfig(), "")
+	if _, ok := myBot.(*defaultBot); !ok {
 		t.Errorf("newBot did not return bot instance: %#v.", myBot)
 	}
 }
 
-func TestBot_BotType(t *testing.T) {
+func TestDefaultBot_BotType(t *testing.T) {
 	var botType BotType = "slack"
-	adapter := &DummyAdapter{}
-	adapter.BotTypeValue = botType
-	myBot := &bot{adapter: adapter}
+	myBot := &defaultBot{botType: botType}
 
 	if myBot.BotType() != botType {
 		t.Errorf("Bot type is wrong: %s.", myBot.BotType())
 	}
 }
 
-func TestBot_PluginConfigDir(t *testing.T) {
+func TestDefaultBot_PluginConfigDir(t *testing.T) {
 	dummyPluginDir := "/dummy/path/to/config"
-	myBot := &bot{pluginConfigDir: dummyPluginDir}
+	myBot := &defaultBot{pluginConfigDir: dummyPluginDir}
 
 	if myBot.PluginConfigDir() != dummyPluginDir {
 		t.Errorf("Plugin configuration file's location is wrong: %s.", myBot.PluginConfigDir())
 	}
 }
 
-func TestBot_AppendCommand(t *testing.T) {
-	myBot := &bot{commands: NewCommands()}
+func TestDefaultBot_AppendCommand(t *testing.T) {
+	myBot := &defaultBot{commands: NewCommands()}
 
 	command := &DummyCommand{}
 	myBot.AppendCommand(command)
@@ -85,14 +83,14 @@ func TestBot_AppendCommand(t *testing.T) {
 	}
 }
 
-func TestBot_Respond_CacheAcquisitionError(t *testing.T) {
+func TestDefaultBot_Respond_CacheAcquisitionError(t *testing.T) {
 	cacheError := errors.New("cache error")
 	dummyCache := &DummyCachedUserContexts{}
 	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
 		return nil, cacheError
 	}
 
-	myBot := &bot{
+	myBot := &defaultBot{
 		userContextCache: dummyCache,
 	}
 
@@ -105,13 +103,13 @@ func TestBot_Respond_CacheAcquisitionError(t *testing.T) {
 	}
 }
 
-func TestBot_Respond_WithoutContext(t *testing.T) {
+func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 	dummyCache := &DummyCachedUserContexts{}
 	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
 		return nil, nil
 	}
 
-	myBot := &bot{
+	myBot := &defaultBot{
 		userContextCache: dummyCache,
 		commands:         NewCommands(),
 	}
@@ -126,7 +124,7 @@ func TestBot_Respond_WithoutContext(t *testing.T) {
 	}
 }
 
-func TestBot_Respond_WithContext(t *testing.T) {
+func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	dummyCache := &DummyCachedUserContexts{}
 	dummyCache.DeleteFunc = func(_ string) {
 		return
@@ -151,13 +149,12 @@ func TestBot_Respond_WithContext(t *testing.T) {
 
 	var passedContent interface{}
 	var passedDestination OutputDestination
-	dummyAdapter := &DummyAdapter{}
-	dummyAdapter.SendMessageFunc = func(_ context.Context, output Output) {
+	sendMessageFunc := func(_ context.Context, output Output) {
 		passedContent = output.Content()
 		passedDestination = output.Destination()
 	}
-	myBot := &bot{
-		adapter:          dummyAdapter,
+	myBot := &defaultBot{
+		sendMessageFunc:  sendMessageFunc,
 		userContextCache: dummyCache,
 		commands:         NewCommands(),
 	}
@@ -185,7 +182,7 @@ func TestBot_Respond_WithContext(t *testing.T) {
 	}
 }
 
-func TestBot_Respond_Abort(t *testing.T) {
+func TestDefaultBot_Respond_Abort(t *testing.T) {
 	dummyCache := &DummyCachedUserContexts{}
 	isCacheDeleted := false
 	dummyCache.DeleteFunc = func(_ string) {
@@ -197,7 +194,7 @@ func TestBot_Respond_Abort(t *testing.T) {
 		}), nil
 	}
 
-	myBot := &bot{
+	myBot := &defaultBot{
 		userContextCache: dummyCache,
 	}
 
@@ -216,13 +213,12 @@ func TestBot_Respond_Abort(t *testing.T) {
 	}
 }
 
-func TestBot_Run(t *testing.T) {
+func TestDefaultBot_Run(t *testing.T) {
 	adapterProcessed := false
-	adapter := &DummyAdapter{}
-	adapter.RunFunc = func(_ context.Context, _ chan<- Input, _ chan<- error) {
+	runFunc := func(_ context.Context, _ chan<- Input, _ chan<- error) {
 		adapterProcessed = true
 	}
-	bot := newBot(adapter, NewCacheConfig(), "")
+	bot := &defaultBot{runFunc: runFunc}
 
 	inputReceiver := make(chan Input)
 	errCh := make(chan error)
@@ -236,13 +232,12 @@ func TestBot_Run(t *testing.T) {
 	}
 }
 
-func TestBot_SendMessage(t *testing.T) {
+func TestDefaultBot_SendMessage(t *testing.T) {
 	adapterProcessed := false
-	adapter := &DummyAdapter{}
-	adapter.SendMessageFunc = func(_ context.Context, _ Output) {
+	sendMessageFunc := func(_ context.Context, _ Output) {
 		adapterProcessed = true
 	}
-	bot := newBot(adapter, NewCacheConfig(), "")
+	bot := &defaultBot{sendMessageFunc: sendMessageFunc}
 
 	output := NewOutputMessage(struct{}{}, struct{}{})
 	bot.SendMessage(context.TODO(), output)

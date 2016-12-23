@@ -65,36 +65,6 @@ func TestRunner_RegisterBot(t *testing.T) {
 	}
 }
 
-func TestRunner_RegisterAdapter(t *testing.T) {
-	var botType BotType = "slack"
-	adapter := &DummyAdapter{}
-	adapter.BotTypeValue = botType
-
-	runner := &Runner{}
-	runner.bots = []Bot{}
-	runner.config = NewConfig()
-	runner.RegisterAdapter(adapter, "")
-
-	bot, ok := runner.bots[0].(*bot)
-	if !ok {
-		t.Fatal("Registered bot is not type of default bot.")
-	}
-
-	if bot.adapter != adapter {
-		t.Error("Wrong adapter is stashed.")
-	}
-
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic did not occur.")
-		}
-	}()
-
-	duplicatedAdapter := &DummyAdapter{}
-	duplicatedAdapter.BotTypeValue = botType
-	runner.RegisterAdapter(duplicatedAdapter, "")
-}
-
 func TestRunner_Run(t *testing.T) {
 	var botType BotType = "myBot"
 

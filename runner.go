@@ -1,7 +1,6 @@
 package sarah
 
 import (
-	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
 	"github.com/robfig/cron"
@@ -9,14 +8,12 @@ import (
 )
 
 type Config struct {
-	Worker      *worker.Config `json:"worker" yaml:"worker"`
-	CacheConfig *CacheConfig   `json:"cache" yaml:"cache"`
+	Worker *worker.Config `json:"worker" yaml:"worker"`
 }
 
 func NewConfig() *Config {
 	return &Config{
-		Worker:      worker.NewConfig(),
-		CacheConfig: NewCacheConfig(),
+		Worker: worker.NewConfig(),
 	}
 }
 
@@ -44,24 +41,6 @@ func NewRunner(config *Config) *Runner {
 // RegisterBot register given Bot implementation's instance to runner instance
 func (runner *Runner) RegisterBot(bot Bot) {
 	runner.bots = append(runner.bots, bot)
-}
-
-// RegisterAdapter allows developer to register desired Adapter implementation.
-// This internally creates an instance of default Bot implementation with given Adapter.
-// Created Bot instance is fed to Runner.RegisterBot.
-//
-//  runner := sarah.NewRunner(sarah.NewConfig())
-//  runner.RegisterAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
-//  runner.Run()
-func (runner *Runner) RegisterAdapter(adapter Adapter, pluginConfigDir string) {
-	for _, bot := range runner.bots {
-		if bot.BotType() == adapter.BotType() {
-			panic(fmt.Sprintf("BotType (%s) conflicted with stored Adapter.", adapter.BotType()))
-		}
-	}
-
-	bot := newBot(adapter, runner.config.CacheConfig, pluginConfigDir)
-	runner.RegisterBot(bot)
 }
 
 // Run starts Bot interaction.

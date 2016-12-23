@@ -39,27 +39,31 @@ type Bot interface {
 	PluginConfigDir() string
 }
 
-type bot struct {
-	adapter          Adapter
+type defaultBot struct {
+	botType          BotType
+	runFunc          func(context.Context, chan<- Input, chan<- error)
+	sendMessageFunc  func(context.Context, Output)
 	commands         *Commands
 	userContextCache UserContexts
 	pluginConfigDir  string
 }
 
-func newBot(adapter Adapter, cacheConfig *CacheConfig, configDir string) Bot {
-	return &bot{
-		adapter:          adapter,
+func NewBot(adapter Adapter, cacheConfig *CacheConfig, configDir string) Bot {
+	return &defaultBot{
+		botType:          adapter.BotType(),
+		runFunc:          adapter.Run,
+		sendMessageFunc:  adapter.SendMessage,
 		commands:         NewCommands(),
 		userContextCache: NewCachedUserContexts(cacheConfig),
 		pluginConfigDir:  configDir,
 	}
 }
 
-func (bot *bot) BotType() BotType {
-	return bot.adapter.BotType()
+func (bot *defaultBot) BotType() BotType {
+	return bot.botType
 }
 
-func (bot *bot) Respond(ctx context.Context, input Input) error {
+func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	senderKey := input.SenderKey()
 	userContext, cacheErr := bot.userContextCache.Get(senderKey)
 	if cacheErr != nil {
@@ -97,18 +101,18 @@ func (bot *bot) Respond(ctx context.Context, input Input) error {
 	return nil
 }
 
-func (bot *bot) SendMessage(ctx context.Context, output Output) {
-	bot.adapter.SendMessage(ctx, output)
+func (bot *defaultBot) SendMessage(ctx context.Context, output Output) {
+	bot.sendMessageFunc(ctx, output)
 }
 
-func (bot *bot) AppendCommand(command Command) {
+func (bot *defaultBot) AppendCommand(command Command) {
 	bot.commands.Append(command)
 }
 
-func (bot *bot) Run(ctx context.Context, receivedInput chan<- Input, errCh chan<- error) {
-	bot.adapter.Run(ctx, receivedInput, errCh)
+func (bot *defaultBot) Run(ctx context.Context, receivedInput chan<- Input, errCh chan<- error) {
+	bot.runFunc(ctx, receivedInput, errCh)
 }
 
-func (bot *bot) PluginConfigDir() string {
+func (bot *defaultBot) PluginConfigDir() string {
 	return bot.pluginConfigDir
 }
