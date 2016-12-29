@@ -41,7 +41,7 @@ func main() {
                 Identifier("echo").
                 MatchPattern(regexp.MustCompile(`^\.echo`)).
                 Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-                        return slack.NewStringResponse(input.Message()), nil
+                        return sarah.NewStringResponse(input.Message()), nil
                 }).
                 InputExample(".echo knock knock").
                 MustBuild()
@@ -56,7 +56,7 @@ func main() {
                 Identifier("configurableCommandSample").
                 MatchPattern(regexp.MustCompile(`^\.complexCommand`)).
                 ConfigurableFunc(pluginConfig, func(_ context.Context, input sarah.Input, config sarah.Config) (*sarah.CommandResponse, error) {
-                        return slack.NewStringResponse("return something"), nil
+                        return sarah.NewStringResponse("return something"), nil
                 }).
                 InputExample(".echo knock knock")
         sarah.StashCommandBuilder(slack.SLACK, configCommandBuilder)

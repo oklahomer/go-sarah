@@ -232,25 +232,14 @@ func connectRtm(ctx context.Context, connector rtmapi.Connector, rtm *webapi.Rtm
 	return conn, err
 }
 
-// NewStringResponse creates new sarah.CommandResponse instance with given string.
-func NewStringResponse(responseContent string) *sarah.CommandResponse {
-	return NewStringResponseWithNext(responseContent, nil)
-}
-
-// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
-func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
-	return &sarah.CommandResponse{
-		Content: responseContent,
-		Next:    next,
-	}
-}
-
 // NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
+// Use NewStringResponse for simple text response.
 func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.CommandResponse {
 	return NewPostMessageResponseWithNext(input, message, attachments, nil)
 }
 
 // NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.
+// Use NewStringResponse for simple text response.
 func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
 	inputMessage, _ := input.(*rtmapi.Message)
 	return &sarah.CommandResponse{

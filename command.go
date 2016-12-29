@@ -29,6 +29,20 @@ type CommandResponse struct {
 	Next    ContextualFunc
 }
 
+// NewStringResponse creates new sarah.CommandResponse instance with given string.
+// To support customized response payload, adapter should define a method that returns *CommandResponse with corresponding struct.
+func NewStringResponse(responseContent string) *CommandResponse {
+	return NewStringResponseWithNext(responseContent, nil)
+}
+
+// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
+func NewStringResponseWithNext(responseContent string, next ContextualFunc) *CommandResponse {
+	return &CommandResponse{
+		Content: responseContent,
+		Next:    next,
+	}
+}
+
 // Command defines interface that all Command must satisfy.
 type Command interface {
 	// Identifier returns unique id that represents this Command.
