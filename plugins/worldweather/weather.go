@@ -5,7 +5,7 @@ import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
-	"github.com/oklahomer/go-sarah/slack/webapi"
+	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
 	"regexp"
 )
