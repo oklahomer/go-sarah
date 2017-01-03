@@ -1,11 +1,13 @@
 package slack
 
 import (
+	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
-	"github.com/oklahomer/go-sarah/slack/rtmapi"
-	"github.com/oklahomer/go-sarah/slack/webapi"
+	"github.com/oklahomer/golack"
+	"github.com/oklahomer/golack/rtmapi"
+	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
 	"time"
 )
@@ -26,16 +28,18 @@ var pingSignalChannelID = "ping"
 //  runner.Run()
 type Adapter struct {
 	config       *Config
-	WebAPIClient *webapi.Client
-	RtmAPIClient *rtmapi.Client
+	client       *golack.Golack
 	messageQueue chan *textMessage
 }
 
 func NewAdapter(config *Config) *Adapter {
+	golackConfig := golack.NewConfig()
+	golackConfig.Token = config.Token
+	golackConfig.RequestTimeout = config.RequestTimeout
+
 	return &Adapter{
 		config:       config,
-		WebAPIClient: webapi.NewClient(&webapi.Config{Token: config.Token}),
-		RtmAPIClient: rtmapi.NewClient(),
+		client:       golack.New(golackConfig),
 		messageQueue: make(chan *textMessage, config.SendingQueueSize),
 	}
 }
@@ -115,12 +119,12 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 
 // connect fetches WebSocket endpoint information via Rest API and establishes WebSocket connection.
 func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) {
-	rtmInfo, err := fetchRtmInfo(ctx, adapter.WebAPIClient, adapter.config.RetryLimit, adapter.config.RetryInterval)
+	rtmSession, err := startRTMSession(ctx, adapter.client, adapter.config.RetryLimit, adapter.config.RetryInterval)
 	if err != nil {
 		return nil, err
 	}
 
-	return connectRtm(ctx, adapter.RtmAPIClient, rtmInfo, adapter.config.RetryLimit, adapter.config.RetryInterval)
+	return connectRTM(ctx, adapter.client, rtmSession, adapter.config.RetryLimit, adapter.config.RetryInterval)
 }
 
 func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, receivedMessage chan<- sarah.Input) {
@@ -134,10 +138,12 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 			// TODO should io.EOF and io.ErrUnexpectedEOF treated differently than other errors?
 			if err == rtmapi.ErrEmptyPayload {
 				continue
-			} else if err == rtmapi.ErrUnsupportedEventType {
-				continue
+			} else if _, ok := err.(*rtmapi.MalformedPayloadError); ok {
+				// Malformed payload was passed, but there is no programmable way to handle this error.
+				// Leave log and proceed.
+				log.Warnf("ignoring malformed paylaod: %s.", err.Error())
 			} else if err != nil {
-				// connection might not be stable or is closed already.
+				// Connection might not be stable or is closed already.
 				log.Debugf("ping caused by '%s'", err.Error())
 				nonBlockSignal(pingSignalChannelID, tryPing)
 				continue
@@ -145,12 +151,12 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 
 			switch p := payload.(type) {
 			case *rtmapi.WebSocketReply:
-				if !*p.OK {
-					// Something wrong with previous payload sending.
+				if !p.OK {
 					log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
 				}
 			case *rtmapi.Message:
-				receivedMessage <- p
+				m := &MessageInput{event: p}
+				receivedMessage <- m
 			case *rtmapi.Pong:
 				continue
 			case nil:
@@ -200,7 +206,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 		}
 	case *webapi.PostMessage:
 		message := output.Content().(*webapi.PostMessage)
-		if _, err := adapter.WebAPIClient.PostMessage(ctx, message); err != nil {
+		if _, err := adapter.client.PostMessage(ctx, message); err != nil {
 			log.Error("something went wrong with Web API posting", err)
 		}
 	default:
@@ -208,53 +214,75 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	}
 }
 
-// fetchRtmInfo fetches Real Time Messaging API information via Rest API endpoint with retries.
-func fetchRtmInfo(ctx context.Context, starter webapi.RtmStarter, retrial uint, interval time.Duration) (*webapi.RtmStart, error) {
-	var rtmStart *webapi.RtmStart
-	err := retry.WithInterval(retrial, func() error {
-		r, e := starter.RtmStart(ctx)
-		rtmStart = r
+// RTMSessionStarter is an interface that is used to ease web API tests with retrials.
+type RTMSessionStarter interface {
+	StartRTMSession(context.Context) (*webapi.RTMStart, error)
+}
+
+// startRTMSession starts Real Time Messaging session and returns initial state.
+func startRTMSession(ctx context.Context, starter RTMSessionStarter, retrial uint, interval time.Duration) (*webapi.RTMStart, error) {
+	var rtmStart *webapi.RTMStart
+	err := retry.WithInterval(retrial, func() (e error) {
+		rtmStart, e = starter.StartRTMSession(ctx)
 		return e
 	}, interval)
 
 	return rtmStart, err
 }
 
-// connectRtm establishes WebSocket connection with retries.
-func connectRtm(ctx context.Context, connector rtmapi.Connector, rtm *webapi.RtmStart, retrial uint, interval time.Duration) (rtmapi.Connection, error) {
+// RTMConnector is an interface that is used to ease connection tests with retrials
+type RTMConnector interface {
+	ConnectRTM(context.Context, string) (rtmapi.Connection, error)
+}
+
+// connectRTM establishes WebSocket connection with retries.
+func connectRTM(ctx context.Context, connector RTMConnector, rtm *webapi.RTMStart, retrial uint, interval time.Duration) (rtmapi.Connection, error) {
 	var conn rtmapi.Connection
-	err := retry.WithInterval(retrial, func() error {
-		c, e := connector.Connect(ctx, rtm.URL)
-		conn = c
+	err := retry.WithInterval(retrial, func() (e error) {
+		conn, e = connector.ConnectRTM(ctx, rtm.URL)
 		return e
 	}, interval)
 
 	return conn, err
 }
 
-// NewStringResponse creates new sarah.CommandResponse instance with given string.
-func NewStringResponse(responseContent string) *sarah.CommandResponse {
-	return NewStringResponseWithNext(responseContent, nil)
+// MessageInput satisfies Input interface
+type MessageInput struct {
+	event *rtmapi.Message
 }
 
-// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
-func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
-	return &sarah.CommandResponse{
-		Content: responseContent,
-		Next:    next,
-	}
+// SenderKey returns string representing message sender.
+func (message *MessageInput) SenderKey() string {
+	return fmt.Sprintf("%s|%s", message.event.Channel.Name, message.event.Sender)
+}
+
+// Message returns sent message.
+func (message *MessageInput) Message() string {
+	return message.event.Text
+}
+
+// SentAt returns message event's timestamp.
+func (message *MessageInput) SentAt() time.Time {
+	return message.event.TimeStamp.Time
+}
+
+// ReplyTo returns slack channel to send reply to.
+func (message *MessageInput) ReplyTo() sarah.OutputDestination {
+	return message.event.Channel
 }
 
 // NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
+// Use NewStringResponse for simple text response.
 func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.CommandResponse {
 	return NewPostMessageResponseWithNext(input, message, attachments, nil)
 }
 
 // NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.
+// Use NewStringResponse for simple text response.
 func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
-	inputMessage, _ := input.(*rtmapi.Message)
+	inputMessage, _ := input.(*MessageInput)
 	return &sarah.CommandResponse{
-		Content: webapi.NewPostMessageWithAttachments(inputMessage.Channel.Name, message, attachments),
+		Content: webapi.NewPostMessageWithAttachments(inputMessage.event.Channel.Name, message, attachments),
 		Next:    next,
 	}
 }

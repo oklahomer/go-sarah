@@ -5,7 +5,7 @@ import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
-	"github.com/oklahomer/go-sarah/slack/webapi"
+	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
 	"regexp"
 )
@@ -30,13 +30,13 @@ func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig)
 	// If error is returned with HTTP request level, just let it know and quit.
 	if err != nil {
 		log.Errorf("Error on weather api reqeust: %s.", err.Error())
-		return slack.NewStringResponse("Something went wrong with weather api request."), nil
+		return sarah.NewStringResponse("Something went wrong with weather api request."), nil
 	}
 	// If status code of 200 is returned, which means successful API request, but still the content contains error message,
 	// notify the user and put him in "the middle of conversation" for further communication.
 	if resp.Data.HasError() {
 		errorDescription := resp.Data.Error[0].Message
-		return slack.NewStringResponseWithNext(
+		return sarah.NewStringResponseWithNext(
 			fmt.Sprintf("Error was returned: %s.\nInput location name to retry, please.", errorDescription),
 			func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 				return weather(c, i, config)
@@ -129,6 +129,6 @@ func init() {
 		Identifier(identifier).
 		MatchPattern(matchPattern).
 		ConfigurableFunc(&pluginConfig{}, weather).
-		InputExample(".echo knock knock")
+		InputExample(".weather")
 	sarah.StashCommandBuilder(slack.SLACK, builder)
 }

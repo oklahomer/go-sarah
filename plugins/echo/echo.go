@@ -14,11 +14,11 @@ var (
 )
 
 func slackEcho(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-	return slack.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
+	return sarah.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
 }
 
 func gitterEcho(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-	return gitter.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
+	return sarah.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
 }
 
 func init() {
