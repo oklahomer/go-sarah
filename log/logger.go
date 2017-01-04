@@ -16,9 +16,9 @@ var (
 
 const (
 	DebugLevel Level = "DEBUG"
-	InfoLevel        = "INFO"
-	WarnLevel        = "WARN"
-	ErrorLevel       = "ERROR"
+	InfoLevel  Level = "INFO"
+	WarnLevel  Level = "WARN"
+	ErrorLevel Level = "ERROR"
 )
 
 func (level Level) String() string {
