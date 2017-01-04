@@ -1,6 +1,7 @@
 package sarah
 
 import (
+	"errors"
 	"fmt"
 	"github.com/robfig/cron"
 	"golang.org/x/net/context"
@@ -140,5 +141,31 @@ func Test_stopUnrecoverableBot(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if err := botCtx.Err(); err == nil {
 		t.Fatal("Expecting an error at this point.")
+	}
+}
+
+func Test_respond(t *testing.T) {
+	isCalled := false
+	bot := &DummyBot{}
+	bot.RespondFunc = func(_ context.Context, _ Input) error {
+		isCalled = true
+		return errors.New("just a dummy error instance to check if the method is actually called.")
+	}
+
+	inputReceiver := make(chan Input)
+	workerJob := make(chan func())
+
+	go respond(context.TODO(), bot, inputReceiver, workerJob)
+	inputReceiver <- &DummyInput{}
+
+	select {
+	case <-time.NewTimer(1 * time.Second).C:
+		t.Error("method did not finish within reasonable timeout.")
+	case job := <-workerJob:
+		job()
+	}
+
+	if isCalled == false {
+		t.Error("respond method is not called with supplied input.")
 	}
 }
