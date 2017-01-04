@@ -140,12 +140,35 @@ func Test_randInterval(t *testing.T) {
 	mean := 100 * time.Second
 	for i := range make([]int, 100) {
 		factor := float64(i) / 100
-		given := randInterval(mean, factor)
 		delta := factor * float64(mean)
 		min := float64(mean) - delta
 		max := float64(mean) + delta
+		given := randInterval(mean, factor)
 		if !(min <= float64(given) && float64(given) <= max) {
 			t.Errorf("Returned interval is not in the range of expectation. Mean: %g. Factor: %g. Given: %g.", mean.Seconds(), factor, given.Seconds())
+		}
+	}
+
+	{
+		// given factor exceeds 1.0
+		factor := float64(100000)
+		delta := 1.0 * float64(mean) // exceeded factor falls to default maximum value of 1.0
+		min := float64(mean) - delta
+		max := float64(mean) + delta
+		given := randInterval(mean, factor)
+		if !(min <= float64(given) && float64(given) <= max) {
+			t.Errorf("Returned interval is not in the range of expectation. Mean: %g. Factor: %g. Given: %g.", mean.Seconds(), factor, given.Seconds())
+		}
+	}
+
+	{
+		// given factor too small
+		// factor less than 0 falls to default minimum value of 0.0
+		factor := float64(-100000)
+		expected := float64(mean)
+		given := randInterval(mean, factor)
+		if float64(given) != expected {
+			t.Errorf("expected interval is not returned: %g", given)
 		}
 	}
 }
