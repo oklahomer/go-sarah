@@ -43,10 +43,6 @@ func TestNewRunner(t *testing.T) {
 	if runner.bots == nil {
 		t.Error("Bot slice is nil.")
 	}
-
-	if runner.cron == nil {
-		t.Error("Default cron instance is nil")
-	}
 }
 
 func TestRunner_RegisterBot(t *testing.T) {
@@ -80,11 +76,12 @@ func TestRunner_Run(t *testing.T) {
 	(*stashedCommandBuilders)[botType] = []*CommandBuilder{commandBuilder}
 
 	// Prepare scheduled task to be configured on the fly
-	dummyTaskConfig := &DummyScheduledTaskConfig{}
+	dummySchedule := "@hourly"
+	dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
 	taskBuilder := NewScheduledTaskBuilder().
 		Identifier("scheduled").
 		ConfigStruct(dummyTaskConfig).
-		Func(func(context.Context, ScheduledTaskConfig) (*CommandResponse, error) {
+		Func(func(context.Context, ScheduledTaskConfig) (*ScheduledTaskResult, error) {
 			return nil, nil
 		})
 	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
@@ -96,9 +93,6 @@ func TestRunner_Run(t *testing.T) {
 	bot.AppendCommandFunc = func(cmd Command) {
 		passedCommand = cmd
 	}
-	bot.PluginConfigDirFunc = func() string {
-		return "testdata/taskbuilder"
-	}
 	bot.RunFunc = func(_ context.Context, _ chan<- Input, _ chan<- error) {
 		return
 	}
@@ -107,7 +101,6 @@ func TestRunner_Run(t *testing.T) {
 	runner := &Runner{
 		config: NewConfig(),
 		bots:   []Bot{},
-		cron:   cron.New(),
 	}
 	runner.bots = []Bot{bot}
 
@@ -123,6 +116,26 @@ func TestRunner_Run(t *testing.T) {
 
 	if passedCommand == nil || passedCommand.Identifier() != commandBuilder.identifier {
 		t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
+	}
+}
+
+func Test_setupScheduledTask(t *testing.T) {
+	scheduler := cron.New()
+	task := &scheduledTask{
+		identifier: "dummy",
+		taskFunc: func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
+			return nil, nil
+		},
+		config: &DummyScheduledTaskConfig{
+			ScheduleValue: "@daily",
+		},
+	}
+
+	setupScheduledTask(scheduler, &DummyBot{}, context.TODO(), task)
+
+	schedules := scheduler.Entries()
+	if len(schedules) != 1 {
+		t.Errorf("Expected 1 job to be registered, but was %d.", len(schedules))
 	}
 }
 

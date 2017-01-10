@@ -33,10 +33,6 @@ type Bot interface {
 	// When the service provider sends message to us, convert that message payload to Input and send to Input channel.
 	// Runner will receive the Input instance and proceed to find and execute corresponding command.
 	Run(context.Context, chan<- Input, chan<- error)
-
-	// PluginConfigDir returns where each Command's configuration file is located.
-	// Files must be YAML formatted with .yaml postfix.
-	PluginConfigDir() string
 }
 
 type defaultBot struct {
@@ -45,17 +41,15 @@ type defaultBot struct {
 	sendMessageFunc  func(context.Context, Output)
 	commands         *Commands
 	userContextCache UserContexts
-	pluginConfigDir  string
 }
 
-func NewBot(adapter Adapter, cacheConfig *CacheConfig, configDir string) Bot {
+func NewBot(adapter Adapter, cacheConfig *CacheConfig) Bot {
 	return &defaultBot{
 		botType:          adapter.BotType(),
 		runFunc:          adapter.Run,
 		sendMessageFunc:  adapter.SendMessage,
 		commands:         NewCommands(),
 		userContextCache: NewCachedUserContexts(cacheConfig),
-		pluginConfigDir:  configDir,
 	}
 }
 
@@ -111,8 +105,4 @@ func (bot *defaultBot) AppendCommand(command Command) {
 
 func (bot *defaultBot) Run(ctx context.Context, receivedInput chan<- Input, errCh chan<- error) {
 	bot.runFunc(ctx, receivedInput, errCh)
-}
-
-func (bot *defaultBot) PluginConfigDir() string {
-	return bot.pluginConfigDir
 }

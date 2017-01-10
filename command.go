@@ -3,9 +3,11 @@ package sarah
 import (
 	"errors"
 	"fmt"
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -208,12 +210,19 @@ func (builder *CommandBuilder) Build(configDir string) (Command, error) {
 		return nil, ErrCommandInsufficientArgument
 	}
 
+	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
+	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
 	commandConfig := builder.config
-	if commandConfig != nil {
+	if configDir != "" && commandConfig != nil {
 		fileName := builder.identifier + ".yaml"
 		configPath := path.Join(configDir, fileName)
 		err := readConfig(configPath, commandConfig)
-		if err != nil {
+		if err != nil && os.IsNotExist(err) {
+			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
+				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
+				configPath, builder.identifier)
+		} else if err != nil {
+			// File was there, but could not read.
 			return nil, err
 		}
 	}

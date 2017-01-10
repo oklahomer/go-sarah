@@ -8,17 +8,11 @@ import (
 )
 
 type DummyBot struct {
-	BotTypeValue BotType
-
-	RespondFunc func(context.Context, Input) error
-
-	SendMessageFunc func(context.Context, Output)
-
+	BotTypeValue      BotType
+	RespondFunc       func(context.Context, Input) error
+	SendMessageFunc   func(context.Context, Output)
 	AppendCommandFunc func(Command)
-
-	RunFunc func(context.Context, chan<- Input, chan<- error)
-
-	PluginConfigDirFunc func() string
+	RunFunc           func(context.Context, chan<- Input, chan<- error)
 }
 
 func (bot *DummyBot) BotType() BotType {
@@ -41,13 +35,9 @@ func (bot *DummyBot) Run(ctx context.Context, input chan<- Input, errCh chan<- e
 	bot.RunFunc(ctx, input, errCh)
 }
 
-func (bot *DummyBot) PluginConfigDir() string {
-	return bot.PluginConfigDirFunc()
-}
-
 func Test_NewBot(t *testing.T) {
 	adapter := &DummyAdapter{}
-	myBot := NewBot(adapter, NewCacheConfig(), "")
+	myBot := NewBot(adapter, NewCacheConfig())
 	if _, ok := myBot.(*defaultBot); !ok {
 		t.Errorf("newBot did not return bot instance: %#v.", myBot)
 	}
@@ -59,15 +49,6 @@ func TestDefaultBot_BotType(t *testing.T) {
 
 	if myBot.BotType() != botType {
 		t.Errorf("Bot type is wrong: %s.", myBot.BotType())
-	}
-}
-
-func TestDefaultBot_PluginConfigDir(t *testing.T) {
-	dummyPluginDir := "/dummy/path/to/config"
-	myBot := &defaultBot{pluginConfigDir: dummyPluginDir}
-
-	if myBot.PluginConfigDir() != dummyPluginDir {
-		t.Errorf("Plugin configuration file's location is wrong: %s.", myBot.PluginConfigDir())
 	}
 }
 

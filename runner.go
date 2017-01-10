@@ -1,19 +1,28 @@
 package sarah
 
 import (
+	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
 	"github.com/robfig/cron"
 	"golang.org/x/net/context"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 type Config struct {
-	Worker *worker.Config `json:"worker" yaml:"worker"`
+	Worker           *worker.Config `json:"worker" yaml:"worker"`
+	PluginConfigRoot string         `json:"plugin_config_root" yaml:"plugin_config_root"`
+	TimeZone         string         `json:"timezone" yaml:"timezone"`
 }
 
 func NewConfig() *Config {
 	return &Config{
 		Worker: worker.NewConfig(),
+		// PluginConfigRoot defines the root directory to be used when searching for plugins' configuration files.
+		PluginConfigRoot: "",
+		TimeZone:         time.Now().Location().String(),
 	}
 }
 
@@ -26,7 +35,6 @@ func NewConfig() *Config {
 type Runner struct {
 	config *Config
 	bots   []Bot
-	cron   *cron.Cron
 }
 
 // NewRunner creates and return new Runner instance.
@@ -34,7 +42,6 @@ func NewRunner(config *Config) *Runner {
 	return &Runner{
 		config: config,
 		bots:   []Bot{},
-		cron:   cron.New(),
 	}
 }
 
@@ -44,8 +51,19 @@ func (runner *Runner) RegisterBot(bot Bot) {
 }
 
 // Run starts Bot interaction.
-// At this point Runner starts its internal workers, runs each bot, and starts listening to incoming messages.
+// At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
 func (runner *Runner) Run(ctx context.Context) {
+	loc, locErr := time.LoadLocation(runner.config.TimeZone)
+	if locErr != nil {
+		panic(fmt.Sprintf("Given timezone can't be converted to time.Location: %s.", locErr.Error()))
+	}
+
+	scheduler := cron.NewWithLocation(loc)
+	go func() {
+		<-ctx.Done()
+		log.Info("stop cron jobs due to context cancel")
+		scheduler.Stop()
+	}()
 	workerJob := worker.Run(ctx, runner.config.Worker)
 
 	for _, bot := range runner.bots {
@@ -55,16 +73,21 @@ func (runner *Runner) Run(ctx context.Context) {
 		// each Bot has its own context propagating Runner's lifecycle
 		botCtx, cancelBot := context.WithCancel(ctx)
 
+		var configDir string
+		if runner.config.PluginConfigRoot != "" {
+			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
+		}
+
 		// build commands with stashed builder settings
-		commands := stashedCommandBuilders.build(botType, bot.PluginConfigDir())
+		commands := stashedCommandBuilders.build(botType, configDir)
 		for _, command := range commands {
 			bot.AppendCommand(command)
 		}
 
 		// build scheduled task with stashed builder settings
-		tasks := stashedScheduledTaskBuilders.build(botType, bot.PluginConfigDir())
+		tasks := stashedScheduledTaskBuilders.build(botType, configDir)
 		for _, task := range tasks {
-			setupScheduledTask(runner.cron, bot, botCtx, task)
+			setupScheduledTask(scheduler, bot, botCtx, task)
 		}
 
 		// run Bot
@@ -75,11 +98,12 @@ func (runner *Runner) Run(ctx context.Context) {
 		go bot.Run(botCtx, inputReceiver, errCh)
 	}
 
-	runner.cron.Start()
+	scheduler.Start()
 }
 
 func setupScheduledTask(c *cron.Cron, bot Bot, botCtx context.Context, task *scheduledTask) {
-	c.AddFunc(task.config.Schedule(), func() {
+	schedule := task.config.Schedule()
+	err := c.AddFunc(schedule, func() {
 		res, err := task.Execute(botCtx)
 		if err != nil {
 			log.Errorf("error on scheduled task: %s", task.Identifier())
@@ -88,9 +112,29 @@ func setupScheduledTask(c *cron.Cron, bot Bot, botCtx context.Context, task *sch
 			return
 		}
 
-		message := NewOutputMessage(task.config.Destination(), res.Content)
+		// The destination returned by task execution has higher priority.
+		// e.g. RSS Reader's task searches for stored feed/destination set, and returns which destination to send.
+		// TODO multiple result may be returned for multiple destination.
+		dest := res.Destination
+		if dest == nil {
+			// If no destination is given, see if default destination exists.
+			// Useful when destination can be determined prior.
+			// e.g. Weather forecast task always sends weather information to #goodmorning room.
+			presetDest := task.config.Destination()
+			if presetDest == nil {
+				log.Errorf("task was completed, but destination was not set: %s.", task.Identifier())
+				return
+			}
+			dest = presetDest
+		}
+
+		message := NewOutputMessage(dest, res.Content)
 		bot.SendMessage(botCtx, message)
 	})
+
+	if err != nil {
+		log.Errorf("failed to schedule a task. id: %s. schedule: %s. reason: %s.", task.Identifier(), schedule, err.Error())
+	}
 }
 
 // stopUnrecoverableBot receives error from Bot, check if the error is critical, and stop the bot if required.

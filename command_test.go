@@ -122,9 +122,13 @@ func TestCommandBuilder_Build(t *testing.T) {
 		MatchPattern(matchPattern).
 		InputExample(".echo knock knock")
 
+	// When corresponding configuration file is not found, then manually set schedule must stay.
+	dummyToken := "dummy"
 	config := &struct {
 		Token string `yaml:"token"`
-	}{}
+	}{
+		Token: dummyToken,
+	}
 	builder.ConfigurableFunc(config, func(_ context.Context, input Input, passedConfig CommandConfig) (*CommandResponse, error) {
 		return &CommandResponse{
 			Content: StripMessage(matchPattern, input.Message()),
@@ -132,11 +136,11 @@ func TestCommandBuilder_Build(t *testing.T) {
 	})
 
 	command, err := builder.Build(filepath.Join("unknown", "path", "foo"))
-	if err == nil {
-		t.Error("Expected error is not returned.")
+	if err != nil {
+		t.Fatal("Error on command construction with no config file.")
 	}
-	if command != nil {
-		t.Errorf("Command should not built with unsatistied dependencies: %#v", command)
+	if config.Token != dummyToken {
+		t.Errorf("Config value changed: %s.", config.Token)
 	}
 
 	command, err = builder.Build(filepath.Join("testdata", "commandbuilder"))

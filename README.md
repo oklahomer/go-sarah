@@ -28,7 +28,7 @@ func main() {
         configBuf, _ := ioutil.ReadFile("/path/to/adapter/config.yaml")
         slackConfig := slack.NewConfig()
         yaml.Unmarshal(configBuf, slackConfig)
-        slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.NewCacheConfig(), "/path/to/plugin/config/dir/")
+        slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.NewCacheConfig())
         slackBot.AppendCommand(hello.Command)
 
         // Create a builder for simple command that requires no config struct.
@@ -62,7 +62,9 @@ func main() {
         sarah.StashCommandBuilder(slack.SLACK, configCommandBuilder)
 
         // Initialize Runner and register prepared bot(s).
-        runner := sarah.NewRunner(sarah.NewConfig())
+        config := sarah.NewConfig()
+        config.PluginConfigRoot = "path/to/plugin/configuration" // can be set manually or with (json|yaml).Unmarshal
+        runner := sarah.NewRunner(config)
         runner.RegisterBot(slackBot)
 
         // Start interaction

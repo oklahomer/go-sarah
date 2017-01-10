@@ -38,7 +38,7 @@ func TestScheduledTaskBuilder_Identifier(t *testing.T) {
 }
 
 func TestScheduledTaskBuilder_Func(t *testing.T) {
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*CommandResponse, error) {
+	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
 		return nil, nil
 	}
 	builder := &ScheduledTaskBuilder{}
@@ -60,9 +60,10 @@ func TestScheduledTaskBuilder_ConfigStruct(t *testing.T) {
 }
 
 func TestScheduledTaskBuilder_Build(t *testing.T) {
-	id := "scheduled"
-	config := &DummyScheduledTaskConfig{}
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*CommandResponse, error) {
+	// Schedule is manually set at first.
+	dummySchedule := "dummy"
+	config := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
+	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
 		return nil, nil
 	}
 
@@ -72,13 +73,18 @@ func TestScheduledTaskBuilder_Build(t *testing.T) {
 		t.Fatalf("Expected error is not returned: %#v.", err)
 	}
 
+	id := "scheduled"
 	builder.Identifier(id)
 	builder.ConfigStruct(config)
 	builder.Func(taskFunc)
 
-	_, err = builder.Build("invalidPath")
-	if err == nil {
-		t.Fatal("Error is expected, but is not returned.")
+	// When corresponding configuration file is not found, then manually set schedule must stay.
+	_, err = builder.Build("no/corresponding/config")
+	if err != nil {
+		t.Fatal("Error on task construction with no config file.")
+	}
+	if config.Schedule() != dummySchedule {
+		t.Errorf("Config value changed: %s.", config.Destination())
 	}
 
 	task, err := builder.Build("testdata/taskbuilder")
@@ -94,6 +100,10 @@ func TestScheduledTaskBuilder_Build(t *testing.T) {
 	if reflect.ValueOf(builder.taskFunc).Pointer() != reflect.ValueOf(taskFunc).Pointer() {
 		t.Fatal("Supplied func is not set.")
 	}
+
+	if config.Schedule() == dummySchedule {
+		t.Errorf("Config value is not overridden: %s.", config.Destination())
+	}
 }
 
 func TestScheduledTask_Identifier(t *testing.T) {
@@ -107,8 +117,8 @@ func TestScheduledTask_Identifier(t *testing.T) {
 
 func TestScheduledTask_Execute(t *testing.T) {
 	returningContent := "abc"
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*CommandResponse, error) {
-		return &CommandResponse{Content: returningContent}, nil
+	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
+		return &ScheduledTaskResult{Content: returningContent}, nil
 	}
 	task := &scheduledTask{taskFunc: taskFunc}
 	response, err := task.Execute(context.TODO())
