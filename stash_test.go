@@ -83,7 +83,7 @@ func TestScheduledTaskBuilderStash_build(t *testing.T) {
 	commandID := "scheduled"
 	config := &DummyScheduledTaskConfig{}
 	validBuilder := NewScheduledTaskBuilder().
-		Func(func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
+		Func(func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
 			return nil, nil
 		}).
 		Identifier(commandID).

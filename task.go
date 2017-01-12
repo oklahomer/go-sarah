@@ -17,8 +17,8 @@ type ScheduledTaskResult struct {
 	Destination OutputDestination
 }
 
-// commandFunc is a function type that represents command function
-type taskFunc func(context.Context, ScheduledTaskConfig) (*ScheduledTaskResult, error)
+// taskFunc is a function type that represents scheduled task.
+type taskFunc func(context.Context, ScheduledTaskConfig) ([]*ScheduledTaskResult, error)
 
 type ScheduledTaskConfig interface {
 	Schedule() string
@@ -35,7 +35,14 @@ func (task *scheduledTask) Identifier() string {
 	return task.identifier
 }
 
-func (task *scheduledTask) Execute(ctx context.Context) (*ScheduledTaskResult, error) {
+// Execute executes scheduled task and returns *slice* of results.
+//
+// Note that scheduled task may result in sending messages to multiple destinations;
+// sending taking-out-trash alarm to #dady-chores room while sending go-to-school alarm to #daughter room.
+//
+// When sending messages to multiple destinations, create and return results as many as destinations.
+// If output destination is nil, caller tries to find corresponding destination from config struct.
+func (task *scheduledTask) Execute(ctx context.Context) ([]*ScheduledTaskResult, error) {
 	return task.taskFunc(ctx, task.config)
 }
 

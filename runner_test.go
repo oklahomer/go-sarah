@@ -81,7 +81,7 @@ func TestRunner_Run(t *testing.T) {
 	taskBuilder := NewScheduledTaskBuilder().
 		Identifier("scheduled").
 		ConfigStruct(dummyTaskConfig).
-		Func(func(context.Context, ScheduledTaskConfig) (*ScheduledTaskResult, error) {
+		Func(func(context.Context, ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
 			return nil, nil
 		})
 	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
@@ -120,22 +120,73 @@ func TestRunner_Run(t *testing.T) {
 }
 
 func Test_setupScheduledTask(t *testing.T) {
-	scheduler := cron.New()
-	task := &scheduledTask{
-		identifier: "dummy",
-		taskFunc: func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
-			return nil, nil
-		},
-		config: &DummyScheduledTaskConfig{
-			ScheduleValue: "@daily",
-		},
-	}
+	testSchedules := []string{"", "@daily"}
 
-	setupScheduledTask(scheduler, &DummyBot{}, context.TODO(), task)
+	scheduler := cron.New()
+	for _, schedule := range testSchedules {
+		task := &scheduledTask{
+			identifier: fmt.Sprintf("dummy%s", schedule),
+			taskFunc: func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+				return nil, nil
+			},
+			config: &DummyScheduledTaskConfig{ScheduleValue: schedule},
+		}
+		setupScheduledTask(context.TODO(), &DummyBot{}, scheduler, task)
+	}
 
 	schedules := scheduler.Entries()
 	if len(schedules) != 1 {
 		t.Errorf("Expected 1 job to be registered, but was %d.", len(schedules))
+	}
+}
+
+func Test_executeScheduledTask(t *testing.T) {
+	dummyContent := "dummy content"
+	dummyDestination := "#dummyDestination"
+	defaultDestination := "#defaultDestination"
+	type returnVal struct {
+		results []*ScheduledTaskResult
+		error   error
+	}
+	testSets := []struct {
+		returnVal          *returnVal
+		defaultDestination OutputDestination
+	}{
+		{returnVal: &returnVal{nil, nil}},
+		{returnVal: &returnVal{nil, errors.New("dummy")}},
+		// Destination is given by neither task result nor configuration, which ends up with early return
+		{returnVal: &returnVal{[]*ScheduledTaskResult{{Content: dummyContent}}, nil}},
+		// Destination is given by configuration
+		{returnVal: &returnVal{[]*ScheduledTaskResult{{Content: dummyContent}}, nil}, defaultDestination: defaultDestination},
+		// Destination is given by task result
+		{returnVal: &returnVal{[]*ScheduledTaskResult{{Content: dummyContent, Destination: dummyDestination}}, nil}},
+	}
+
+	var sendingOutput []Output
+	dummyBot := &DummyBot{SendMessageFunc: func(_ context.Context, output Output) {
+		sendingOutput = append(sendingOutput, output)
+	}}
+
+	for _, testSet := range testSets {
+		task := &scheduledTask{
+			identifier: "dummy",
+			taskFunc: func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+				val := testSet.returnVal
+				return val.results, val.error
+			},
+			config: &DummyScheduledTaskConfig{DestinationValue: testSet.defaultDestination},
+		}
+		executeScheduledTask(context.TODO(), dummyBot, task)
+	}
+
+	if len(sendingOutput) != 2 {
+		t.Fatalf("Expecting sending method to be called twice, but was called %d time(s).", len(sendingOutput))
+	}
+	if sendingOutput[0].Content() != dummyContent || sendingOutput[0].Destination() != defaultDestination {
+		t.Errorf("Sending output differs from expecting one: %#v.", sendingOutput)
+	}
+	if sendingOutput[1].Content() != dummyContent || sendingOutput[1].Destination() != dummyDestination {
+		t.Errorf("Sending output differs from expecting one: %#v.", sendingOutput)
 	}
 }
 

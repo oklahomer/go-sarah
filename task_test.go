@@ -38,7 +38,7 @@ func TestScheduledTaskBuilder_Identifier(t *testing.T) {
 }
 
 func TestScheduledTaskBuilder_Func(t *testing.T) {
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
+	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
 		return nil, nil
 	}
 	builder := &ScheduledTaskBuilder{}
@@ -63,7 +63,7 @@ func TestScheduledTaskBuilder_Build(t *testing.T) {
 	// Schedule is manually set at first.
 	dummySchedule := "dummy"
 	config := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
+	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
 		return nil, nil
 	}
 
@@ -117,17 +117,23 @@ func TestScheduledTask_Identifier(t *testing.T) {
 
 func TestScheduledTask_Execute(t *testing.T) {
 	returningContent := "abc"
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) (*ScheduledTaskResult, error) {
-		return &ScheduledTaskResult{Content: returningContent}, nil
+	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+		return []*ScheduledTaskResult{
+			{Content: returningContent},
+		}, nil
 	}
 	task := &scheduledTask{taskFunc: taskFunc}
-	response, err := task.Execute(context.TODO())
+	results, err := task.Execute(context.TODO())
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %#v.", err)
 	}
 
-	if response.Content != returningContent {
-		t.Errorf("Unexpected content is returned: %s", response.Content)
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result to return, but was: %d.", len(results))
+
+	}
+	if results[0].Content != returningContent {
+		t.Errorf("Unexpected content is returned: %s", results[0].Content)
 	}
 }

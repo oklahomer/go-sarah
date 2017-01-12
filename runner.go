@@ -73,6 +73,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		// each Bot has its own context propagating Runner's lifecycle
 		botCtx, cancelBot := context.WithCancel(ctx)
 
+		// TODO supervise directory and rebuild command/task when corresponding configuration file changes.
 		var configDir string
 		if runner.config.PluginConfigRoot != "" {
 			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
@@ -87,7 +88,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		// build scheduled task with stashed builder settings
 		tasks := stashedScheduledTaskBuilders.build(botType, configDir)
 		for _, task := range tasks {
-			setupScheduledTask(scheduler, bot, botCtx, task)
+			setupScheduledTask(botCtx, bot, scheduler, task)
 		}
 
 		// run Bot
@@ -101,20 +102,29 @@ func (runner *Runner) Run(ctx context.Context) {
 	scheduler.Start()
 }
 
-func setupScheduledTask(c *cron.Cron, bot Bot, botCtx context.Context, task *scheduledTask) {
+func setupScheduledTask(botCtx context.Context, bot Bot, c *cron.Cron, task *scheduledTask) {
 	schedule := task.config.Schedule()
 	err := c.AddFunc(schedule, func() {
-		res, err := task.Execute(botCtx)
-		if err != nil {
-			log.Errorf("error on scheduled task: %s", task.Identifier())
-			return
-		} else if res == nil {
-			return
-		}
+		executeScheduledTask(botCtx, bot, task)
+	})
 
+	if err != nil {
+		log.Errorf("failed to schedule a task. id: %s. schedule: %s. reason: %s.", task.Identifier(), schedule, err.Error())
+	}
+}
+
+func executeScheduledTask(ctx context.Context, bot Bot, task *scheduledTask) {
+	results, err := task.Execute(ctx)
+	if err != nil {
+		log.Errorf("error on scheduled task: %s", task.Identifier())
+		return
+	} else if results == nil {
+		return
+	}
+
+	for _, res := range results {
 		// The destination returned by task execution has higher priority.
 		// e.g. RSS Reader's task searches for stored feed/destination set, and returns which destination to send.
-		// TODO multiple result may be returned for multiple destination.
 		dest := res.Destination
 		if dest == nil {
 			// If no destination is given, see if default destination exists.
@@ -129,11 +139,7 @@ func setupScheduledTask(c *cron.Cron, bot Bot, botCtx context.Context, task *sch
 		}
 
 		message := NewOutputMessage(dest, res.Content)
-		bot.SendMessage(botCtx, message)
-	})
-
-	if err != nil {
-		log.Errorf("failed to schedule a task. id: %s. schedule: %s. reason: %s.", task.Identifier(), schedule, err.Error())
+		bot.SendMessage(ctx, message)
 	}
 }
 
