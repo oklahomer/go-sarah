@@ -106,9 +106,20 @@ func NewCommands() *Commands {
 	return &Commands{cmd: make([]Command, 0)}
 }
 
-// Append let developers to register new Command to its internal stash.
+// Append let developers register new Command to its internal stash.
+// If any command is registered with the same ID, the old one is replaced in favor of new one.
 func (commands *Commands) Append(command Command) {
-	// TODO duplication check
+	// See if command with the same identifier exists.
+	for i, cmd := range commands.cmd {
+		if cmd.Identifier() == command.Identifier() {
+			log.Infof("replacing old command in favor of newly appending one: %s.", command.Identifier())
+			commands.cmd[i] = command
+			return
+		}
+	}
+
+	// Not stored, then append to the last.
+	log.Infof("appending new command: %s.", command.Identifier())
 	commands.cmd = append(commands.cmd, command)
 }
 

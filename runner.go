@@ -2,6 +2,7 @@ package sarah
 
 import (
 	"fmt"
+	"github.com/fsnotify/fsnotify"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
 	"github.com/robfig/cron"
@@ -73,7 +74,6 @@ func (runner *Runner) Run(ctx context.Context) {
 		// each Bot has its own context propagating Runner's lifecycle
 		botCtx, cancelBot := context.WithCancel(ctx)
 
-		// TODO supervise directory and rebuild command/task when corresponding configuration file changes.
 		var configDir string
 		if runner.config.PluginConfigRoot != "" {
 			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
@@ -91,6 +91,11 @@ func (runner *Runner) Run(ctx context.Context) {
 			setupScheduledTask(botCtx, bot, scheduler, task)
 		}
 
+		// supervise configuration files' directory
+		if configDir != "" {
+			go superviseCommandConfig(botCtx, bot, configDir)
+		}
+
 		// run Bot
 		inputReceiver := make(chan Input)
 		errCh := make(chan error)
@@ -100,6 +105,49 @@ func (runner *Runner) Run(ctx context.Context) {
 	}
 
 	scheduler.Start()
+}
+
+func superviseCommandConfig(botCtx context.Context, bot Bot, configDir string) {
+	log.Infof("start watching file change under %s", configDir)
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to initialize fsnotifier: %s.", err.Error()))
+	}
+	watcher.Add(configDir)
+
+	for {
+		select {
+		case <-botCtx.Done():
+			watcher.Close()
+			return
+		case event := <-watcher.Events:
+			switch {
+			// When configuration file is created or updated, rebuild command.
+			// Remember file may be absent on previous build because one can start with default config struct and later update.
+			case event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create:
+				log.Infof("%s %s.", event.Op.String(), event.Name)
+				dir, filename := filepath.Split(event.Name)
+				id := strings.TrimSuffix(filename, filepath.Ext(filename))
+				builder := stashedCommandBuilders.find(bot.BotType(), id)
+				if builder == nil {
+					break
+				}
+
+				log.Infof("start rebuilding command due to config file change: %s.", id)
+				command, err := builder.Build(dir)
+				if err != nil {
+					log.Errorf("can't configure command. %s. %#v", err.Error(), builder)
+					break
+				}
+				bot.AppendCommand(command) // replaces the old one.
+			case event.Op&fsnotify.Remove == fsnotify.Remove:
+			case event.Op&fsnotify.Rename == fsnotify.Rename:
+			case event.Op&fsnotify.Chmod == fsnotify.Chmod:
+			}
+		case err := <-watcher.Errors:
+			log.Errorf("error on subscribing to directory change: %s.", err.Error())
+		}
+	}
 }
 
 func setupScheduledTask(botCtx context.Context, bot Bot, c *cron.Cron, task *scheduledTask) {
