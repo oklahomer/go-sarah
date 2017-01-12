@@ -120,7 +120,7 @@ func TestRunner_Run(t *testing.T) {
 }
 
 func Test_setupScheduledTask(t *testing.T) {
-	testSchedules := []string{"", "@daily"}
+	testSchedules := []string{" ", "", "@daily"}
 
 	scheduler := cron.New()
 	for _, schedule := range testSchedules {

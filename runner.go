@@ -152,6 +152,11 @@ func superviseCommandConfig(botCtx context.Context, bot Bot, configDir string) {
 
 func setupScheduledTask(botCtx context.Context, bot Bot, c *cron.Cron, task *scheduledTask) {
 	schedule := task.config.Schedule()
+	if schedule == "" {
+		log.Errorf("scheduled is empty: %s.", task.Identifier())
+		return
+	}
+
 	err := c.AddFunc(schedule, func() {
 		executeScheduledTask(botCtx, bot, task)
 	})
