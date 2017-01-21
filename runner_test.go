@@ -3,7 +3,6 @@ package sarah
 import (
 	"errors"
 	"fmt"
-	"github.com/robfig/cron"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"regexp"
@@ -120,23 +119,25 @@ func TestRunner_Run(t *testing.T) {
 }
 
 func Test_setupScheduledTask(t *testing.T) {
-	testSchedules := []string{" ", "", "@daily"}
-
-	scheduler := cron.New()
-	for _, schedule := range testSchedules {
-		task := &scheduledTask{
-			identifier: fmt.Sprintf("dummy%s", schedule),
-			taskFunc: func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
-				return nil, nil
-			},
-			config: &DummyScheduledTaskConfig{ScheduleValue: schedule},
-		}
-		setupScheduledTask(context.TODO(), &DummyBot{}, scheduler, task)
+	called := false
+	scheduler := &DummyScheduler{
+		UpdateFunc: func(botType BotType, task *scheduledTask, fn func()) error {
+			called = true
+			return nil
+		},
 	}
 
-	schedules := scheduler.Entries()
-	if len(schedules) != 1 {
-		t.Errorf("Expected 1 job to be registered, but was %d.", len(schedules))
+	task := &scheduledTask{
+		identifier: "dummyID",
+		taskFunc: func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+			return nil, nil
+		},
+		config: &DummyScheduledTaskConfig{ScheduleValue: "@daily"},
+	}
+	updateScheduledTask(context.TODO(), &DummyBot{}, scheduler, task)
+
+	if called == false {
+		t.Fatal("function is not called")
 	}
 }
 

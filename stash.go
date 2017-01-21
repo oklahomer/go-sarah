@@ -99,3 +99,18 @@ func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string)
 
 	return tasks
 }
+
+func (stash *scheduledTaskBuilderStash) find(botType BotType, id string) *ScheduledTaskBuilder {
+	builders, ok := (*stash)[botType]
+	if !ok {
+		return nil
+	}
+
+	for _, builder := range builders {
+		if builder.identifier == id {
+			return builder
+		}
+	}
+
+	return nil
+}

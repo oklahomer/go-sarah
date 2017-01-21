@@ -2,10 +2,8 @@ package sarah
 
 import (
 	"fmt"
-	"github.com/fsnotify/fsnotify"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
-	"github.com/robfig/cron"
 	"golang.org/x/net/context"
 	"path/filepath"
 	"strings"
@@ -54,18 +52,18 @@ func (runner *Runner) RegisterBot(bot Bot) {
 // Run starts Bot interaction.
 // At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
 func (runner *Runner) Run(ctx context.Context) {
+	workerJob := worker.Run(ctx, runner.config.Worker)
+
 	loc, locErr := time.LoadLocation(runner.config.TimeZone)
 	if locErr != nil {
 		panic(fmt.Sprintf("Given timezone can't be converted to time.Location: %s.", locErr.Error()))
 	}
+	taskScheduler := runScheduler(ctx, loc)
 
-	scheduler := cron.NewWithLocation(loc)
-	go func() {
-		<-ctx.Done()
-		log.Info("stop cron jobs due to context cancel")
-		scheduler.Stop()
-	}()
-	workerJob := worker.Run(ctx, runner.config.Worker)
+	watcher, err := runConfigWatcher(ctx)
+	if err != nil {
+		panic(fmt.Sprintf("failed to run watcher: %s.", err.Error()))
+	}
 
 	for _, bot := range runner.bots {
 		botType := bot.BotType()
@@ -74,6 +72,14 @@ func (runner *Runner) Run(ctx context.Context) {
 		// each Bot has its own context propagating Runner's lifecycle
 		botCtx, cancelBot := context.WithCancel(ctx)
 
+		// run Bot
+		inputReceiver := make(chan Input)
+		errCh := make(chan error)
+		go respond(botCtx, bot, inputReceiver, workerJob)
+		go stopUnrecoverableBot(errCh, cancelBot)
+		go bot.Run(botCtx, inputReceiver, errCh)
+
+		// setup config directory
 		var configDir string
 		if runner.config.PluginConfigRoot != "" {
 			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
@@ -88,81 +94,53 @@ func (runner *Runner) Run(ctx context.Context) {
 		// build scheduled task with stashed builder settings
 		tasks := stashedScheduledTaskBuilders.build(botType, configDir)
 		for _, task := range tasks {
-			setupScheduledTask(botCtx, bot, scheduler, task)
+			updateScheduledTask(botCtx, bot, taskScheduler, task)
 		}
 
 		// supervise configuration files' directory
 		if configDir != "" {
-			go superviseCommandConfig(botCtx, bot, configDir)
-		}
-
-		// run Bot
-		inputReceiver := make(chan Input)
-		errCh := make(chan error)
-		go respond(botCtx, bot, inputReceiver, workerJob)
-		go stopUnrecoverableBot(errCh, cancelBot)
-		go bot.Run(botCtx, inputReceiver, errCh)
-	}
-
-	scheduler.Start()
-}
-
-func superviseCommandConfig(botCtx context.Context, bot Bot, configDir string) {
-	log.Infof("start watching file change under %s", configDir)
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		panic(fmt.Sprintf("Failed to initialize fsnotifier: %s.", err.Error()))
-	}
-	watcher.Add(configDir)
-
-	for {
-		select {
-		case <-botCtx.Done():
-			watcher.Close()
-			return
-		case event := <-watcher.Events:
-			switch {
-			// When configuration file is created or updated, rebuild command.
-			// Remember file may be absent on previous build because one can start with default config struct and later update.
-			case event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create:
-				log.Infof("%s %s.", event.Op.String(), event.Name)
-				dir, filename := filepath.Split(event.Name)
-				id := strings.TrimSuffix(filename, filepath.Ext(filename))
-				builder := stashedCommandBuilders.find(bot.BotType(), id)
-				if builder == nil {
-					break
-				}
-
-				log.Infof("start rebuilding command due to config file change: %s.", id)
-				command, err := builder.Build(dir)
-				if err != nil {
-					log.Errorf("can't configure command. %s. %#v", err.Error(), builder)
-					break
-				}
-				bot.AppendCommand(command) // replaces the old one.
-			case event.Op&fsnotify.Remove == fsnotify.Remove:
-			case event.Op&fsnotify.Rename == fsnotify.Rename:
-			case event.Op&fsnotify.Chmod == fsnotify.Chmod:
+			err := watcher.watch(botCtx, botType, configDir, pluginUpdaterFunc(botCtx, bot, taskScheduler))
+			if err != nil {
+				log.Errorf("failed to watch %s: %s", configDir, err.Error())
 			}
-		case err := <-watcher.Errors:
-			log.Errorf("error on subscribing to directory change: %s.", err.Error())
 		}
 	}
 }
 
-func setupScheduledTask(botCtx context.Context, bot Bot, c *cron.Cron, task *scheduledTask) {
-	schedule := task.config.Schedule()
-	if schedule == "" {
-		log.Errorf("scheduled is empty: %s.", task.Identifier())
-		return
-	}
+func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
+	return func(path string) {
+		dir, filename := filepath.Split(path)
+		id := strings.TrimSuffix(filename, filepath.Ext(filename)) // buzz.yaml to buzz
 
-	err := c.AddFunc(schedule, func() {
+		if builder := stashedCommandBuilders.find(bot.BotType(), id); builder != nil {
+			log.Infof("start rebuilding command due to config file change: %s.", id)
+			command, err := builder.Build(dir)
+			if err != nil {
+				log.Errorf("can't configure command. %s. %#v", err.Error(), builder)
+			} else {
+				bot.AppendCommand(command) // replaces the old one.
+			}
+		}
+
+		if builder := stashedScheduledTaskBuilders.find(bot.BotType(), id); builder != nil {
+			log.Infof("start rebuilding scheduled task due to config file change: %s.", id)
+			task, err := builder.Build(dir)
+			if err != nil {
+				log.Errorf("can't configure scheduled task. %s. %#v", err.Error(), builder)
+			} else {
+				updateScheduledTask(botCtx, bot, taskScheduler, task)
+			}
+		}
+	}
+}
+
+func updateScheduledTask(botCtx context.Context, bot Bot, taskScheduler scheduler, task *scheduledTask) {
+	err := taskScheduler.update(bot.BotType(), task, func() {
 		executeScheduledTask(botCtx, bot, task)
 	})
 
 	if err != nil {
-		log.Errorf("failed to schedule a task. id: %s. schedule: %s. reason: %s.", task.Identifier(), schedule, err.Error())
+		log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
 	}
 }
 
