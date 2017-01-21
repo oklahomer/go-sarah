@@ -79,8 +79,7 @@ func TestRunner_Run(t *testing.T) {
 	dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
 	taskBuilder := NewScheduledTaskBuilder().
 		Identifier("scheduled").
-		ConfigStruct(dummyTaskConfig).
-		Func(func(context.Context, ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+		ConfigurableFunc(dummyTaskConfig, func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error) {
 			return nil, nil
 		})
 	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
@@ -121,7 +120,7 @@ func TestRunner_Run(t *testing.T) {
 func Test_setupScheduledTask(t *testing.T) {
 	called := false
 	scheduler := &DummyScheduler{
-		UpdateFunc: func(botType BotType, task *scheduledTask, fn func()) error {
+		UpdateFunc: func(botType BotType, task ScheduledTask, fn func()) error {
 			called = true
 			return nil
 		},
@@ -129,7 +128,7 @@ func Test_setupScheduledTask(t *testing.T) {
 
 	task := &scheduledTask{
 		identifier: "dummyID",
-		taskFunc: func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+		taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
 			return nil, nil
 		},
 		config: &DummyScheduledTaskConfig{ScheduleValue: "@daily"},
@@ -171,11 +170,12 @@ func Test_executeScheduledTask(t *testing.T) {
 	for _, testSet := range testSets {
 		task := &scheduledTask{
 			identifier: "dummy",
-			taskFunc: func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+			taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
 				val := testSet.returnVal
 				return val.results, val.error
 			},
-			config: &DummyScheduledTaskConfig{DestinationValue: testSet.defaultDestination},
+			defaultDestination: testSet.defaultDestination,
+			config:             &DummyScheduledTaskConfig{},
 		}
 		executeScheduledTask(context.TODO(), dummyBot, task)
 	}

@@ -158,6 +158,7 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	if passedContent != responseContent {
 		t.Errorf("Expected message content is not passed: %#v.", passedContent)
 	}
+
 	if passedDestination != replyDestination {
 		t.Errorf("Expected reply destination is not passed: %#v.", passedDestination)
 	}

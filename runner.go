@@ -134,7 +134,7 @@ func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler)
 	}
 }
 
-func updateScheduledTask(botCtx context.Context, bot Bot, taskScheduler scheduler, task *scheduledTask) {
+func updateScheduledTask(botCtx context.Context, bot Bot, taskScheduler scheduler, task ScheduledTask) {
 	err := taskScheduler.update(bot.BotType(), task, func() {
 		executeScheduledTask(botCtx, bot, task)
 	})
@@ -144,7 +144,7 @@ func updateScheduledTask(botCtx context.Context, bot Bot, taskScheduler schedule
 	}
 }
 
-func executeScheduledTask(ctx context.Context, bot Bot, task *scheduledTask) {
+func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	results, err := task.Execute(ctx)
 	if err != nil {
 		log.Errorf("error on scheduled task: %s", task.Identifier())
@@ -161,10 +161,10 @@ func executeScheduledTask(ctx context.Context, bot Bot, task *scheduledTask) {
 			// If no destination is given, see if default destination exists.
 			// Useful when destination can be determined prior.
 			// e.g. Weather forecast task always sends weather information to #goodmorning room.
-			presetDest := task.config.Destination()
+			presetDest := task.DefaultDestination()
 			if presetDest == nil {
 				log.Errorf("task was completed, but destination was not set: %s.", task.Identifier())
-				return
+				continue
 			}
 			dest = presetDest
 		}

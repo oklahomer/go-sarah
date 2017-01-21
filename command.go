@@ -149,8 +149,6 @@ func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) 
 	return command.Execute(ctx, input)
 }
 
-type nullConfig struct{}
-
 // CommandConfig provides an interface that every command configuration must satisfy, which actually means empty.
 type CommandConfig interface{}
 

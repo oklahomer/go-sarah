@@ -81,8 +81,8 @@ func (stash *scheduledTaskBuilderStash) appendBuilder(botType BotType, builder *
 }
 
 // buildCommands configures and creates Command instances with given stashed CommandBuilders
-func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string) []*scheduledTask {
-	tasks := []*scheduledTask{}
+func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string) []ScheduledTask {
+	tasks := []ScheduledTask{}
 	builders, ok := (*stash)[botType]
 	if !ok {
 		return tasks

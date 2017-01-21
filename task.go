@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	ErrTaskInsufficientArgument = errors.New("Identifier, Func and ConfigStruct must be set.")
+	ErrTaskInsufficientArgument = errors.New("Identifier and Func must be set.")
+	ErrTaskScheduleNotGiven     = errors.New("Task schedule is not set or given from config struct.")
 )
 
 type ScheduledTaskResult struct {
@@ -18,17 +19,32 @@ type ScheduledTaskResult struct {
 }
 
 // taskFunc is a function type that represents scheduled task.
-type taskFunc func(context.Context, ScheduledTaskConfig) ([]*ScheduledTaskResult, error)
+type taskFunc func(context.Context, ...TaskConfig) ([]*ScheduledTaskResult, error)
 
-type ScheduledTaskConfig interface {
+// TaskConfig provides an interface that every task configuration must satisfy, which actually means empty.
+type TaskConfig interface{}
+
+type ScheduledConfig interface {
 	Schedule() string
-	Destination() OutputDestination
+}
+
+type DestinatedConfig interface {
+	DefaultDestination() OutputDestination
+}
+
+type ScheduledTask interface {
+	Identifier() string
+	Execute(context.Context) ([]*ScheduledTaskResult, error)
+	DefaultDestination() OutputDestination
+	Schedule() string
 }
 
 type scheduledTask struct {
-	identifier string
-	taskFunc   taskFunc
-	config     ScheduledTaskConfig
+	identifier         string
+	taskFunc           taskFunc
+	schedule           string
+	defaultDestination OutputDestination
+	config             TaskConfig
 }
 
 func (task *scheduledTask) Identifier() string {
@@ -46,10 +62,20 @@ func (task *scheduledTask) Execute(ctx context.Context) ([]*ScheduledTaskResult,
 	return task.taskFunc(ctx, task.config)
 }
 
+func (task *scheduledTask) Schedule() string {
+	return task.schedule
+}
+
+func (task *scheduledTask) DefaultDestination() OutputDestination {
+	return task.defaultDestination
+}
+
 type ScheduledTaskBuilder struct {
-	identifier string
-	taskFunc   taskFunc
-	config     ScheduledTaskConfig
+	identifier         string
+	taskFunc           taskFunc
+	schedule           string
+	defaultDestination OutputDestination
+	config             TaskConfig
 }
 
 func NewScheduledTaskBuilder() *ScheduledTaskBuilder {
@@ -61,25 +87,41 @@ func (builder *ScheduledTaskBuilder) Identifier(id string) *ScheduledTaskBuilder
 	return builder
 }
 
-func (builder *ScheduledTaskBuilder) Func(function taskFunc) *ScheduledTaskBuilder {
-	builder.taskFunc = function
+func (builder *ScheduledTaskBuilder) Func(fn func(context.Context) ([]*ScheduledTaskResult, error)) *ScheduledTaskBuilder {
+	builder.config = nil
+	builder.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
+		return fn(ctx)
+	}
 	return builder
 }
 
-func (builder *ScheduledTaskBuilder) ConfigStruct(config ScheduledTaskConfig) *ScheduledTaskBuilder {
+func (builder *ScheduledTaskBuilder) Schedule(schedule string) *ScheduledTaskBuilder {
+	builder.schedule = schedule
+	return builder
+}
+
+func (builder *ScheduledTaskBuilder) DefaultDestination(dest OutputDestination) *ScheduledTaskBuilder {
+	builder.defaultDestination = dest
+	return builder
+}
+
+func (builder *ScheduledTaskBuilder) ConfigurableFunc(config TaskConfig, fn func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error)) *ScheduledTaskBuilder {
 	builder.config = config
+	builder.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
+		return fn(ctx, cfg)
+	}
 	return builder
 }
 
-func (builder *ScheduledTaskBuilder) Build(configDir string) (*scheduledTask, error) {
-	if builder.identifier == "" || builder.taskFunc == nil || builder.config == nil {
+func (builder *ScheduledTaskBuilder) Build(configDir string) (ScheduledTask, error) {
+	if builder.identifier == "" || builder.taskFunc == nil {
 		return nil, ErrTaskInsufficientArgument
 	}
 
 	// If path to the configuration files' directory is given, corresponding configuration file MAY exist.
 	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
 	taskConfig := builder.config
-	if configDir != "" {
+	if configDir != "" && taskConfig != nil {
 		fileName := builder.identifier + ".yaml"
 		configPath := path.Join(configDir, fileName)
 		err := readConfig(configPath, taskConfig)
@@ -93,9 +135,35 @@ func (builder *ScheduledTaskBuilder) Build(configDir string) (*scheduledTask, er
 		}
 	}
 
+	// Setup execution schedule
+	schedule := builder.schedule
+	if taskConfig != nil {
+		if scheduledConfig, ok := (taskConfig).(ScheduledConfig); ok {
+			if s := scheduledConfig.Schedule(); s != "" {
+				schedule = s
+			}
+		}
+	}
+	if schedule == "" {
+		return nil, ErrTaskScheduleNotGiven
+	}
+
+	// Setup default destination
+	// This can be nil since each task execution may return corresponding destination
+	dest := builder.defaultDestination
+	if taskConfig != nil {
+		if destConfig, ok := (taskConfig).(DestinatedConfig); ok {
+			if d := destConfig.DefaultDestination(); d != nil {
+				dest = d
+			}
+		}
+	}
+
 	return &scheduledTask{
-		identifier: builder.identifier,
-		taskFunc:   builder.taskFunc,
-		config:     builder.config,
+		identifier:         builder.identifier,
+		taskFunc:           builder.taskFunc,
+		schedule:           schedule,
+		defaultDestination: dest,
+		config:             builder.config,
 	}, nil
 }

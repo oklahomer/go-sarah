@@ -10,7 +10,7 @@ import (
 
 type scheduler interface {
 	remove(BotType, string) error
-	update(BotType, *scheduledTask, func()) error
+	update(BotType, ScheduledTask, func()) error
 }
 
 type taskScheduler struct {
@@ -30,7 +30,7 @@ func (s *taskScheduler) remove(botType BotType, taskID string) error {
 	return <-remove.err
 }
 
-func (s *taskScheduler) update(botType BotType, task *scheduledTask, fn func()) error {
+func (s *taskScheduler) update(botType BotType, task ScheduledTask, fn func()) error {
 	add := &updatingTask{
 		botType: botType,
 		task:    task,
@@ -50,7 +50,7 @@ type removingTask struct {
 
 type updatingTask struct {
 	botType BotType
-	task    *scheduledTask
+	task    ScheduledTask
 	fn      func()
 	err     chan error
 }
@@ -103,13 +103,13 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 			remove.err <- removeFunc(remove.botType, remove.taskID)
 
 		case add := <-s.updatingTask:
-			if add.task.config.Schedule() == "" {
+			if add.task.Schedule() == "" {
 				add.err <- fmt.Errorf("empty schedule is given: %s.", add.task.Identifier())
 			}
 
 			removeFunc(add.botType, add.task.Identifier())
 
-			id, err := s.cron.AddFunc(add.task.config.Schedule(), add.fn)
+			id, err := s.cron.AddFunc(add.task.Schedule(), add.fn)
 			if err != nil {
 				add.err <- err
 				break

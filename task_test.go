@@ -2,7 +2,6 @@ package sarah
 
 import (
 	"golang.org/x/net/context"
-	"reflect"
 	"testing"
 )
 
@@ -15,7 +14,7 @@ func (config *DummyScheduledTaskConfig) Schedule() string {
 	return config.ScheduleValue
 }
 
-func (config *DummyScheduledTaskConfig) Destination() OutputDestination {
+func (config *DummyScheduledTaskConfig) DefaultDestination() OutputDestination {
 	return config.DestinationValue
 }
 
@@ -38,24 +37,36 @@ func TestScheduledTaskBuilder_Identifier(t *testing.T) {
 }
 
 func TestScheduledTaskBuilder_Func(t *testing.T) {
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
-		return nil, nil
+	res := "dummyResponse"
+	taskFunc := func(_ context.Context) ([]*ScheduledTaskResult, error) {
+		return []*ScheduledTaskResult{{Content: res}}, nil
 	}
 	builder := &ScheduledTaskBuilder{}
 	builder.Func(taskFunc)
 
-	if reflect.ValueOf(builder.taskFunc).Pointer() != reflect.ValueOf(taskFunc).Pointer() {
+	actualRes, err := builder.taskFunc(context.TODO())
+	if err != nil {
+		t.Fatalf("Unexpected error returned: %s.", err.Error())
+	}
+
+	if actualRes[0].Content != res {
 		t.Fatal("Supplied func is not set.")
 	}
 }
 
-func TestScheduledTaskBuilder_ConfigStruct(t *testing.T) {
+func TestScheduledTaskBuilder_ConfigurableFunc(t *testing.T) {
 	config := &DummyScheduledTaskConfig{}
+	taskFunc := func(_ context.Context, _ TaskConfig) ([]*ScheduledTaskResult, error) {
+		return nil, nil
+	}
 	builder := &ScheduledTaskBuilder{}
-	builder.ConfigStruct(config)
+	builder.ConfigurableFunc(config, taskFunc)
 
 	if builder.config != config {
 		t.Fatal("Supplied config is not set.")
+	}
+	if builder.taskFunc == nil {
+		t.Fatal("Supplied function is not set.")
 	}
 }
 
@@ -63,7 +74,7 @@ func TestScheduledTaskBuilder_Build(t *testing.T) {
 	// Schedule is manually set at first.
 	dummySchedule := "dummy"
 	config := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+	taskFunc := func(_ context.Context, _ TaskConfig) ([]*ScheduledTaskResult, error) {
 		return nil, nil
 	}
 
@@ -75,8 +86,7 @@ func TestScheduledTaskBuilder_Build(t *testing.T) {
 
 	id := "scheduled"
 	builder.Identifier(id)
-	builder.ConfigStruct(config)
-	builder.Func(taskFunc)
+	builder.ConfigurableFunc(config, taskFunc)
 
 	// When corresponding configuration file is not found, then manually set schedule must stay.
 	_, err = builder.Build("no/corresponding/config")
@@ -84,7 +94,7 @@ func TestScheduledTaskBuilder_Build(t *testing.T) {
 		t.Fatal("Error on task construction with no config file.")
 	}
 	if config.Schedule() != dummySchedule {
-		t.Errorf("Config value changed: %s.", config.Destination())
+		t.Errorf("Config value changed: %s.", config.DefaultDestination())
 	}
 
 	task, err := builder.Build("testdata/taskbuilder")
@@ -97,12 +107,12 @@ func TestScheduledTaskBuilder_Build(t *testing.T) {
 		t.Errorf("Supplied id is not returned: %s", task.Identifier())
 	}
 
-	if reflect.ValueOf(builder.taskFunc).Pointer() != reflect.ValueOf(taskFunc).Pointer() {
+	if builder.taskFunc == nil {
 		t.Fatal("Supplied func is not set.")
 	}
 
 	if config.Schedule() == dummySchedule {
-		t.Errorf("Config value is not overridden: %s.", config.Destination())
+		t.Errorf("Config value is not overridden: %s.", config.DefaultDestination())
 	}
 }
 
@@ -117,7 +127,7 @@ func TestScheduledTask_Identifier(t *testing.T) {
 
 func TestScheduledTask_Execute(t *testing.T) {
 	returningContent := "abc"
-	taskFunc := func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+	taskFunc := func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
 		return []*ScheduledTaskResult{
 			{Content: returningContent},
 		}, nil

@@ -8,14 +8,14 @@ import (
 
 type DummyScheduler struct {
 	RemoveFunc func(BotType, string) error
-	UpdateFunc func(BotType, *scheduledTask, func()) error
+	UpdateFunc func(BotType, ScheduledTask, func()) error
 }
 
 func (s *DummyScheduler) remove(botType BotType, taskID string) error {
 	return s.RemoveFunc(botType, taskID)
 }
 
-func (s *DummyScheduler) update(botType BotType, task *scheduledTask, fn func()) error {
+func (s *DummyScheduler) update(botType BotType, task ScheduledTask, fn func()) error {
 	return s.UpdateFunc(botType, task, fn)
 }
 
@@ -49,10 +49,10 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 	taskID := "id"
 	task := &scheduledTask{
 		identifier: taskID,
-		taskFunc: func(_ context.Context, _ ScheduledTaskConfig) ([]*ScheduledTaskResult, error) {
+		taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
 			return nil, nil
 		},
-		config: &DummyScheduledTaskConfig{ScheduleValue: " "},
+		schedule: " ",
 	}
 
 	var storedBotType BotType = "Foo"
@@ -60,7 +60,7 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 		t.Fatal("Error should return on invalid schedule value.")
 	}
 
-	task.config = &DummyScheduledTaskConfig{ScheduleValue: "@daily"}
+	task.schedule = "@daily"
 	if err := scheduler.update(storedBotType, task, func() { return }); err != nil {
 		t.Fatalf("Error is returned on valid schedule value: %s", err.Error())
 	}
