@@ -1,19 +1,34 @@
 package sarah
 
 import (
+	"errors"
+	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
-	"github.com/robfig/cron"
 	"golang.org/x/net/context"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+var (
+	// ErrBotNotFound depicts an error that corresponding Bot is not registered to Runner.
+	// This is returned when Bot related operation is given, but corresponding Bot is not registered, or is not ready.
+	ErrBotNotFound = errors.New("Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
 )
 
 type Config struct {
-	Worker *worker.Config `json:"worker" yaml:"worker"`
+	Worker           *worker.Config `json:"worker" yaml:"worker"`
+	PluginConfigRoot string         `json:"plugin_config_root" yaml:"plugin_config_root"`
+	TimeZone         string         `json:"timezone" yaml:"timezone"`
 }
 
 func NewConfig() *Config {
 	return &Config{
 		Worker: worker.NewConfig(),
+		// PluginConfigRoot defines the root directory to be used when searching for plugins' configuration files.
+		PluginConfigRoot: "",
+		TimeZone:         time.Now().Location().String(),
 	}
 }
 
@@ -24,17 +39,17 @@ func NewConfig() *Config {
 //
 // Developers can register desired number of Bot and Commands to create own bot experience.
 type Runner struct {
-	config *Config
-	bots   []Bot
-	cron   *cron.Cron
+	config          *Config
+	bots            []Bot
+	scheduleUpdater map[BotType]func(ScheduledTask) error
 }
 
 // NewRunner creates and return new Runner instance.
 func NewRunner(config *Config) *Runner {
 	return &Runner{
-		config: config,
-		bots:   []Bot{},
-		cron:   cron.New(),
+		config:          config,
+		bots:            []Bot{},
+		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
 	}
 }
 
@@ -44,9 +59,20 @@ func (runner *Runner) RegisterBot(bot Bot) {
 }
 
 // Run starts Bot interaction.
-// At this point Runner starts its internal workers, runs each bot, and starts listening to incoming messages.
+// At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
 func (runner *Runner) Run(ctx context.Context) {
 	workerJob := worker.Run(ctx, runner.config.Worker)
+
+	loc, locErr := time.LoadLocation(runner.config.TimeZone)
+	if locErr != nil {
+		panic(fmt.Sprintf("Given timezone can't be converted to time.Location: %s.", locErr.Error()))
+	}
+	taskScheduler := runScheduler(ctx, loc)
+
+	watcher, err := runConfigWatcher(ctx)
+	if err != nil {
+		panic(fmt.Sprintf("failed to run watcher: %s.", err.Error()))
+	}
 
 	for _, bot := range runner.bots {
 		botType := bot.BotType()
@@ -55,42 +81,125 @@ func (runner *Runner) Run(ctx context.Context) {
 		// each Bot has its own context propagating Runner's lifecycle
 		botCtx, cancelBot := context.WithCancel(ctx)
 
-		// build commands with stashed builder settings
-		commands := stashedCommandBuilders.build(botType, bot.PluginConfigDir())
-		for _, command := range commands {
-			bot.AppendCommand(command)
-		}
-
-		// build scheduled task with stashed builder settings
-		tasks := stashedScheduledTaskBuilders.build(botType, bot.PluginConfigDir())
-		for _, task := range tasks {
-			setupScheduledTask(runner.cron, bot, botCtx, task)
-		}
-
 		// run Bot
 		inputReceiver := make(chan Input)
 		errCh := make(chan error)
 		go respond(botCtx, bot, inputReceiver, workerJob)
 		go stopUnrecoverableBot(errCh, cancelBot)
 		go bot.Run(botCtx, inputReceiver, errCh)
-	}
 
-	runner.cron.Start()
-}
-
-func setupScheduledTask(c *cron.Cron, bot Bot, botCtx context.Context, task *scheduledTask) {
-	c.AddFunc(task.config.Schedule(), func() {
-		res, err := task.Execute(botCtx)
-		if err != nil {
-			log.Errorf("error on scheduled task: %s", task.Identifier())
-			return
-		} else if res == nil {
-			return
+		// setup config directory
+		var configDir string
+		if runner.config.PluginConfigRoot != "" {
+			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
 		}
 
-		message := NewOutputMessage(task.config.Destination(), res.Content)
-		bot.SendMessage(botCtx, message)
-	})
+		// build commands with stashed builder settings
+		commands := stashedCommandBuilders.build(botType, configDir)
+		for _, command := range commands {
+			bot.AppendCommand(command)
+		}
+
+		// Setup schedule registration function that tied to this particular bot type.
+		// This is stashed to runner instance, and later called by Runner.RegisterScheduledTask
+		updateSchedule := func(c context.Context, b Bot) func(ScheduledTask) error {
+			return func(t ScheduledTask) error {
+				log.Infof("registering task for %s: %s", b.BotType().String(), t.Identifier())
+				return taskScheduler.update(b.BotType(), t, func() {
+					executeScheduledTask(c, b, t)
+				})
+			}
+		}(botCtx, bot) // Beware of closure...
+		runner.scheduleUpdater[botType] = updateSchedule
+
+		// build scheduled task with stashed builder settings
+		tasks := stashedScheduledTaskBuilders.build(botType, configDir)
+		for _, task := range tasks {
+			if err := updateSchedule(task); err != nil {
+				log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
+			}
+		}
+
+		// supervise configuration files' directory
+		if configDir != "" {
+			err := watcher.watch(botCtx, botType, configDir, pluginUpdaterFunc(botCtx, bot, taskScheduler))
+			if err != nil {
+				log.Errorf("failed to watch %s: %s", configDir, err.Error())
+			}
+		}
+	}
+}
+
+func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask) error {
+	updater, ok := runner.scheduleUpdater[botType]
+	if !ok {
+		return ErrBotNotFound
+	}
+
+	return updater(task)
+}
+
+func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
+	return func(path string) {
+		dir, filename := filepath.Split(path)
+		id := strings.TrimSuffix(filename, filepath.Ext(filename)) // buzz.yaml to buzz
+
+		if builder := stashedCommandBuilders.find(bot.BotType(), id); builder != nil {
+			log.Infof("start rebuilding command due to config file change: %s.", id)
+			command, err := builder.Build(dir)
+			if err != nil {
+				log.Errorf("can't configure command. %s. %#v", err.Error(), builder)
+			} else {
+				bot.AppendCommand(command) // replaces the old one.
+			}
+		}
+
+		if builder := stashedScheduledTaskBuilders.find(bot.BotType(), id); builder != nil {
+			log.Infof("start rebuilding scheduled task due to config file change: %s.", id)
+			task, err := builder.Build(dir)
+			if err != nil {
+				log.Errorf("can't configure scheduled task. %s. %#v", err.Error(), builder)
+			} else {
+				err := taskScheduler.update(bot.BotType(), task, func() {
+					executeScheduledTask(botCtx, bot, task)
+				})
+
+				if err != nil {
+					log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
+				}
+			}
+		}
+	}
+}
+
+func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
+	results, err := task.Execute(ctx)
+	if err != nil {
+		log.Errorf("error on scheduled task: %s", task.Identifier())
+		return
+	} else if results == nil {
+		return
+	}
+
+	for _, res := range results {
+		// The destination returned by task execution has higher priority.
+		// e.g. RSS Reader's task searches for stored feed/destination set, and returns which destination to send.
+		dest := res.Destination
+		if dest == nil {
+			// If no destination is given, see if default destination exists.
+			// Useful when destination can be determined prior.
+			// e.g. Weather forecast task always sends weather information to #goodmorning room.
+			presetDest := task.DefaultDestination()
+			if presetDest == nil {
+				log.Errorf("task was completed, but destination was not set: %s.", task.Identifier())
+				continue
+			}
+			dest = presetDest
+		}
+
+		message := NewOutputMessage(dest, res.Content)
+		bot.SendMessage(ctx, message)
+	}
 }
 
 // stopUnrecoverableBot receives error from Bot, check if the error is critical, and stop the bot if required.

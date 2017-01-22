@@ -48,6 +48,21 @@ func (stash *commandBuilderStash) build(botType BotType, configDir string) []Com
 	return commands
 }
 
+func (stash *commandBuilderStash) find(botType BotType, id string) *CommandBuilder {
+	builders, ok := (*stash)[botType]
+	if !ok {
+		return nil
+	}
+
+	for _, builder := range builders {
+		if builder.identifier == id {
+			return builder
+		}
+	}
+
+	return nil
+}
+
 type scheduledTaskBuilderStash map[BotType][]*ScheduledTaskBuilder
 
 // StashScheduledTaskBuilder adds given ScheduledTaskBuilder to internal stash.
@@ -66,8 +81,8 @@ func (stash *scheduledTaskBuilderStash) appendBuilder(botType BotType, builder *
 }
 
 // buildCommands configures and creates Command instances with given stashed CommandBuilders
-func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string) []*scheduledTask {
-	tasks := []*scheduledTask{}
+func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string) []ScheduledTask {
+	tasks := []ScheduledTask{}
 	builders, ok := (*stash)[botType]
 	if !ok {
 		return tasks
@@ -83,4 +98,19 @@ func (stash *scheduledTaskBuilderStash) build(botType BotType, configDir string)
 	}
 
 	return tasks
+}
+
+func (stash *scheduledTaskBuilderStash) find(botType BotType, id string) *ScheduledTaskBuilder {
+	builders, ok := (*stash)[botType]
+	if !ok {
+		return nil
+	}
+
+	for _, builder := range builders {
+		if builder.identifier == id {
+			return builder
+		}
+	}
+
+	return nil
 }

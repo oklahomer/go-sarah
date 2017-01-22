@@ -3,7 +3,6 @@ package sarah
 import (
 	"errors"
 	"fmt"
-	"github.com/robfig/cron"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"regexp"
@@ -36,6 +35,10 @@ func TestNewRunner(t *testing.T) {
 	config := NewConfig()
 	runner := NewRunner(config)
 
+	if runner == nil {
+		t.Fatal("NewRunner reutrned nil.")
+	}
+
 	if runner.config != config {
 		t.Errorf("Passed config is not set: %#v.", runner.config)
 	}
@@ -44,8 +47,8 @@ func TestNewRunner(t *testing.T) {
 		t.Error("Bot slice is nil.")
 	}
 
-	if runner.cron == nil {
-		t.Error("Default cron instance is nil")
+	if runner.scheduleUpdater == nil {
+		t.Error("schedule updators are not set.")
 	}
 }
 
@@ -80,11 +83,11 @@ func TestRunner_Run(t *testing.T) {
 	(*stashedCommandBuilders)[botType] = []*CommandBuilder{commandBuilder}
 
 	// Prepare scheduled task to be configured on the fly
-	dummyTaskConfig := &DummyScheduledTaskConfig{}
+	dummySchedule := "@hourly"
+	dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
 	taskBuilder := NewScheduledTaskBuilder().
 		Identifier("scheduled").
-		ConfigStruct(dummyTaskConfig).
-		Func(func(context.Context, ScheduledTaskConfig) (*CommandResponse, error) {
+		ConfigurableFunc(dummyTaskConfig, func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error) {
 			return nil, nil
 		})
 	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
@@ -96,18 +99,15 @@ func TestRunner_Run(t *testing.T) {
 	bot.AppendCommandFunc = func(cmd Command) {
 		passedCommand = cmd
 	}
-	bot.PluginConfigDirFunc = func() string {
-		return "testdata/taskbuilder"
-	}
 	bot.RunFunc = func(_ context.Context, _ chan<- Input, _ chan<- error) {
 		return
 	}
 
 	// Configure Runner
 	runner := &Runner{
-		config: NewConfig(),
-		bots:   []Bot{},
-		cron:   cron.New(),
+		config:          NewConfig(),
+		bots:            []Bot{},
+		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
 	}
 	runner.bots = []Bot{bot}
 
@@ -123,6 +123,83 @@ func TestRunner_Run(t *testing.T) {
 
 	if passedCommand == nil || passedCommand.Identifier() != commandBuilder.identifier {
 		t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
+	}
+}
+
+func TestRunner_RegisterScheduledTask(t *testing.T) {
+	runner := &Runner{
+		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
+	}
+
+	task := &DummyScheduledTask{
+		IdentifierValue: "foo",
+	}
+
+	if err := runner.RegisterScheduledTask("NON_REGISTERED", task); err != ErrBotNotFound {
+		t.Errorf("expected error is not returned %#v.", err)
+	}
+
+	var botType BotType = "Buzz"
+	isCalled := false
+	runner.scheduleUpdater[botType] = func(task ScheduledTask) error {
+		isCalled = true
+		return nil
+	}
+	runner.RegisterScheduledTask(botType, task)
+
+	if isCalled == false {
+		t.Error("given task is not registered.")
+	}
+}
+
+func Test_executeScheduledTask(t *testing.T) {
+	dummyContent := "dummy content"
+	dummyDestination := "#dummyDestination"
+	defaultDestination := "#defaultDestination"
+	type returnVal struct {
+		results []*ScheduledTaskResult
+		error   error
+	}
+	testSets := []struct {
+		returnVal          *returnVal
+		defaultDestination OutputDestination
+	}{
+		{returnVal: &returnVal{nil, nil}},
+		{returnVal: &returnVal{nil, errors.New("dummy")}},
+		// Destination is given by neither task result nor configuration, which ends up with early return
+		{returnVal: &returnVal{[]*ScheduledTaskResult{{Content: dummyContent}}, nil}},
+		// Destination is given by configuration
+		{returnVal: &returnVal{[]*ScheduledTaskResult{{Content: dummyContent}}, nil}, defaultDestination: defaultDestination},
+		// Destination is given by task result
+		{returnVal: &returnVal{[]*ScheduledTaskResult{{Content: dummyContent, Destination: dummyDestination}}, nil}},
+	}
+
+	var sendingOutput []Output
+	dummyBot := &DummyBot{SendMessageFunc: func(_ context.Context, output Output) {
+		sendingOutput = append(sendingOutput, output)
+	}}
+
+	for _, testSet := range testSets {
+		task := &scheduledTask{
+			identifier: "dummy",
+			taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
+				val := testSet.returnVal
+				return val.results, val.error
+			},
+			defaultDestination: testSet.defaultDestination,
+			config:             &DummyScheduledTaskConfig{},
+		}
+		executeScheduledTask(context.TODO(), dummyBot, task)
+	}
+
+	if len(sendingOutput) != 2 {
+		t.Fatalf("Expecting sending method to be called twice, but was called %d time(s).", len(sendingOutput))
+	}
+	if sendingOutput[0].Content() != dummyContent || sendingOutput[0].Destination() != defaultDestination {
+		t.Errorf("Sending output differs from expecting one: %#v.", sendingOutput)
+	}
+	if sendingOutput[1].Content() != dummyContent || sendingOutput[1].Destination() != dummyDestination {
+		t.Errorf("Sending output differs from expecting one: %#v.", sendingOutput)
 	}
 }
 

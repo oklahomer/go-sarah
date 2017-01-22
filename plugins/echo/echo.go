@@ -2,8 +2,6 @@ package echo
 
 import (
 	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/gitter"
-	"github.com/oklahomer/go-sarah/slack"
 	"golang.org/x/net/context"
 	"regexp"
 )
@@ -13,28 +11,19 @@ var (
 	matchPattern = regexp.MustCompile(`^\.echo`)
 )
 
-func slackEcho(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+func CommandFunc(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 	return sarah.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
 }
 
-func gitterEcho(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-	return sarah.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
-}
+var SlackCommand = sarah.NewCommandBuilder().
+	Identifier(identifier).
+	MatchPattern(matchPattern).
+	Func(CommandFunc).
+	InputExample(".echo knock knock").
+	MustBuild()
 
-func init() {
-	// For slack interaction
-	slackBuilder := sarah.NewCommandBuilder().
-		Identifier(identifier).
-		MatchPattern(matchPattern).
-		Func(slackEcho).
-		InputExample(".echo knock knock")
-	sarah.StashCommandBuilder(slack.SLACK, slackBuilder)
-
-	// For gitter interaction
-	gitterBuilder := sarah.NewCommandBuilder().
-		Identifier(identifier).
-		MatchPattern(matchPattern).
-		Func(gitterEcho).
-		InputExample(".echo knock knock")
-	sarah.StashCommandBuilder(gitter.GITTER, gitterBuilder)
-}
+var GitterCommand = sarah.NewCommandBuilder().
+	Identifier(identifier).
+	MatchPattern(matchPattern).
+	Func(CommandFunc).
+	InputExample(".echo knock knock")

@@ -83,11 +83,10 @@ func TestScheduledTaskBuilderStash_build(t *testing.T) {
 	commandID := "scheduled"
 	config := &DummyScheduledTaskConfig{}
 	validBuilder := NewScheduledTaskBuilder().
-		Func(func(_ context.Context, _ ScheduledTaskConfig) (*CommandResponse, error) {
+		ConfigurableFunc(config, func(_ context.Context, _ TaskConfig) ([]*ScheduledTaskResult, error) {
 			return nil, nil
 		}).
-		Identifier(commandID).
-		ConfigStruct(config)
+		Identifier(commandID)
 	StashScheduledTaskBuilder(botType, validBuilder)
 
 	commands := stashedScheduledTaskBuilders.build(botType, "testdata/taskbuilder")

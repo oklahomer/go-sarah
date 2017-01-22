@@ -10,20 +10,17 @@ import (
 	"regexp"
 )
 
-var (
-	identifier   = "weather"
-	matchPattern = regexp.MustCompile(`^\.weather`)
-)
+var MatchPattern = regexp.MustCompile(`^\.weather`)
 
-type pluginConfig struct {
+type CommandConfig struct {
 	APIKey string `yaml:"api_key"`
 }
 
-func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.CommandResponse, error) {
-	strippedMessage := sarah.StripMessage(matchPattern, input.Message())
+func CommandFunc(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.CommandResponse, error) {
+	strippedMessage := sarah.StripMessage(MatchPattern, input.Message())
 
 	// Share client instance with later execution
-	conf, _ := config.(*pluginConfig)
+	conf, _ := config.(*CommandConfig)
 	client := NewClient(NewConfig(conf.APIKey))
 	resp, err := client.LocalWeather(ctx, strippedMessage)
 
@@ -39,7 +36,7 @@ func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig)
 		return sarah.NewStringResponseWithNext(
 			fmt.Sprintf("Error was returned: %s.\nInput location name to retry, please.", errorDescription),
 			func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
-				return weather(c, i, config)
+				return CommandFunc(c, i, config)
 			},
 		), nil
 	}
@@ -122,13 +119,4 @@ func weather(ctx context.Context, input sarah.Input, config sarah.CommandConfig)
 	}
 
 	return slack.NewPostMessageResponse(input, "", attachments), nil
-}
-
-func init() {
-	builder := sarah.NewCommandBuilder().
-		Identifier(identifier).
-		MatchPattern(matchPattern).
-		ConfigurableFunc(&pluginConfig{}, weather).
-		InputExample(".weather")
-	sarah.StashCommandBuilder(slack.SLACK, builder)
 }

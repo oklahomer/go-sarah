@@ -3,9 +3,11 @@ package sarah
 import (
 	"errors"
 	"fmt"
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -104,9 +106,20 @@ func NewCommands() *Commands {
 	return &Commands{cmd: make([]Command, 0)}
 }
 
-// Append let developers to register new Command to its internal stash.
+// Append let developers register new Command to its internal stash.
+// If any command is registered with the same ID, the old one is replaced in favor of new one.
 func (commands *Commands) Append(command Command) {
-	// TODO duplication check
+	// See if command with the same identifier exists.
+	for i, cmd := range commands.cmd {
+		if cmd.Identifier() == command.Identifier() {
+			log.Infof("replacing old command in favor of newly appending one: %s.", command.Identifier())
+			commands.cmd[i] = command
+			return
+		}
+	}
+
+	// Not stored, then append to the last.
+	log.Infof("appending new command: %s.", command.Identifier())
 	commands.cmd = append(commands.cmd, command)
 }
 
@@ -135,8 +148,6 @@ func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) 
 
 	return command.Execute(ctx, input)
 }
-
-type nullConfig struct{}
 
 // CommandConfig provides an interface that every command configuration must satisfy, which actually means empty.
 type CommandConfig interface{}
@@ -208,12 +219,19 @@ func (builder *CommandBuilder) Build(configDir string) (Command, error) {
 		return nil, ErrCommandInsufficientArgument
 	}
 
+	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
+	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
 	commandConfig := builder.config
-	if commandConfig != nil {
+	if configDir != "" && commandConfig != nil {
 		fileName := builder.identifier + ".yaml"
 		configPath := path.Join(configDir, fileName)
 		err := readConfig(configPath, commandConfig)
-		if err != nil {
+		if err != nil && os.IsNotExist(err) {
+			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
+				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
+				configPath, builder.identifier)
+		} else if err != nil {
+			// File was there, but could not read.
 			return nil, err
 		}
 	}

@@ -14,6 +14,7 @@ import	(
         "github.com/oklahomer/go-sarah"
         "github.com/oklahomer/go-sarah/plugins/hello"
         "github.com/oklahomer/go-sarah/slack"
+        "github.com/oklahomer/golack/rtmapi"
         "golang.org/x/net/context"
         "gopkg.in/yaml.v2"
         "io/ioutil"
@@ -28,7 +29,9 @@ func main() {
         configBuf, _ := ioutil.ReadFile("/path/to/adapter/config.yaml")
         slackConfig := slack.NewConfig()
         yaml.Unmarshal(configBuf, slackConfig)
-        slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.NewCacheConfig(), "/path/to/plugin/config/dir/")
+        slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.NewCacheConfig())
+
+        // Register desired command
         slackBot.AppendCommand(hello.Command)
 
         // Create a builder for simple command that requires no config struct.
@@ -49,6 +52,11 @@ func main() {
 
         // Create a builder for a bit complex command that requires config struct.
         // Configuration file is lazily read on Runner.Run, and command is built with fully configured config struct.
+        // The path to the configuration file MUST be equivalent to below:
+        //
+        //   filepath.Join(sarah.Config.PluginConfigRoot, Bot.BotType(), Command.Identifier() + ".yaml")
+        //
+        // When configuration file is updated, runner will notify and rebuild the command to apply.
         pluginConfig := &struct{
                 Token string `yaml:"api_key"`
         }{}
@@ -61,14 +69,34 @@ func main() {
                 InputExample(".echo knock knock")
         sarah.StashCommandBuilder(slack.SLACK, configCommandBuilder)
 
-        // Initialize Runner and register prepared bot(s).
-        runner := sarah.NewRunner(sarah.NewConfig())
+        // Initialize Runner
+        config := sarah.NewConfig()
+        config.PluginConfigRoot = "path/to/plugin/configuration" // can be set manually or with (json|yaml).Unmarshal
+        runner := sarah.NewRunner(config)
+
+        // Register declared bot.
         runner.RegisterBot(slackBot)
 
         // Start interaction
         rootCtx := context.Background()
         runnerCtx, cancelRunner := context.WithCancel(rootCtx)
         runner.Run(runnerCtx)
+
+        // Register scheduled task that require no configuration.
+        sarah.NewScheduledTaskBuilder().Identifier("scheduled").Func
+        task := sarah.NewScheduledTaskBuilder().
+                Identifier("greeting").
+                Func(func(_ context.Context) ([]*sarah.ScheduledTaskResult, error) {
+                        return []*sarah.ScheduledTaskResult{
+				                {
+					                    Content:     "Howdy!!",
+					                    Destination: &rtmapi.Channel{Name: "XXXX"},
+				                },
+			            }, nil
+		        }).
+		        Schedule("@everyday").
+		        MustBuild()
+		runner.RegisterScheduledTask(slack.SLACK, task)
 
         // Let runner run for 30 seconds and eventually stop it by context cancelation.
         time.Sleep(30 * time.Second)
