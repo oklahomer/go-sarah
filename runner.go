@@ -1,6 +1,7 @@
 package sarah
 
 import (
+	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
@@ -8,6 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+)
+
+var (
+	// ErrBotNotFound depicts an error that corresponding Bot is not registered to Runner.
+	// This is returned when Bot related operation is given, but corresponding Bot is not registered, or is not ready.
+	ErrBotNotFound = errors.New("Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
 )
 
 type Config struct {
@@ -32,15 +39,17 @@ func NewConfig() *Config {
 //
 // Developers can register desired number of Bot and Commands to create own bot experience.
 type Runner struct {
-	config *Config
-	bots   []Bot
+	config          *Config
+	bots            []Bot
+	scheduleUpdater map[BotType]func(ScheduledTask) error
 }
 
 // NewRunner creates and return new Runner instance.
 func NewRunner(config *Config) *Runner {
 	return &Runner{
-		config: config,
-		bots:   []Bot{},
+		config:          config,
+		bots:            []Bot{},
+		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
 	}
 }
 
@@ -91,10 +100,24 @@ func (runner *Runner) Run(ctx context.Context) {
 			bot.AppendCommand(command)
 		}
 
+		// Setup schedule registration function that tied to this particular bot type.
+		// This is stashed to runner instance, and later called by Runner.RegisterScheduledTask
+		updateSchedule := func(c context.Context, b Bot) func(ScheduledTask) error {
+			return func(t ScheduledTask) error {
+				log.Infof("registering task for %s: %s", b.BotType().String(), t.Identifier())
+				return taskScheduler.update(b.BotType(), t, func() {
+					executeScheduledTask(c, b, t)
+				})
+			}
+		}(botCtx, bot) // Beware of closure...
+		runner.scheduleUpdater[botType] = updateSchedule
+
 		// build scheduled task with stashed builder settings
 		tasks := stashedScheduledTaskBuilders.build(botType, configDir)
 		for _, task := range tasks {
-			updateScheduledTask(botCtx, bot, taskScheduler, task)
+			if err := updateSchedule(task); err != nil {
+				log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
+			}
 		}
 
 		// supervise configuration files' directory
@@ -105,6 +128,15 @@ func (runner *Runner) Run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask) error {
+	updater, ok := runner.scheduleUpdater[botType]
+	if !ok {
+		return ErrBotNotFound
+	}
+
+	return updater(task)
 }
 
 func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
@@ -128,19 +160,15 @@ func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler)
 			if err != nil {
 				log.Errorf("can't configure scheduled task. %s. %#v", err.Error(), builder)
 			} else {
-				updateScheduledTask(botCtx, bot, taskScheduler, task)
+				err := taskScheduler.update(bot.BotType(), task, func() {
+					executeScheduledTask(botCtx, bot, task)
+				})
+
+				if err != nil {
+					log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
+				}
 			}
 		}
-	}
-}
-
-func updateScheduledTask(botCtx context.Context, bot Bot, taskScheduler scheduler, task ScheduledTask) {
-	err := taskScheduler.update(bot.BotType(), task, func() {
-		executeScheduledTask(botCtx, bot, task)
-	})
-
-	if err != nil {
-		log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
 	}
 }
 

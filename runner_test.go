@@ -35,12 +35,20 @@ func TestNewRunner(t *testing.T) {
 	config := NewConfig()
 	runner := NewRunner(config)
 
+	if runner == nil {
+		t.Fatal("NewRunner reutrned nil.")
+	}
+
 	if runner.config != config {
 		t.Errorf("Passed config is not set: %#v.", runner.config)
 	}
 
 	if runner.bots == nil {
 		t.Error("Bot slice is nil.")
+	}
+
+	if runner.scheduleUpdater == nil {
+		t.Error("schedule updators are not set.")
 	}
 }
 
@@ -97,8 +105,9 @@ func TestRunner_Run(t *testing.T) {
 
 	// Configure Runner
 	runner := &Runner{
-		config: NewConfig(),
-		bots:   []Bot{},
+		config:          NewConfig(),
+		bots:            []Bot{},
+		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
 	}
 	runner.bots = []Bot{bot}
 
@@ -117,26 +126,29 @@ func TestRunner_Run(t *testing.T) {
 	}
 }
 
-func Test_setupScheduledTask(t *testing.T) {
-	called := false
-	scheduler := &DummyScheduler{
-		UpdateFunc: func(botType BotType, task ScheduledTask, fn func()) error {
-			called = true
-			return nil
-		},
+func TestRunner_RegisterScheduledTask(t *testing.T) {
+	runner := &Runner{
+		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
 	}
 
-	task := &scheduledTask{
-		identifier: "dummyID",
-		taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
-			return nil, nil
-		},
-		config: &DummyScheduledTaskConfig{ScheduleValue: "@daily"},
+	task := &DummyScheduledTask{
+		IdentifierValue: "foo",
 	}
-	updateScheduledTask(context.TODO(), &DummyBot{}, scheduler, task)
 
-	if called == false {
-		t.Fatal("function is not called")
+	if err := runner.RegisterScheduledTask("NON_REGISTERED", task); err != ErrBotNotFound {
+		t.Errorf("expected error is not returned %#v.", err)
+	}
+
+	var botType BotType = "Buzz"
+	isCalled := false
+	runner.scheduleUpdater[botType] = func(task ScheduledTask) error {
+		isCalled = true
+		return nil
+	}
+	runner.RegisterScheduledTask(botType, task)
+
+	if isCalled == false {
+		t.Error("given task is not registered.")
 	}
 }
 

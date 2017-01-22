@@ -9,13 +9,10 @@ import (
 )
 
 type DummyCommand struct {
-	IdentifierValue string
-
-	ExecuteFunc func(context.Context, Input) (*CommandResponse, error)
-
+	IdentifierValue  string
+	ExecuteFunc      func(context.Context, Input) (*CommandResponse, error)
 	InputExampleFunc func() string
-
-	MatchFunc func(string) bool
+	MatchFunc        func(string) bool
 }
 
 func (command *DummyCommand) Identifier() string {

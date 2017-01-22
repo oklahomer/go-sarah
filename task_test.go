@@ -5,6 +5,29 @@ import (
 	"testing"
 )
 
+type DummyScheduledTask struct {
+	IdentifierValue         string
+	ExecuteFunc             func(context.Context) ([]*ScheduledTaskResult, error)
+	DefaultDestinationValue OutputDestination
+	ScheduleValue           string
+}
+
+func (s *DummyScheduledTask) Identifier() string {
+	return s.IdentifierValue
+}
+
+func (s *DummyScheduledTask) Execute(ctx context.Context) ([]*ScheduledTaskResult, error) {
+	return s.ExecuteFunc(ctx)
+}
+
+func (s *DummyScheduledTask) DefaultDestination() OutputDestination {
+	return s.DefaultDestinationValue
+}
+
+func (s *DummyScheduledTask) Schedule() string {
+	return s.ScheduleValue
+}
+
 type DummyScheduledTaskConfig struct {
 	ScheduleValue    string `yaml:"schedule"`
 	DestinationValue OutputDestination
@@ -54,10 +77,34 @@ func TestScheduledTaskBuilder_Func(t *testing.T) {
 	}
 }
 
+func TestScheduledTaskBuilder_Schedule(t *testing.T) {
+	schedule := "@daily"
+	builder := &ScheduledTaskBuilder{}
+	builder.Schedule(schedule)
+
+	if builder.schedule != schedule {
+		t.Fatal("Supplied schedule is not set.")
+	}
+}
+
+func TestScheduledTaskBuilder_DefaultDestination(t *testing.T) {
+	destination := "dest"
+	builder := &ScheduledTaskBuilder{}
+	builder.DefaultDestination(destination)
+
+	if builder.defaultDestination != destination {
+		t.Fatal("Supplied destination is not set.")
+	}
+}
+
 func TestScheduledTaskBuilder_ConfigurableFunc(t *testing.T) {
 	config := &DummyScheduledTaskConfig{}
 	taskFunc := func(_ context.Context, _ TaskConfig) ([]*ScheduledTaskResult, error) {
-		return nil, nil
+		return []*ScheduledTaskResult{
+			{
+				Content: "foo",
+			},
+		}, nil
 	}
 	builder := &ScheduledTaskBuilder{}
 	builder.ConfigurableFunc(config, taskFunc)
@@ -68,12 +115,18 @@ func TestScheduledTaskBuilder_ConfigurableFunc(t *testing.T) {
 	if builder.taskFunc == nil {
 		t.Fatal("Supplied function is not set.")
 	}
+
+	_, err := builder.taskFunc(context.TODO(), config)
+	if err != nil {
+		t.Fatalf("Unexpected error returned: %s.", err.Error())
+	}
 }
 
 func TestScheduledTaskBuilder_Build(t *testing.T) {
 	// Schedule is manually set at first.
 	dummySchedule := "dummy"
-	config := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
+	dummyDestination := "foo"
+	config := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule, DestinationValue: dummyDestination}
 	taskFunc := func(_ context.Context, _ TaskConfig) ([]*ScheduledTaskResult, error) {
 		return nil, nil
 	}
@@ -114,6 +167,33 @@ func TestScheduledTaskBuilder_Build(t *testing.T) {
 	if config.Schedule() == dummySchedule {
 		t.Errorf("Config value is not overridden: %s.", config.DefaultDestination())
 	}
+
+	if task.DefaultDestination() != dummyDestination {
+		t.Errorf("DefaultDestination value is not overridden: %s.", config.DefaultDestination())
+	}
+}
+
+func TestScheduledTaskBuilder_MustBuild(t *testing.T) {
+	builder := &ScheduledTaskBuilder{}
+	builder.Identifier("dummy").
+		Func(func(_ context.Context) ([]*ScheduledTaskResult, error) {
+			return nil, nil
+		})
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic did not occur.")
+			}
+		}()
+		builder.MustBuild()
+	}()
+
+	builder.Schedule("@daily")
+	command := builder.MustBuild()
+	if command.Identifier() != builder.identifier {
+		t.Error("Provided identifier is not set.")
+	}
 }
 
 func TestScheduledTask_Identifier(t *testing.T) {
@@ -145,5 +225,23 @@ func TestScheduledTask_Execute(t *testing.T) {
 	}
 	if results[0].Content != returningContent {
 		t.Errorf("Unexpected content is returned: %s", results[0].Content)
+	}
+}
+
+func TestScheduledTask_DefaultDestination(t *testing.T) {
+	destination := "dest"
+	task := &scheduledTask{defaultDestination: destination}
+
+	if task.DefaultDestination() != destination {
+		t.Fatalf("Returned destination differs: %s.", task.DefaultDestination())
+	}
+}
+
+func TestScheduledTask_Schedule(t *testing.T) {
+	schedule := "@daily"
+	task := &scheduledTask{schedule: schedule}
+
+	if task.Schedule() != schedule {
+		t.Fatalf("Returnd schedule differs: %s.", task.Schedule())
 	}
 }

@@ -2,6 +2,7 @@ package sarah
 
 import (
 	"errors"
+	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"os"
@@ -166,4 +167,15 @@ func (builder *ScheduledTaskBuilder) Build(configDir string) (ScheduledTask, err
 		defaultDestination: dest,
 		config:             builder.config,
 	}, nil
+}
+
+// MustBuild is like Build but panics if any error occurs on Build.
+// It simplifies safe initialization of global variables holding built Command instances.
+func (builder *ScheduledTaskBuilder) MustBuild() ScheduledTask {
+	task, err := builder.Build("")
+	if err != nil {
+		panic(fmt.Sprintf("Error on building task: %s", err.Error()))
+	}
+
+	return task
 }
