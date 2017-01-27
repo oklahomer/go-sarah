@@ -66,6 +66,7 @@ package echo
 
 import (
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/slack"
 	"golang.org/x/net/context"
 	"regexp"
 )
@@ -78,7 +79,7 @@ var SlackCommand = sarah.NewCommandBuilder().
         MatchPattern(matchPattern).
         Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
                 // ".echo foo" to "foo"
-                return sarah.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
+                return slack.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
         }).
         InputExample(".echo knock knock").
         MustBuild()
@@ -142,6 +143,7 @@ package main
 
 import	(
         "github.com/oklahomer/go-sarah"
+        "github.com/oklahomer/go-sarah/log"
         "github.com/oklahomer/go-sarah/plugins/hello"
         "github.com/oklahomer/go-sarah/slack"
         "github.com/oklahomer/golack/rtmapi"
@@ -149,6 +151,9 @@ import	(
         "gopkg.in/yaml.v2"
         "io/ioutil"
         "regexp"
+        "os"
+        "os/signal"
+        "syscall"
         "time"
 )
 
@@ -162,7 +167,7 @@ func main() {
         slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.NewCacheConfig())
 
         // Register desired command
-        slackBot.AppendCommand(hello.Command)
+        slackBot.AppendCommand(hello.SlackCommand)
 
         // Create a builder for simple command that requires no config struct.
         // sarah.StashCommandBuilder can be used to stash this builder and build Command on Runner.Run,
@@ -174,7 +179,7 @@ func main() {
                 Identifier("echo").
                 MatchPattern(regexp.MustCompile(`^\.echo`)).
                 Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-                        return sarah.NewStringResponse(input.Message()), nil
+                        return slack.NewStringResponse(input.Message()), nil
                 }).
                 InputExample(".echo knock knock").
                 MustBuild()
@@ -194,7 +199,7 @@ func main() {
                 Identifier("configurableCommandSample").
                 MatchPattern(regexp.MustCompile(`^\.complexCommand`)).
                 ConfigurableFunc(pluginConfig, func(_ context.Context, input sarah.Input, config sarah.Config) (*sarah.CommandResponse, error) {
-                        return sarah.NewStringResponse("return something"), nil
+                        return slack.NewStringResponse("return something"), nil
                 }).
                 InputExample(".echo knock knock")
         sarah.StashCommandBuilder(slack.SLACK, configCommandBuilder)
@@ -230,6 +235,17 @@ func main() {
 
         // Let runner run for 30 seconds and eventually stop it by context cancelation.
         time.Sleep(30 * time.Second)
-        cancelRunner()
+
+        func() {
+                c := make(chan os.Signal, 1)
+                signal.Notify(c, os.Interrupt)
+                signal.Notify(c, syscall.SIGTERM)
+
+                // block til signal comes
+		        <-c
+
+		        log.Info("stopping")
+		        cancelRunner()
+	    }()
 }
 ```
