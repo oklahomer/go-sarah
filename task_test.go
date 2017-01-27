@@ -99,7 +99,10 @@ func TestScheduledTaskBuilder_DefaultDestination(t *testing.T) {
 
 func TestScheduledTaskBuilder_ConfigurableFunc(t *testing.T) {
 	config := &DummyScheduledTaskConfig{}
-	taskFunc := func(_ context.Context, _ TaskConfig) ([]*ScheduledTaskResult, error) {
+	taskFunc := func(_ context.Context, c TaskConfig) ([]*ScheduledTaskResult, error) {
+		if _, ok := c.(*DummyScheduledTaskConfig); !ok {
+			t.Errorf("Unexpected config type is given %#v.", c)
+		}
 		return []*ScheduledTaskResult{
 			{
 				Content: "foo",

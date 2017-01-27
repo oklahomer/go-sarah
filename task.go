@@ -109,7 +109,7 @@ func (builder *ScheduledTaskBuilder) DefaultDestination(dest OutputDestination) 
 func (builder *ScheduledTaskBuilder) ConfigurableFunc(config TaskConfig, fn func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error)) *ScheduledTaskBuilder {
 	builder.config = config
 	builder.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
-		return fn(ctx, cfg)
+		return fn(ctx, cfg[0])
 	}
 	return builder
 }
