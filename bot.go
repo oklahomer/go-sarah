@@ -85,12 +85,16 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 		return nil
 	}
 
+	// https://github.com/oklahomer/go-sarah/issues/7
+	// Bot may return no message to client and still keep the client in the middle of conversational context.
+	// This may damage user experience since user is left in conversational context set by CommandResponse without any sort of notification.
 	if res.Next != nil {
 		bot.userContextCache.Set(senderKey, NewUserContext(res.Next))
 	}
-
-	message := NewOutputMessage(input.ReplyTo(), res.Content)
-	bot.SendMessage(ctx, message)
+	if res.Content != nil {
+		message := NewOutputMessage(input.ReplyTo(), res.Content)
+		bot.SendMessage(ctx, message)
+	}
 
 	return nil
 }
@@ -105,4 +109,12 @@ func (bot *defaultBot) AppendCommand(command Command) {
 
 func (bot *defaultBot) Run(ctx context.Context, receivedInput chan<- Input, errCh chan<- error) {
 	bot.runFunc(ctx, receivedInput, errCh)
+}
+
+// NewSuppressedResponseWithNext creates new sarah.CommandResponse instance with no message and next function to continue
+func NewSuppressedResponseWithNext(next ContextualFunc) *CommandResponse {
+	return &CommandResponse{
+		Content: nil,
+		Next:    next,
+	}
 }
