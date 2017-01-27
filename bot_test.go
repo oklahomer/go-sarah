@@ -66,17 +66,19 @@ func TestDefaultBot_AppendCommand(t *testing.T) {
 
 func TestDefaultBot_Respond_CacheAcquisitionError(t *testing.T) {
 	cacheError := errors.New("cache error")
-	dummyCache := &DummyCachedUserContexts{}
-	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
-		return nil, cacheError
+	dummyCache := &DummyCachedUserContexts{
+		GetFunc: func(_ string) (*UserContext, error) {
+			return nil, cacheError
+		},
 	}
 
 	myBot := &defaultBot{
 		userContextCache: dummyCache,
 	}
 
-	dummyInput := &DummyInput{}
-	dummyInput.SenderKeyValue = "senderKey"
+	dummyInput := &DummyInput{
+		SenderKeyValue: "senderKey",
+	}
 
 	err := myBot.Respond(context.TODO(), dummyInput)
 	if err != cacheError {
@@ -85,9 +87,10 @@ func TestDefaultBot_Respond_CacheAcquisitionError(t *testing.T) {
 }
 
 func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
-	dummyCache := &DummyCachedUserContexts{}
-	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
-		return nil, nil
+	dummyCache := &DummyCachedUserContexts{
+		GetFunc: func(_ string) (*UserContext, error) {
+			return nil, nil
+		},
 	}
 
 	myBot := &defaultBot{
@@ -95,9 +98,10 @@ func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 		commands:         NewCommands(),
 	}
 
-	dummyInput := &DummyInput{}
-	dummyInput.SenderKeyValue = "senderKey"
-	dummyInput.MessageValue = ".echo foo"
+	dummyInput := &DummyInput{
+		SenderKeyValue: "senderKey",
+		MessageValue:   ".echo foo",
+	}
 
 	err := myBot.Respond(context.TODO(), dummyInput)
 	if err != nil {
@@ -140,6 +144,7 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 		},
 	}
 	err := myBot.Respond(context.TODO(), &DummyInput{})
+
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %#v.", err)
 	}
@@ -154,45 +159,44 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 }
 
 func TestDefaultBot_Respond_WithContext(t *testing.T) {
-	dummyCache := &DummyCachedUserContexts{}
-	dummyCache.DeleteFunc = func(_ string) {
-		return
-	}
 	nextFunc := func(_ context.Context, input Input) (*CommandResponse, error) {
 		return nil, nil
 	}
 	responseContent := &struct{}{}
-	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
-		return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
-			return &CommandResponse{
-				Content: responseContent,
-				Next:    nextFunc,
-			}, nil
-		}), nil
-	}
-
 	var givenNext ContextualFunc
-	dummyCache.SetFunc = func(_ string, userContext *UserContext) {
-		givenNext = userContext.Next
+	dummyCache := &DummyCachedUserContexts{
+		DeleteFunc: func(_ string) {
+			return
+		},
+		GetFunc: func(_ string) (*UserContext, error) {
+			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
+				return &CommandResponse{
+					Content: responseContent,
+					Next:    nextFunc,
+				}, nil
+			}), nil
+		},
+		SetFunc: func(_ string, userContext *UserContext) {
+			givenNext = userContext.Next
+		},
 	}
 
 	var passedContent interface{}
 	var passedDestination OutputDestination
-	sendMessageFunc := func(_ context.Context, output Output) {
-		passedContent = output.Content()
-		passedDestination = output.Destination()
-	}
 	myBot := &defaultBot{
-		sendMessageFunc:  sendMessageFunc,
+		sendMessageFunc: func(_ context.Context, output Output) {
+			passedContent = output.Content()
+			passedDestination = output.Destination()
+		},
 		userContextCache: dummyCache,
 		commands:         NewCommands(),
 	}
 
-	replyDestination := "replyTo"
-	dummyInput := &DummyInput{}
-	dummyInput.SenderKeyValue = "senderKey"
-	dummyInput.MessageValue = ".echo foo"
-	dummyInput.ReplyToValue = replyDestination
+	dummyInput := &DummyInput{
+		SenderKeyValue: "senderKey",
+		MessageValue:   ".echo foo",
+		ReplyToValue:   "replyTo",
+	}
 
 	err := myBot.Respond(context.TODO(), dummyInput)
 	if err != nil {
@@ -207,32 +211,33 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 		t.Errorf("Expected message content is not passed: %#v.", passedContent)
 	}
 
-	if passedDestination != replyDestination {
+	if passedDestination != dummyInput.ReplyToValue {
 		t.Errorf("Expected reply destination is not passed: %#v.", passedDestination)
 	}
 }
 
 func TestDefaultBot_Respond_Abort(t *testing.T) {
-	dummyCache := &DummyCachedUserContexts{}
 	isCacheDeleted := false
-	dummyCache.DeleteFunc = func(_ string) {
-		isCacheDeleted = true
-	}
-	dummyCache.GetFunc = func(_ string) (*UserContext, error) {
-		return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
-			panic("Don't call me!!!")
-		}), nil
+	dummyCache := &DummyCachedUserContexts{
+		DeleteFunc: func(_ string) {
+			isCacheDeleted = true
+		},
+		GetFunc: func(_ string) (*UserContext, error) {
+			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
+				panic("Don't call me!!!")
+			}), nil
+		},
 	}
 
 	myBot := &defaultBot{
 		userContextCache: dummyCache,
 	}
 
-	replyDestination := "replyTo"
-	dummyInput := &DummyInput{}
-	dummyInput.SenderKeyValue = "senderKey"
-	dummyInput.MessageValue = ".abort"
-	dummyInput.ReplyToValue = replyDestination
+	dummyInput := &DummyInput{
+		SenderKeyValue: "senderKey",
+		MessageValue:   ".abort",
+		ReplyToValue:   "replyTo",
+	}
 
 	err := myBot.Respond(context.TODO(), dummyInput)
 	if err != nil {
@@ -245,10 +250,11 @@ func TestDefaultBot_Respond_Abort(t *testing.T) {
 
 func TestDefaultBot_Run(t *testing.T) {
 	adapterProcessed := false
-	runFunc := func(_ context.Context, _ chan<- Input, _ chan<- error) {
-		adapterProcessed = true
+	bot := &defaultBot{
+		runFunc: func(_ context.Context, _ chan<- Input, _ chan<- error) {
+			adapterProcessed = true
+		},
 	}
-	bot := &defaultBot{runFunc: runFunc}
 
 	inputReceiver := make(chan Input)
 	errCh := make(chan error)
@@ -264,10 +270,11 @@ func TestDefaultBot_Run(t *testing.T) {
 
 func TestDefaultBot_SendMessage(t *testing.T) {
 	adapterProcessed := false
-	sendMessageFunc := func(_ context.Context, _ Output) {
-		adapterProcessed = true
+	bot := &defaultBot{
+		sendMessageFunc: func(_ context.Context, _ Output) {
+			adapterProcessed = true
+		},
 	}
-	bot := &defaultBot{sendMessageFunc: sendMessageFunc}
 
 	output := NewOutputMessage(struct{}{}, struct{}{})
 	bot.SendMessage(context.TODO(), output)
