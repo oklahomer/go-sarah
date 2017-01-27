@@ -105,6 +105,54 @@ func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 	}
 }
 
+func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
+	var givenNext ContextualFunc
+	dummyCache := &DummyCachedUserContexts{
+		GetFunc: func(_ string) (*UserContext, error) {
+			return nil, nil
+		},
+		SetFunc: func(_ string, userContext *UserContext) {
+			givenNext = userContext.Next
+		},
+	}
+
+	nextFunc := func(_ context.Context, input Input) (*CommandResponse, error) {
+		return nil, nil
+	}
+	command := &DummyCommand{
+		MatchFunc: func(_ string) bool {
+			return true
+		},
+		ExecuteFunc: func(_ context.Context, _ Input) (*CommandResponse, error) {
+			return &CommandResponse{
+				Content: nil,
+				Next:    nextFunc,
+			}, nil
+		},
+	}
+
+	isSent := false
+	myBot := &defaultBot{
+		userContextCache: dummyCache,
+		commands:         &Commands{cmd: []Command{command}},
+		sendMessageFunc: func(_ context.Context, output Output) {
+			isSent = true
+		},
+	}
+	err := myBot.Respond(context.TODO(), &DummyInput{})
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %#v.", err)
+	}
+
+	if reflect.ValueOf(givenNext).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
+		t.Errorf("Unexpected ContextualFunc is set %#v.", givenNext)
+	}
+
+	if isSent == true {
+		t.Error("Unexpected call to Bot.SendMessage.")
+	}
+}
+
 func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	dummyCache := &DummyCachedUserContexts{}
 	dummyCache.DeleteFunc = func(_ string) {
@@ -226,5 +274,20 @@ func TestDefaultBot_SendMessage(t *testing.T) {
 
 	if adapterProcessed == false {
 		t.Error("Adapter.SendMessage is not called.")
+	}
+}
+
+func TestNewSuppressedResponseWithNext(t *testing.T) {
+	nextFunc := func(_ context.Context, input Input) (*CommandResponse, error) {
+		return nil, nil
+	}
+	res := NewSuppressedResponseWithNext(nextFunc)
+
+	if res == nil {
+		t.Fatal("CommandResponse is not initialized.")
+	}
+
+	if reflect.ValueOf(res.Next).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
+		t.Errorf("Unexpected ContextualFunc is set %#v.", res.Next)
 	}
 }
