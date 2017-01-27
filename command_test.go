@@ -332,28 +332,3 @@ func TestStripMessage(t *testing.T) {
 		t.Errorf("Unexpected return value: %s.", stripped)
 	}
 }
-
-func TestNewStringResponse(t *testing.T) {
-	str := "abc"
-	res := NewStringResponse(str)
-
-	if res.Content != str {
-		t.Errorf("expected content is not returned: %s.", res.Content)
-	}
-}
-
-func TestNewStringResponseWithNext(t *testing.T) {
-	str := "abc"
-	next := func(_ context.Context, _ Input) (*CommandResponse, error) {
-		return nil, nil
-	}
-	res := NewStringResponseWithNext(str, next)
-
-	if res.Content != str {
-		t.Errorf("expected content is not returned: %s.", res.Content)
-	}
-
-	if res.Next == nil {
-		t.Fatalf("expected next step is not returned: %#v.", res.Next)
-	}
-}

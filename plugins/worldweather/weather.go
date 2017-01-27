@@ -16,7 +16,7 @@ type CommandConfig struct {
 	APIKey string `yaml:"api_key"`
 }
 
-func CommandFunc(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.CommandResponse, error) {
+func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.CommandResponse, error) {
 	strippedMessage := sarah.StripMessage(MatchPattern, input.Message())
 
 	// Share client instance with later execution
@@ -27,16 +27,16 @@ func CommandFunc(ctx context.Context, input sarah.Input, config sarah.CommandCon
 	// If error is returned with HTTP request level, just let it know and quit.
 	if err != nil {
 		log.Errorf("Error on weather api reqeust: %s.", err.Error())
-		return sarah.NewStringResponse("Something went wrong with weather api request."), nil
+		return slack.NewStringResponse("Something went wrong with weather api request."), nil
 	}
 	// If status code of 200 is returned, which means successful API request, but still the content contains error message,
 	// notify the user and put him in "the middle of conversation" for further communication.
 	if resp.Data.HasError() {
 		errorDescription := resp.Data.Error[0].Message
-		return sarah.NewStringResponseWithNext(
+		return slack.NewStringResponseWithNext(
 			fmt.Sprintf("Error was returned: %s.\nInput location name to retry, please.", errorDescription),
 			func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
-				return CommandFunc(c, i, config)
+				return SlackCommandFunc(c, i, config)
 			},
 		), nil
 	}

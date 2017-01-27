@@ -142,3 +142,16 @@ func connectRoom(ctx context.Context, connector StreamConnector, room *Room, ret
 
 	return conn, err
 }
+
+// NewStringResponse creates new sarah.CommandResponse instance with given string.
+func NewStringResponse(responseContent string) *sarah.CommandResponse {
+	return NewStringResponseWithNext(responseContent, nil)
+}
+
+// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
+func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
+	return &sarah.CommandResponse{
+		Content: responseContent,
+		Next:    next,
+	}
+}

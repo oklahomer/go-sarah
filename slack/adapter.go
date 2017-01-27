@@ -271,6 +271,19 @@ func (message *MessageInput) ReplyTo() sarah.OutputDestination {
 	return message.event.Channel
 }
 
+// NewStringResponse creates new sarah.CommandResponse instance with given string.
+func NewStringResponse(responseContent string) *sarah.CommandResponse {
+	return NewStringResponseWithNext(responseContent, nil)
+}
+
+// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
+func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
+	return &sarah.CommandResponse{
+		Content: responseContent,
+		Next:    next,
+	}
+}
+
 // NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
 // Use NewStringResponse for simple text response.
 func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.CommandResponse {
