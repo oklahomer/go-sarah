@@ -215,6 +215,47 @@ func stopUnrecoverableBot(errNotifier <-chan error, stopBot context.CancelFunc) 
 	}
 }
 
+func botSupervisor(runnerCtx context.Context) (context.Context, func(error)) {
+	botCtx, cancel := context.WithCancel(runnerCtx)
+	errCh := make(chan error)
+
+	go func() {
+		for {
+			select {
+			case e := <-errCh:
+				switch e.(type) {
+				case *BotNonContinuableError:
+					cancel()
+					// Doesn't require return statement at this point.
+					// Call to cancel() causes Bot context cancellation, and hence below botCtx.Done block works.
+					// Until then let this case statement listen to other errors during Bot stopping stage, so that desired logging may work.
+				}
+
+			case <-botCtx.Done():
+				// Since the cancel() is locally stored in this botSupervisor function and is completely handled inside of this function,
+				// but botCtx can also be cancelled by upper level context: runner context.
+				// So be sure to subscribe to botCtx.Done()
+				return
+			}
+		}
+	}()
+
+	// Instead of simply returning a channel to receive error, return a function that receive error.
+	// This function takes care of channel blocking, so the calling Bot implementation does not have to worry about it.
+	errNotifier := func(err error) {
+		// Try notifying critical error state to runner, gives up if the runner is already stopping the corresponding Bot.
+		// This may occur when multiple parts of Bot/Adapter are notifying critical state and the first one caused Bot stop.
+		select {
+		case errCh <- err:
+			// Successfully sent without blocking.
+		default:
+			// Could not send because probably the bot context is already cancelled by preceding error notification.
+		}
+	}
+
+	return botCtx, errNotifier
+}
+
 // respond listens to incoming messages via channel.
 //
 // Each Bot enqueues incoming messages to runner's listening channel, and respond() receives them.

@@ -221,6 +221,32 @@ func Test_stopUnrecoverableBot(t *testing.T) {
 	}
 }
 
+func Test_botSupervisor_botErr(t *testing.T) {
+	rootCxt := context.Background()
+	botCtx, errSupervisor := botSupervisor(rootCxt)
+
+	select {
+	case <-botCtx.Done():
+		t.Error("Bot context should not be canceled at this point.")
+	default:
+		// O.K.
+	}
+
+	err := NewBotNonContinuableError("should stop")
+	errSupervisor(err)
+
+	blocked := true
+	go func() {
+		errSupervisor(NewBotNonContinuableError("call after context cancellation should not block"))
+		blocked = false
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	if blocked {
+		t.Error("Call after context cancellation blocks.")
+	}
+}
+
 func Test_respond(t *testing.T) {
 	isCalled := false
 	bot := &DummyBot{}
