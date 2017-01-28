@@ -205,7 +205,7 @@ func Test_executeScheduledTask(t *testing.T) {
 
 func Test_botSupervisor(t *testing.T) {
 	rootCxt := context.Background()
-	botCtx, errSupervisor := botSupervisor(rootCxt)
+	botCtx, errSupervisor := botSupervisor(rootCxt, "DummyBotType")
 
 	select {
 	case <-botCtx.Done():

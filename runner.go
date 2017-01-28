@@ -79,7 +79,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		log.Infof("starting %s", botType.String())
 
 		// each Bot has its own context propagating Runner's lifecycle
-		botCtx, errNotifier := botSupervisor(ctx)
+		botCtx, errNotifier := botSupervisor(ctx, botType)
 
 		// run Bot
 		inputReceiver := make(chan Input)
@@ -200,7 +200,7 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	}
 }
 
-func botSupervisor(runnerCtx context.Context) (context.Context, func(error)) {
+func botSupervisor(runnerCtx context.Context, botType BotType) (context.Context, func(error)) {
 	botCtx, cancel := context.WithCancel(runnerCtx)
 	errCh := make(chan error)
 
@@ -210,6 +210,7 @@ func botSupervisor(runnerCtx context.Context) (context.Context, func(error)) {
 			case e := <-errCh:
 				switch e.(type) {
 				case *BotNonContinuableError:
+					log.Errorf("stop unrecoverable bot. BotType: %s. error: %s.", botType.String(), e.Error())
 					cancel()
 					// Doesn't require return statement at this point.
 					// Call to cancel() causes Bot context cancellation, and hence below botCtx.Done block works.
@@ -220,6 +221,7 @@ func botSupervisor(runnerCtx context.Context) (context.Context, func(error)) {
 				// Since the cancel() is locally stored in this botSupervisor function and is completely handled inside of this function,
 				// but botCtx can also be cancelled by upper level context: runner context.
 				// So be sure to subscribe to botCtx.Done()
+				log.Infof("stop supervising bot critical error due to context cancelation: %s.", botType.String())
 				return
 			}
 		}
