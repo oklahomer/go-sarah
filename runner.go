@@ -79,14 +79,12 @@ func (runner *Runner) Run(ctx context.Context) {
 		log.Infof("starting %s", botType.String())
 
 		// each Bot has its own context propagating Runner's lifecycle
-		botCtx, cancelBot := context.WithCancel(ctx)
+		botCtx, errNotifier := botSupervisor(ctx)
 
 		// run Bot
 		inputReceiver := make(chan Input)
-		errCh := make(chan error)
 		go respond(botCtx, bot, inputReceiver, workerJob)
-		go stopUnrecoverableBot(errCh, cancelBot)
-		go bot.Run(botCtx, inputReceiver, errCh)
+		go bot.Run(botCtx, inputReceiver, errNotifier)
 
 		// setup config directory
 		var configDir string
@@ -199,19 +197,6 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 
 		message := NewOutputMessage(dest, res.Content)
 		bot.SendMessage(ctx, message)
-	}
-}
-
-// stopUnrecoverableBot receives error from Bot, check if the error is critical, and stop the bot if required.
-func stopUnrecoverableBot(errNotifier <-chan error, stopBot context.CancelFunc) {
-	for {
-		err := <-errNotifier
-		switch err := err.(type) {
-		case *BotNonContinuableError:
-			log.Errorf("stop unrecoverable bot: %s", err.Error())
-			stopBot()
-			return
-		}
 	}
 }
 

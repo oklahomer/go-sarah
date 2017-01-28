@@ -35,11 +35,11 @@ func (adapter *Adapter) BotType() sarah.BotType {
 }
 
 // Run fetches all belonging Room and connects to them.
-func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errCh chan<- error) {
+func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errNotifier func(error)) {
 	// fetch joined rooms
 	rooms, err := fetchRooms(ctx, adapter.restAPIClient, adapter.config.RetryLimit, adapter.config.RetryInterval)
 	if err != nil {
-		errCh <- sarah.NewBotNonContinuableError(err.Error())
+		errNotifier(sarah.NewBotNonContinuableError(err.Error()))
 		return
 	}
 

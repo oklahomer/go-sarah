@@ -99,7 +99,7 @@ func TestRunner_Run(t *testing.T) {
 	bot.AppendCommandFunc = func(cmd Command) {
 		passedCommand = cmd
 	}
-	bot.RunFunc = func(_ context.Context, _ chan<- Input, _ chan<- error) {
+	bot.RunFunc = func(_ context.Context, _ chan<- Input, _ func(error)) {
 		return
 	}
 
@@ -203,25 +203,7 @@ func Test_executeScheduledTask(t *testing.T) {
 	}
 }
 
-func Test_stopUnrecoverableBot(t *testing.T) {
-	rootCtx := context.Background()
-	botCtx, cancelBot := context.WithCancel(rootCtx)
-	errCh := make(chan error)
-
-	go stopUnrecoverableBot(errCh, cancelBot)
-	if err := botCtx.Err(); err != nil {
-		t.Fatal("Context.Err() should be nil before error is given.")
-	}
-
-	errCh <- NewBotNonContinuableError("")
-
-	time.Sleep(100 * time.Millisecond)
-	if err := botCtx.Err(); err == nil {
-		t.Fatal("Expecting an error at this point.")
-	}
-}
-
-func Test_botSupervisor_botErr(t *testing.T) {
+func Test_botSupervisor(t *testing.T) {
 	rootCxt := context.Background()
 	botCtx, errSupervisor := botSupervisor(rootCxt)
 
