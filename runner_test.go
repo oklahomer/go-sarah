@@ -217,14 +217,16 @@ func Test_botSupervisor(t *testing.T) {
 	err := NewBotNonContinuableError("should stop")
 	errSupervisor(err)
 
-	blocked := true
+	nonBlocking := make(chan bool)
 	go func() {
 		errSupervisor(NewBotNonContinuableError("call after context cancellation should not block"))
-		blocked = false
+		nonBlocking <- true
 	}()
 
-	time.Sleep(100 * time.Millisecond)
-	if blocked {
+	select {
+	case <-nonBlocking:
+		// O.K.
+	case <-time.NewTimer(1 * time.Second).C:
 		t.Error("Call after context cancellation blocks.")
 	}
 }
