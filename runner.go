@@ -8,6 +8,7 @@ import (
 	"golang.org/x/net/context"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -83,7 +84,10 @@ func (runner *Runner) Run(ctx context.Context) {
 		panic(fmt.Sprintf("failed to run watcher: %s.", err.Error()))
 	}
 
+	var wg sync.WaitGroup
 	for _, bot := range runner.bots {
+		wg.Add(1)
+
 		botType := bot.BotType()
 		log.Infof("starting %s", botType.String())
 
@@ -145,7 +149,16 @@ func (runner *Runner) Run(ctx context.Context) {
 				log.Errorf("failed to watch %s: %s", configDir, err.Error())
 			}
 		}
+
+		go func(c context.Context) {
+			select {
+			case <-c.Done():
+				wg.Done()
+			}
+		}(botCtx)
 	}
+
+	wg.Wait()
 }
 
 func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {

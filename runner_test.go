@@ -93,11 +93,11 @@ func TestRunner_Run(t *testing.T) {
 	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
 
 	// Prepare Bot to be run
-	var passedCommand Command
+	passedCommand := make(chan Command, 1)
 	bot := &DummyBot{
 		BotTypeValue: botType,
 		AppendCommandFunc: func(cmd Command) {
-			passedCommand = cmd
+			passedCommand <- cmd
 		},
 		RunFunc: func(_ context.Context, _ chan<- Input, _ func(error)) {
 			return
@@ -119,15 +119,29 @@ func TestRunner_Run(t *testing.T) {
 	// Let it run
 	rootCtx := context.Background()
 	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
-	defer func() {
-		cancelRunner()
+	finished := make(chan bool)
+	go func() {
+		runner.Run(runnerCtx)
+		finished <- true
 	}()
-	runner.Run(runnerCtx)
 
-	// Tests follow
+	time.Sleep(1 * time.Second)
+	cancelRunner()
 
-	if passedCommand == nil || passedCommand.Identifier() != commandBuilder.identifier {
-		t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
+	select {
+	case cmd := <-passedCommand:
+		if cmd == nil || cmd.Identifier() != commandBuilder.identifier {
+			t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
+		}
+	case <-time.NewTicker(10 * time.Second).C:
+		t.Fatal("CommandBuilder was not properly built.")
+	}
+
+	select {
+	case <-finished:
+		// O.K.
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Runner is not finished.")
 	}
 }
 
