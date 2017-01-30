@@ -79,14 +79,12 @@ func (runner *Runner) Run(ctx context.Context) {
 		log.Infof("starting %s", botType.String())
 
 		// each Bot has its own context propagating Runner's lifecycle
-		botCtx, cancelBot := context.WithCancel(ctx)
+		botCtx, errNotifier := botSupervisor(ctx, botType)
 
 		// run Bot
 		inputReceiver := make(chan Input)
-		errCh := make(chan error)
 		go respond(botCtx, bot, inputReceiver, workerJob)
-		go stopUnrecoverableBot(errCh, cancelBot)
-		go bot.Run(botCtx, inputReceiver, errCh)
+		go bot.Run(botCtx, inputReceiver, errNotifier)
 
 		// setup config directory
 		var configDir string
@@ -202,17 +200,60 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	}
 }
 
-// stopUnrecoverableBot receives error from Bot, check if the error is critical, and stop the bot if required.
-func stopUnrecoverableBot(errNotifier <-chan error, stopBot context.CancelFunc) {
-	for {
-		err := <-errNotifier
-		switch err := err.(type) {
-		case *BotNonContinuableError:
-			log.Errorf("stop unrecoverable bot: %s", err.Error())
-			stopBot()
-			return
+func botSupervisor(runnerCtx context.Context, botType BotType) (context.Context, func(error)) {
+	botCtx, cancel := context.WithCancel(runnerCtx)
+	errCh := make(chan error)
+
+	// Run a goroutine that supervises Bot's critical state.
+	// If critical error is sent from Bot, this cancels Bot context to finish its lifecycle.
+	// Bot itself MUST not kill itself, but the Runner does. Beware that Runner takes care of all related components' lifecycle.
+	activated := make(chan struct{})
+	go func() {
+		signalVal := struct{}{} // avoid multiple construction
+		for {
+			select {
+			case activated <- signalVal:
+				// Send sentinel value to make sure this goroutine is all ready by the end of this method call.
+				// This blocks once the value is sent because of the nature of non-buffered channel and one-time subscription.
+
+			case e := <-errCh:
+				switch e.(type) {
+				case *BotNonContinuableError:
+					log.Errorf("stop unrecoverable bot. BotType: %s. error: %s.", botType.String(), e.Error())
+					cancel()
+					// Doesn't require return statement at this point.
+					// Call to cancel() causes Bot context cancellation, and hence below botCtx.Done block works.
+					// Until then let this case statement listen to other errors during Bot stopping stage, so that desired logging may work.
+				}
+
+			case <-botCtx.Done():
+				// Since the cancel() is locally stored in this botSupervisor function and is completely handled inside of this function,
+				// but botCtx can also be cancelled by upper level context: runner context.
+				// So be sure to subscribe to botCtx.Done()
+				log.Infof("stop supervising bot critical error due to context cancelation: %s.", botType.String())
+				return
+			}
+		}
+	}()
+	// Wait til above goroutine is ready.
+	// Test shows there is a chance that goroutine is not fully activated right after this method call,
+	// so if critical error is notified soon after this setup, the error may fall into default case in the below select statement.
+	<-activated
+
+	// Instead of simply returning a channel to receive error, return a function that receive error.
+	// This function takes care of channel blocking, so the calling Bot implementation does not have to worry about it.
+	errNotifier := func(err error) {
+		// Try notifying critical error state to runner, gives up if the runner is already stopping the corresponding Bot.
+		// This may occur when multiple parts of Bot/Adapter are notifying critical state and the first one caused Bot stop.
+		select {
+		case errCh <- err:
+			// Successfully sent without blocking.
+		default:
+			// Could not send because probably the bot context is already cancelled by preceding error notification.
 		}
 	}
+
+	return botCtx, errNotifier
 }
 
 // respond listens to incoming messages via channel.
