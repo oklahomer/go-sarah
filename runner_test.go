@@ -214,19 +214,27 @@ func Test_botSupervisor(t *testing.T) {
 		// O.K.
 	}
 
-	err := NewBotNonContinuableError("should stop")
-	errSupervisor(err)
+	errSupervisor(NewBotNonContinuableError("should stop"))
+
+	select {
+	case <-botCtx.Done():
+		// O.K.
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Bot context should be canceled at this point.")
+	}
+	if e := botCtx.Err(); e != context.Canceled {
+		t.Errorf("botCtx.Err() must return context.Canceled, but was %#v", e)
+	}
 
 	nonBlocking := make(chan bool)
 	go func() {
 		errSupervisor(NewBotNonContinuableError("call after context cancellation should not block"))
 		nonBlocking <- true
 	}()
-
 	select {
 	case <-nonBlocking:
 		// O.K.
-	case <-time.NewTimer(1 * time.Second).C:
+	case <-time.NewTimer(10 * time.Second).C:
 		t.Error("Call after context cancellation blocks.")
 	}
 }

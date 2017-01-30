@@ -204,9 +204,18 @@ func botSupervisor(runnerCtx context.Context, botType BotType) (context.Context,
 	botCtx, cancel := context.WithCancel(runnerCtx)
 	errCh := make(chan error)
 
+	// Run a goroutine that supervises Bot's critical state.
+	// If critical error is sent from Bot, this cancels Bot context to finish its lifecycle.
+	// Bot itself MUST not kill itself, but the Runner does. Beware that Runner takes care of all related components' lifecycle.
+	activated := make(chan struct{})
 	go func() {
+		signalVal := struct{}{} // avoid multiple construction
 		for {
 			select {
+			case activated <- signalVal:
+				// Send sentinel value to make sure this goroutine is all ready by the end of this method call.
+				// This blocks once the value is sent because of the nature of non-buffered channel and one-time subscription.
+
 			case e := <-errCh:
 				switch e.(type) {
 				case *BotNonContinuableError:
@@ -226,6 +235,10 @@ func botSupervisor(runnerCtx context.Context, botType BotType) (context.Context,
 			}
 		}
 	}()
+	// Wait til above goroutine is ready.
+	// Test shows there is a chance that goroutine is not fully activated right after this method call,
+	// so if critical error is notified soon after this setup, the error may fall into default case in the below select statement.
+	<-activated
 
 	// Instead of simply returning a channel to receive error, return a function that receive error.
 	// This function takes care of channel blocking, so the calling Bot implementation does not have to worry about it.
