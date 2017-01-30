@@ -47,8 +47,8 @@ func TestNewRunner(t *testing.T) {
 		t.Error("Bot slice is nil.")
 	}
 
-	if runner.scheduleUpdater == nil {
-		t.Error("schedule updators are not set.")
+	if runner.scheduledTasks == nil {
+		t.Error("scheduledTasks are not set.")
 	}
 }
 
@@ -93,23 +93,28 @@ func TestRunner_Run(t *testing.T) {
 	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
 
 	// Prepare Bot to be run
-	bot := &DummyBot{}
-	bot.BotTypeValue = botType
 	var passedCommand Command
-	bot.AppendCommandFunc = func(cmd Command) {
-		passedCommand = cmd
-	}
-	bot.RunFunc = func(_ context.Context, _ chan<- Input, _ func(error)) {
-		return
+	bot := &DummyBot{
+		BotTypeValue: botType,
+		AppendCommandFunc: func(cmd Command) {
+			passedCommand = cmd
+		},
+		RunFunc: func(_ context.Context, _ chan<- Input, _ func(error)) {
+			return
+		},
 	}
 
 	// Configure Runner
 	runner := &Runner{
-		config:          NewConfig(),
-		bots:            []Bot{},
-		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
+		config: NewConfig(),
+		bots:   []Bot{bot},
+		scheduledTasks: map[BotType][]ScheduledTask{
+			bot.BotType(): []ScheduledTask{
+				&DummyScheduledTask{},
+				&DummyScheduledTask{ScheduleValue: "@every 1m"},
+			},
+		},
 	}
-	runner.bots = []Bot{bot}
 
 	// Let it run
 	rootCtx := context.Background()
@@ -128,27 +133,21 @@ func TestRunner_Run(t *testing.T) {
 
 func TestRunner_RegisterScheduledTask(t *testing.T) {
 	runner := &Runner{
-		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
+		scheduledTasks: make(map[BotType][]ScheduledTask),
 	}
 
 	task := &DummyScheduledTask{
 		IdentifierValue: "foo",
 	}
 
-	if err := runner.RegisterScheduledTask("NON_REGISTERED", task); err != ErrBotNotFound {
-		t.Errorf("expected error is not returned %#v.", err)
-	}
-
 	var botType BotType = "Buzz"
-	isCalled := false
-	runner.scheduleUpdater[botType] = func(task ScheduledTask) error {
-		isCalled = true
-		return nil
-	}
 	runner.RegisterScheduledTask(botType, task)
-
-	if isCalled == false {
-		t.Error("given task is not registered.")
+	tasks, ok := runner.scheduledTasks[botType]
+	if !ok {
+		t.Fatal("Expected BotType is not stashed as key.")
+	}
+	if len(tasks) != 1 && tasks[0] != task {
+		t.Errorf("Expected task is not stashed: %#v", tasks)
 	}
 }
 
