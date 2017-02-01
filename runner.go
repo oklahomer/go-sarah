@@ -1,7 +1,6 @@
 package sarah
 
 import (
-	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
@@ -10,12 +9,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-)
-
-var (
-	// ErrBotNotFound depicts an error that corresponding Bot is not registered to Runner.
-	// This is returned when Bot related operation is given, but corresponding Bot is not registered, or is not ready.
-	ErrBotNotFound = errors.New("Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
 )
 
 type Config struct {
@@ -43,6 +36,7 @@ type Runner struct {
 	config         *Config
 	bots           []Bot
 	scheduledTasks map[BotType][]ScheduledTask
+	alerters       []Alerter
 }
 
 // NewRunner creates and return new Runner instance.
@@ -51,6 +45,7 @@ func NewRunner(config *Config) *Runner {
 		config:         config,
 		bots:           []Bot{},
 		scheduledTasks: make(map[BotType][]ScheduledTask),
+		alerters:       []Alerter{},
 	}
 }
 
@@ -66,6 +61,10 @@ func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask)
 	}
 
 	runner.scheduledTasks[botType] = append(tasks, task)
+}
+
+func (runner *Runner) RegisterAlerter(alerter Alerter) {
+	runner.alerters = append(runner.alerters, alerter)
 }
 
 // Run starts Bot interaction.
@@ -92,7 +91,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		log.Infof("starting %s", botType.String())
 
 		// each Bot has its own context propagating Runner's lifecycle
-		botCtx, errNotifier := botSupervisor(ctx, botType)
+		botCtx, errNotifier := botSupervisor(ctx, botType, runner.alerters)
 
 		// run Bot
 		inputReceiver := make(chan Input)
@@ -224,7 +223,7 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	}
 }
 
-func botSupervisor(runnerCtx context.Context, botType BotType) (context.Context, func(error)) {
+func botSupervisor(runnerCtx context.Context, botType BotType, alerters []Alerter) (context.Context, func(error)) {
 	botCtx, cancel := context.WithCancel(runnerCtx)
 	errCh := make(chan error)
 
@@ -245,6 +244,10 @@ func botSupervisor(runnerCtx context.Context, botType BotType) (context.Context,
 				case *BotNonContinuableError:
 					log.Errorf("stop unrecoverable bot. BotType: %s. error: %s.", botType.String(), e.Error())
 					cancel()
+					for _, alerter := range alerters {
+						alerter.Alert(runnerCtx, botType, e)
+					}
+
 					// Doesn't require return statement at this point.
 					// Call to cancel() causes Bot context cancellation, and hence below botCtx.Done block works.
 					// Until then let this case statement listen to other errors during Bot stopping stage, so that desired logging may work.

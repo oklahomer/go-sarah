@@ -69,6 +69,23 @@ func TestRunner_RegisterBot(t *testing.T) {
 	}
 }
 
+func TestRunner_RegisterAlerter(t *testing.T) {
+	runner := &Runner{}
+	runner.alerters = []Alerter{}
+
+	alerter := &DummyAlerter{}
+	runner.RegisterAlerter(alerter)
+
+	registeredAlerters := runner.alerters
+	if len(registeredAlerters) != 1 {
+		t.Fatalf("One and only one alerter should be registered, but actual number was %d.", len(registeredAlerters))
+	}
+
+	if registeredAlerters[0] != alerter {
+		t.Fatalf("Passed alerter is not registered: %#v.", registeredAlerters[0])
+	}
+}
+
 func TestRunner_Run(t *testing.T) {
 	var botType BotType = "myBot"
 
@@ -218,7 +235,15 @@ func Test_executeScheduledTask(t *testing.T) {
 
 func Test_botSupervisor(t *testing.T) {
 	rootCxt := context.Background()
-	botCtx, errSupervisor := botSupervisor(rootCxt, "DummyBotType")
+	alerted := make(chan bool)
+	alerters := []Alerter{
+		&DummyAlerter{
+			AlertFunc: func(_ context.Context, _ BotType, err error) {
+				alerted <- true
+			},
+		},
+	}
+	botCtx, errSupervisor := botSupervisor(rootCxt, "DummyBotType", alerters)
 
 	select {
 	case <-botCtx.Done():
@@ -237,6 +262,12 @@ func Test_botSupervisor(t *testing.T) {
 	}
 	if e := botCtx.Err(); e != context.Canceled {
 		t.Errorf("botCtx.Err() must return context.Canceled, but was %#v", e)
+	}
+	select {
+	case <-alerted:
+	// O.K.
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Alert should be sent at this point.")
 	}
 
 	nonBlocking := make(chan bool)
