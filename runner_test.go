@@ -47,8 +47,8 @@ func TestNewRunner(t *testing.T) {
 		t.Error("Bot slice is nil.")
 	}
 
-	if runner.scheduleUpdater == nil {
-		t.Error("schedule updators are not set.")
+	if runner.scheduledTasks == nil {
+		t.Error("scheduledTasks are not set.")
 	}
 }
 
@@ -110,62 +110,75 @@ func TestRunner_Run(t *testing.T) {
 	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
 
 	// Prepare Bot to be run
-	bot := &DummyBot{}
-	bot.BotTypeValue = botType
-	var passedCommand Command
-	bot.AppendCommandFunc = func(cmd Command) {
-		passedCommand = cmd
-	}
-	bot.RunFunc = func(_ context.Context, _ chan<- Input, _ func(error)) {
-		return
+	passedCommand := make(chan Command, 1)
+	bot := &DummyBot{
+		BotTypeValue: botType,
+		AppendCommandFunc: func(cmd Command) {
+			passedCommand <- cmd
+		},
+		RunFunc: func(_ context.Context, _ chan<- Input, _ func(error)) {
+			return
+		},
 	}
 
 	// Configure Runner
 	runner := &Runner{
-		config:          NewConfig(),
-		bots:            []Bot{},
-		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
+		config: NewConfig(),
+		bots:   []Bot{bot},
+		scheduledTasks: map[BotType][]ScheduledTask{
+			bot.BotType(): []ScheduledTask{
+				&DummyScheduledTask{},
+				&DummyScheduledTask{ScheduleValue: "@every 1m"},
+			},
+		},
 	}
-	runner.bots = []Bot{bot}
 
 	// Let it run
 	rootCtx := context.Background()
 	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
-	defer func() {
-		cancelRunner()
+	finished := make(chan bool)
+	go func() {
+		runner.Run(runnerCtx)
+		finished <- true
 	}()
-	runner.Run(runnerCtx)
 
-	// Tests follow
+	time.Sleep(1 * time.Second)
+	cancelRunner()
 
-	if passedCommand == nil || passedCommand.Identifier() != commandBuilder.identifier {
-		t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
+	select {
+	case cmd := <-passedCommand:
+		if cmd == nil || cmd.Identifier() != commandBuilder.identifier {
+			t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
+		}
+	case <-time.NewTicker(10 * time.Second).C:
+		t.Fatal("CommandBuilder was not properly built.")
+	}
+
+	select {
+	case <-finished:
+		// O.K.
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Runner is not finished.")
 	}
 }
 
 func TestRunner_RegisterScheduledTask(t *testing.T) {
 	runner := &Runner{
-		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
+		scheduledTasks: make(map[BotType][]ScheduledTask),
 	}
 
 	task := &DummyScheduledTask{
 		IdentifierValue: "foo",
 	}
 
-	if err := runner.RegisterScheduledTask("NON_REGISTERED", task); err != ErrBotNotFound {
-		t.Errorf("expected error is not returned %#v.", err)
-	}
-
 	var botType BotType = "Buzz"
-	isCalled := false
-	runner.scheduleUpdater[botType] = func(task ScheduledTask) error {
-		isCalled = true
-		return nil
-	}
 	runner.RegisterScheduledTask(botType, task)
-
-	if isCalled == false {
-		t.Error("given task is not registered.")
+	tasks, ok := runner.scheduledTasks[botType]
+	if !ok {
+		t.Fatal("Expected BotType is not stashed as key.")
+	}
+	if len(tasks) != 1 && tasks[0] != task {
+		t.Errorf("Expected task is not stashed: %#v", tasks)
 	}
 }
 

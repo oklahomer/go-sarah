@@ -1,20 +1,14 @@
 package sarah
 
 import (
-	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/worker"
 	"golang.org/x/net/context"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
-)
-
-var (
-	// ErrBotNotFound depicts an error that corresponding Bot is not registered to Runner.
-	// This is returned when Bot related operation is given, but corresponding Bot is not registered, or is not ready.
-	ErrBotNotFound = errors.New("Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
 )
 
 type Config struct {
@@ -39,25 +33,34 @@ func NewConfig() *Config {
 //
 // Developers can register desired number of Bot and Commands to create own bot experience.
 type Runner struct {
-	config          *Config
-	bots            []Bot
-	alerters        []Alerter
-	scheduleUpdater map[BotType]func(ScheduledTask) error
+	config         *Config
+	bots           []Bot
+	scheduledTasks map[BotType][]ScheduledTask
+	alerters       []Alerter
 }
 
 // NewRunner creates and return new Runner instance.
 func NewRunner(config *Config) *Runner {
 	return &Runner{
-		config:          config,
-		bots:            []Bot{},
-		alerters:        []Alerter{},
-		scheduleUpdater: make(map[BotType]func(ScheduledTask) error),
+		config:         config,
+		bots:           []Bot{},
+		scheduledTasks: make(map[BotType][]ScheduledTask),
+		alerters:       []Alerter{},
 	}
 }
 
 // RegisterBot register given Bot implementation's instance to runner instance
 func (runner *Runner) RegisterBot(bot Bot) {
 	runner.bots = append(runner.bots, bot)
+}
+
+func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask) {
+	tasks, ok := runner.scheduledTasks[botType]
+	if !ok {
+		tasks = []ScheduledTask{}
+	}
+
+	runner.scheduledTasks[botType] = append(tasks, task)
 }
 
 func (runner *Runner) RegisterAlerter(alerter Alerter) {
@@ -80,7 +83,10 @@ func (runner *Runner) Run(ctx context.Context) {
 		panic(fmt.Sprintf("failed to run watcher: %s.", err.Error()))
 	}
 
+	var wg sync.WaitGroup
 	for _, bot := range runner.bots {
+		wg.Add(1)
+
 		botType := bot.BotType()
 		log.Infof("starting %s", botType.String())
 
@@ -105,7 +111,6 @@ func (runner *Runner) Run(ctx context.Context) {
 		}
 
 		// Setup schedule registration function that tied to this particular bot type.
-		// This is stashed to runner instance, and later called by Runner.RegisterScheduledTask
 		updateSchedule := func(c context.Context, b Bot) func(ScheduledTask) error {
 			return func(t ScheduledTask) error {
 				log.Infof("registering task for %s: %s", b.BotType().String(), t.Identifier())
@@ -114,7 +119,19 @@ func (runner *Runner) Run(ctx context.Context) {
 				})
 			}
 		}(botCtx, bot) // Beware of closure...
-		runner.scheduleUpdater[botType] = updateSchedule
+
+		// set cron jobs with registered scheduled task
+		if tasks, ok := runner.scheduledTasks[botType]; ok {
+			for _, task := range tasks {
+				if task.Schedule() == "" {
+					log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), "No schedule given.")
+					continue
+				}
+				if err := updateSchedule(task); err != nil {
+					log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
+				}
+			}
+		}
 
 		// build scheduled task with stashed builder settings
 		tasks := stashedScheduledTaskBuilders.build(botType, configDir)
@@ -131,16 +148,16 @@ func (runner *Runner) Run(ctx context.Context) {
 				log.Errorf("failed to watch %s: %s", configDir, err.Error())
 			}
 		}
-	}
-}
 
-func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask) error {
-	updater, ok := runner.scheduleUpdater[botType]
-	if !ok {
-		return ErrBotNotFound
+		go func(c context.Context) {
+			select {
+			case <-c.Done():
+				wg.Done()
+			}
+		}(botCtx)
 	}
 
-	return updater(task)
+	wg.Wait()
 }
 
 func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
