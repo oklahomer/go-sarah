@@ -154,7 +154,6 @@ import	(
         "os"
         "os/signal"
         "syscall"
-        "time"
 )
 
 func main() {
@@ -212,11 +211,6 @@ func main() {
         // Register declared bot.
         runner.RegisterBot(slackBot)
 
-        // Start interaction
-        rootCtx := context.Background()
-        runnerCtx, cancelRunner := context.WithCancel(rootCtx)
-        runner.Run(runnerCtx)
-
         // Register scheduled task that require no configuration.
         sarah.NewScheduledTaskBuilder().Identifier("scheduled").Func
         task := sarah.NewScheduledTaskBuilder().
@@ -233,19 +227,27 @@ func main() {
 		        MustBuild()
 		runner.RegisterScheduledTask(slack.SLACK, task)
 
-        // Let runner run for 30 seconds and eventually stop it by context cancelation.
-        time.Sleep(30 * time.Second)
+        // Start interaction
+        rootCtx := context.Background()
+        runnerCtx, cancelRunner := context.WithCancel(rootCtx)
+        runner.Run(runnerCtx)
+        runnerStop := make(chan struct{})
+        go func() {
+                runner.Run(runnerCtx)
+                runnerStop <- struct{}{}
+        }()
 
-        func() {
-                c := make(chan os.Signal, 1)
-                signal.Notify(c, os.Interrupt)
-                signal.Notify(c, syscall.SIGTERM)
+        c := make(chan os.Signal, 1)
+        signal.Notify(c, os.Interrupt)
+        signal.Notify(c, syscall.SIGTERM)
 
-                // block til signal comes
-		        <-c
-
-		        log.Info("stopping")
+        select {
+        case <-c:
+		        log.Info("Canceled Runner.")
 		        cancelRunner()
-	    }()
+        case <-runnerStop:
+                log.Error("Runner stopped.")
+                // Stop because all bots stopped
+	    }
 }
 ```
