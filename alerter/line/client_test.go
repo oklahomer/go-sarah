@@ -40,21 +40,35 @@ func TestClient_Alert(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
-	returningResponse := &struct {
+	responses := []*struct {
 		Status  int    `json:"status"`
 		Message string `json:"message"`
 	}{
-		Status:  200,
-		Message: "ok",
+		{
+			Status:  403,
+			Message: "forbidden",
+		},
+		{
+			Status:  200,
+			Message: "ok",
+		},
 	}
-	responder, _ := httpmock.NewJsonResponder(200, returningResponse)
-	httpmock.RegisterResponder("POST", Endpoint, responder)
 
-	config := NewConfig()
-	client := New(config)
-	err := client.Alert(context.TODO(), "DUMMY", errors.New("message"))
+	var errs []error
+	for _, r := range responses {
+		responder, _ := httpmock.NewJsonResponder(r.Status, r)
+		httpmock.RegisterResponder("POST", Endpoint, responder)
 
-	if err != nil {
-		t.Errorf("Unexpected error is returned: %s.", err.Error())
+		config := NewConfig()
+		client := New(config)
+		errs = append(errs, client.Alert(context.TODO(), "DUMMY", errors.New("message")))
+	}
+
+	if errs[0] == nil {
+		t.Error("Expected error is not returned.")
+	}
+
+	if errs[1] != nil {
+		t.Errorf("Unexpected error is returned: %s.", errs[1].Error())
 	}
 }
