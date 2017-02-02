@@ -238,8 +238,9 @@ func Test_botSupervisor(t *testing.T) {
 	alerted := make(chan bool)
 	alerters := []Alerter{
 		&DummyAlerter{
-			AlertFunc: func(_ context.Context, _ BotType, err error) {
+			AlertFunc: func(_ context.Context, _ BotType, err error) error {
 				alerted <- true
+				return nil
 			},
 		},
 	}

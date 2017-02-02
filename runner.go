@@ -245,7 +245,10 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters []Alerte
 					log.Errorf("stop unrecoverable bot. BotType: %s. error: %s.", botType.String(), e.Error())
 					cancel()
 					for _, alerter := range alerters {
-						alerter.Alert(runnerCtx, botType, e)
+						alertErr := alerter.Alert(runnerCtx, botType, e)
+						if alertErr != nil {
+							log.Errorf("failed to send alert via %T: %s", alerter, alertErr.Error())
+						}
 					}
 
 					// Doesn't require return statement at this point.
