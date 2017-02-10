@@ -116,7 +116,7 @@ func TestRunner_Run(t *testing.T) {
 		AppendCommandFunc: func(cmd Command) {
 			passedCommand <- cmd
 		},
-		RunFunc: func(_ context.Context, _ chan<- Input, _ func(error)) {
+		RunFunc: func(_ context.Context, _ func(Input), _ func(error)) {
 			return
 		},
 	}
@@ -284,28 +284,39 @@ func Test_botSupervisor(t *testing.T) {
 	}
 }
 
-func Test_respond(t *testing.T) {
-	isCalled := false
-	bot := &DummyBot{}
-	bot.RespondFunc = func(_ context.Context, _ Input) error {
-		isCalled = true
-		return errors.New("just a dummy error instance to check if the method is actually called.")
+func Test_setupInputReceiver(t *testing.T) {
+	rootCxt := context.Background()
+	botCtx, cancelBot := context.WithCancel(rootCxt)
+	workerJob := make(chan func(), 1) // Receive the first one and block following inputs.
+
+	responded := make(chan bool, 1)
+	bot := &DummyBot{
+		BotTypeValue: "DUMMY",
+		RespondFunc: func(_ context.Context, input Input) error {
+			responded <- true
+			return errors.New("error is returned, but still doesn't block")
+		},
 	}
 
-	inputReceiver := make(chan Input)
-	workerJob := make(chan func())
-
-	go respond(context.TODO(), bot, inputReceiver, workerJob)
-	inputReceiver <- &DummyInput{}
+	receiveInput := setupInputReceiver(botCtx, bot, workerJob)
+	time.Sleep(100 * time.Millisecond) // Why is this required...
+	receiveInput(&DummyInput{})        // Should be received
+	receiveInput(&DummyInput{})        // Channel is blocked, but function does not block
 
 	select {
-	case <-time.NewTimer(1 * time.Second).C:
-		t.Error("method did not finish within reasonable timeout.")
 	case job := <-workerJob:
 		job()
+		select {
+		case <-responded:
+			// O.K.
+		case <-time.NewTimer(10 * time.Second).C:
+			t.Error("Received input was not processed.")
+		}
+
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Job should be enqueued at this point.")
 	}
 
-	if isCalled == false {
-		t.Error("respond method is not called with supplied input.")
-	}
+	cancelBot()
+	receiveInput(&DummyInput{}) // Receiving goroutine is canceled, but does not block
 }

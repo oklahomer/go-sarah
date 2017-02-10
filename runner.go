@@ -94,9 +94,8 @@ func (runner *Runner) Run(ctx context.Context) {
 		botCtx, errNotifier := botSupervisor(ctx, botType, runner.alerters)
 
 		// run Bot
-		inputReceiver := make(chan Input)
-		go respond(botCtx, bot, inputReceiver, workerJob)
-		go bot.Run(botCtx, inputReceiver, errNotifier)
+		receiveInput := setupInputReceiver(botCtx, bot, workerJob)
+		go bot.Run(botCtx, receiveInput, errNotifier)
 
 		// setup config directory
 		var configDir string
@@ -286,26 +285,45 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters []Alerte
 	return botCtx, errNotifier
 }
 
-// respond listens to incoming messages via channel.
-//
-// Each Bot enqueues incoming messages to runner's listening channel, and respond() receives them.
-// When corresponding command is found, command is executed and the result can be passed to Bot's SendMessage method.
-func respond(botCtx context.Context, bot Bot, inputReceiver <-chan Input, workerJob chan<- func()) {
-	for {
-		select {
-		case <-botCtx.Done():
-			log.Info("stop responding to message due to context cancel")
-			return
-		case input := <-inputReceiver:
-			log.Debugf("responding to %#v", input)
+func setupInputReceiver(botCtx context.Context, bot Bot, workerJob chan<- func()) func(Input) {
+	incomingInput := make(chan Input)
 
-			workerJob <- func() {
-				err := bot.Respond(botCtx, input)
-				if err != nil {
-					log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
-					return
+	activated := make(chan struct{})
+	go func() {
+		signalVal := struct{}{} // avoid multiple construction
+		for {
+			select {
+			case activated <- signalVal:
+				// Send sentinel value to make sure this goroutine is all ready by the end of this method call.
+				// This blocks once the value is sent because of the nature of non-buffered channel and one-time subscription.
+
+			case input := <-incomingInput:
+				log.Debugf("responding to %#v", input)
+
+				workerJob <- func() {
+					err := bot.Respond(botCtx, input)
+					if err != nil {
+						log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
+					}
 				}
+				log.Debugf("enqueued %#v", input)
+
+			case <-botCtx.Done():
+				log.Infof("stop receiving bot input due to context cancelation: %s.", bot.BotType().String())
+				return
 			}
+		}
+	}()
+	// Wait til above goroutine is ready.
+	// Test shows there is a chance that goroutine is not fully activated right after this method call.
+	<-activated
+
+	return func(input Input) {
+		select {
+		case incomingInput <- input:
+			// Successfully sent without blocking
+		default:
+			// Could not send because probably the workers are too busy or the bot context is already cancecled.
 		}
 	}
 }
