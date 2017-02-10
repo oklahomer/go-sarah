@@ -107,8 +107,8 @@ func (bot *defaultBot) AppendCommand(command Command) {
 	bot.commands.Append(command)
 }
 
-func (bot *defaultBot) Run(ctx context.Context, inputReceiver func(Input), errNotifier func(error)) {
-	bot.runFunc(ctx, inputReceiver, errNotifier)
+func (bot *defaultBot) Run(ctx context.Context, enqueueInput func(Input), notifyErr func(error)) {
+	bot.runFunc(ctx, enqueueInput, notifyErr)
 }
 
 // NewSuppressedResponseWithNext creates new sarah.CommandResponse instance with no message and next function to continue

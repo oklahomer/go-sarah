@@ -31,8 +31,8 @@ func (bot *DummyBot) AppendCommand(command Command) {
 	bot.AppendCommandFunc(command)
 }
 
-func (bot *DummyBot) Run(ctx context.Context, receiveInput func(Input), errNotifier func(error)) {
-	bot.RunFunc(ctx, receiveInput, errNotifier)
+func (bot *DummyBot) Run(ctx context.Context, enqueueInput func(Input), notifyErr func(error)) {
+	bot.RunFunc(ctx, enqueueInput, notifyErr)
 }
 
 func Test_NewBot(t *testing.T) {

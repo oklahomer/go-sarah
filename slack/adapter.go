@@ -49,11 +49,11 @@ func (adapter *Adapter) BotType() sarah.BotType {
 	return SLACK
 }
 
-func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input), errNotifier func(error)) {
+func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input), notifyErr func(error)) {
 	for {
 		conn, err := adapter.connect(ctx)
 		if err != nil {
-			errNotifier(sarah.NewBotNonContinuableError(err.Error()))
+			notifyErr(sarah.NewBotNonContinuableError(err.Error()))
 			return
 		}
 
