@@ -32,12 +32,12 @@ type Bot interface {
 	// This may run in a blocking manner til given context is canceled since a new goroutine is allocated for this task.
 	// When the service provider sends message to us, convert that message payload to Input and send to Input channel.
 	// Runner will receive the Input instance and proceed to find and execute corresponding command.
-	Run(context.Context, chan<- Input, func(error))
+	Run(context.Context, func(Input), func(error))
 }
 
 type defaultBot struct {
 	botType          BotType
-	runFunc          func(context.Context, chan<- Input, func(error))
+	runFunc          func(context.Context, func(Input), func(error))
 	sendMessageFunc  func(context.Context, Output)
 	commands         *Commands
 	userContextCache UserContexts
@@ -107,8 +107,8 @@ func (bot *defaultBot) AppendCommand(command Command) {
 	bot.commands.Append(command)
 }
 
-func (bot *defaultBot) Run(ctx context.Context, receivedInput chan<- Input, errNotifier func(error)) {
-	bot.runFunc(ctx, receivedInput, errNotifier)
+func (bot *defaultBot) Run(ctx context.Context, inputReceiver func(Input), errNotifier func(error)) {
+	bot.runFunc(ctx, inputReceiver, errNotifier)
 }
 
 // NewSuppressedResponseWithNext creates new sarah.CommandResponse instance with no message and next function to continue

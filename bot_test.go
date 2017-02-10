@@ -12,7 +12,7 @@ type DummyBot struct {
 	RespondFunc       func(context.Context, Input) error
 	SendMessageFunc   func(context.Context, Output)
 	AppendCommandFunc func(Command)
-	RunFunc           func(context.Context, chan<- Input, func(error))
+	RunFunc           func(context.Context, func(Input), func(error))
 }
 
 func (bot *DummyBot) BotType() BotType {
@@ -31,8 +31,8 @@ func (bot *DummyBot) AppendCommand(command Command) {
 	bot.AppendCommandFunc(command)
 }
 
-func (bot *DummyBot) Run(ctx context.Context, input chan<- Input, errNotifier func(error)) {
-	bot.RunFunc(ctx, input, errNotifier)
+func (bot *DummyBot) Run(ctx context.Context, receiveInput func(Input), errNotifier func(error)) {
+	bot.RunFunc(ctx, receiveInput, errNotifier)
 }
 
 func Test_NewBot(t *testing.T) {
@@ -251,16 +251,15 @@ func TestDefaultBot_Respond_Abort(t *testing.T) {
 func TestDefaultBot_Run(t *testing.T) {
 	adapterProcessed := false
 	bot := &defaultBot{
-		runFunc: func(_ context.Context, _ chan<- Input, _ func(error)) {
+		runFunc: func(_ context.Context, _ func(Input), _ func(error)) {
 			adapterProcessed = true
 		},
 	}
 
-	inputReceiver := make(chan Input)
 	rootCtx := context.Background()
 	botCtx, cancelBot := context.WithCancel(rootCtx)
 	defer cancelBot()
-	bot.Run(botCtx, inputReceiver, func(_ error) {})
+	bot.Run(botCtx, func(_ Input) {}, func(_ error) {})
 
 	if adapterProcessed == false {
 		t.Error("Adapter.Run is not called.")

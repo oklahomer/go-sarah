@@ -49,7 +49,7 @@ func (adapter *Adapter) BotType() sarah.BotType {
 	return SLACK
 }
 
-func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errNotifier func(error)) {
+func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input), errNotifier func(error)) {
 	for {
 		conn, err := adapter.connect(ctx)
 		if err != nil {
@@ -68,7 +68,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.In
 		// Closing the channel is a control signal on the channel indicating that no more data follows."
 		tryPing := make(chan struct{}, 1)
 
-		go adapter.receivePayload(connCtx, conn, tryPing, receivedMessage)
+		go adapter.receivePayload(connCtx, conn, tryPing, enqueueInput)
 
 		// payload reception and other connection-related tasks must run in separate goroutines since receivePayload()
 		// internally blocks til entire payload is being read and iterates it over and over.
@@ -127,7 +127,7 @@ func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) 
 	return connectRTM(ctx, adapter.client, rtmSession, adapter.config.RetryLimit, adapter.config.RetryInterval)
 }
 
-func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, receivedMessage chan<- sarah.Input) {
+func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, enqueueInput func(sarah.Input)) {
 	for {
 		select {
 		case <-connCtx.Done():
@@ -155,8 +155,7 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 					log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
 				}
 			case *rtmapi.Message:
-				m := &MessageInput{event: p}
-				receivedMessage <- m
+				enqueueInput(&MessageInput{event: p})
 			case *rtmapi.Pong:
 				continue
 			case nil:

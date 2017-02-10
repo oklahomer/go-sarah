@@ -35,7 +35,7 @@ func (adapter *Adapter) BotType() sarah.BotType {
 }
 
 // Run fetches all belonging Room and connects to them.
-func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.Input, errNotifier func(error)) {
+func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input), errNotifier func(error)) {
 	// fetch joined rooms
 	rooms, err := fetchRooms(ctx, adapter.restAPIClient, adapter.config.RetryLimit, adapter.config.RetryInterval)
 	if err != nil {
@@ -44,7 +44,7 @@ func (adapter *Adapter) Run(ctx context.Context, receivedMessage chan<- sarah.In
 	}
 
 	for _, room := range *rooms {
-		go adapter.runEachRoom(ctx, room, receivedMessage)
+		go adapter.runEachRoom(ctx, room, enqueueInput)
 	}
 }
 
@@ -63,7 +63,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	}
 }
 
-func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMessage chan<- sarah.Input) {
+func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInput func(sarah.Input)) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -76,7 +76,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, receivedMes
 				return
 			}
 
-			connErr := receiveMessageRecursive(conn, receivedMessage)
+			connErr := receiveMessageRecursive(conn, enqueueInput)
 			conn.Close()
 			if connErr == nil {
 				// Connection is intentionally closed by caller.
@@ -105,7 +105,7 @@ func fetchRooms(ctx context.Context, fetcher RoomsFetcher, retrial uint, interva
 	return rooms, err
 }
 
-func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage chan<- sarah.Input) error {
+func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(sarah.Input)) error {
 	log.Infof("start receiving message")
 	for {
 		message, err := messageReceiver.Receive()
@@ -125,7 +125,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, receivedMessage ch
 			return err
 		}
 
-		receivedMessage <- message
+		enqueueInput(message)
 	}
 }
 
