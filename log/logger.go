@@ -9,31 +9,43 @@ import (
 
 // Level indicates what logging level the output is representing.
 // This typically indicates the severity of particular logging event.
-type Level string
+type Level uint
 
 var (
-	logger = newDefaultLogger()
-	mutex  = &sync.Mutex{}
+	outputLevel = DebugLevel
+	logger      = newDefaultLogger()
+	mutex       = &sync.Mutex{}
 )
 
 const (
-	// DebugLevel indicates the output is logged for debugging purpose.
-	DebugLevel Level = "DEBUG"
-
-	// InfoLevel is used to inform what is happening inside the application.
-	InfoLevel Level = "INFO"
-
-	// WarnLevel represents those events that are not critical, but deserves to note.
-	WarnLevel Level = "WARN"
-
 	// ErrorLevel indicates the error state of events. This must be noted and be fixed.
 	// In practical situation, fix may include lowering of the log level.
-	ErrorLevel Level = "ERROR"
+	ErrorLevel Level = iota
+
+	// WarnLevel represents those events that are not critical, but deserves to note.
+	WarnLevel
+
+	// InfoLevel is used to inform what is happening inside the application.
+	InfoLevel
+
+	// DebugLevel indicates the output is logged for debugging purpose.
+	DebugLevel
 )
 
 // String returns the stringified representation of log level.
 func (level Level) String() string {
-	return string(level)
+	switch level {
+	case DebugLevel:
+		return "DEBUG"
+	case InfoLevel:
+		return "INFO"
+	case WarnLevel:
+		return "WARN"
+	case ErrorLevel:
+		return "ERROR"
+	}
+
+	return "UNKNOWN"
 }
 
 // Logger defines the interface that can be used as logging tool in this application.
@@ -125,34 +137,58 @@ func SetLogger(l Logger) {
 	logger = l
 }
 
+// SetOutputLevel sets what logging level to output.
+// Application may call logging method any time, but Logger only outputs if the corresponding log level is equal to or higher than the level set here.
+func SetOutputLevel(level Level) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	outputLevel = level
+}
+
 func Debug(args ...interface{}) {
-	logger.Debug(args...)
+	if outputLevel >= DebugLevel {
+		logger.Debug(args...)
+	}
 }
 
 func Debugf(format string, args ...interface{}) {
-	logger.Debugf(format, args...)
+	if outputLevel >= DebugLevel {
+		logger.Debugf(format, args...)
+	}
 }
 
 func Info(args ...interface{}) {
-	logger.Info(args...)
+	if outputLevel >= InfoLevel {
+		logger.Info(args...)
+	}
 }
 
 func Infof(format string, args ...interface{}) {
-	logger.Infof(format, args...)
+	if outputLevel >= InfoLevel {
+		logger.Infof(format, args...)
+	}
 }
 
 func Warn(args ...interface{}) {
-	logger.Warn(args...)
+	if outputLevel >= WarnLevel {
+		logger.Warn(args...)
+	}
 }
 
 func Warnf(format string, args ...interface{}) {
-	logger.Warnf(format, args...)
+	if outputLevel >= WarnLevel {
+		logger.Warnf(format, args...)
+	}
 }
 
 func Error(args ...interface{}) {
-	logger.Error(args...)
+	if outputLevel >= ErrorLevel {
+		logger.Error(args...)
+	}
 }
 
 func Errorf(format string, args ...interface{}) {
-	logger.Errorf(format, args...)
+	if outputLevel >= ErrorLevel {
+		logger.Errorf(format, args...)
+	}
 }
