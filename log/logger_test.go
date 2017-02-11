@@ -80,8 +80,33 @@ func TestLevel_String(t *testing.T) {
 
 	for i, set := range testSets {
 		if set.level.String() != set.str {
-			t.Errorf("expected string value is not returned on test #%d: %s.", i, set.level.String())
+			t.Errorf("Expected string value is not returned on test #%d: %s.", i, set.level.String())
 		}
+	}
+}
+
+func Test_newDefaultLogger(t *testing.T) {
+	l := newDefaultLogger()
+
+	if l == nil {
+		t.Fatal("Instance of defaultLogger is not returned.")
+	}
+
+	if _, ok := l.(*defaultLogger); !ok {
+		t.Fatalf("Returned instance is not defaultLogger type: %#v.", l)
+	}
+}
+
+func TestNewWithStandardLogger(t *testing.T) {
+	standardLogger := log.New(bytes.NewBuffer([]byte{}), "", 0)
+	l := NewWithStandardLogger(standardLogger)
+
+	if l == nil {
+		t.Fatal("Instance of defaultLogger is not returned.")
+	}
+
+	if l.(*defaultLogger).logger != standardLogger {
+		t.Fatal("Given standard logger is not set.")
 	}
 }
 
@@ -98,6 +123,7 @@ func TestEachLevel(t *testing.T) {
 		level   Level
 		logFunc func(args ...interface{})
 	}{
+		// Access via logger instance
 		{
 			level:   DebugLevel,
 			logFunc: logger.Debug,
@@ -114,6 +140,24 @@ func TestEachLevel(t *testing.T) {
 			level:   ErrorLevel,
 			logFunc: logger.Error,
 		},
+
+		// Access to pre-set logger statically
+		{
+			level:   DebugLevel,
+			logFunc: Debug,
+		},
+		{
+			level:   InfoLevel,
+			logFunc: Info,
+		},
+		{
+			level:   WarnLevel,
+			logFunc: Warn,
+		},
+		{
+			level:   ErrorLevel,
+			logFunc: Error,
+		},
 	}
 
 	for i, test := range testSets {
@@ -122,7 +166,7 @@ func TestEachLevel(t *testing.T) {
 		test.logFunc(input, i)
 		expected := fmt.Sprintf("[%s] %s %d\n", test.level.String(), input, i)
 		if expected != b.String() {
-			t.Errorf("expected logging output is not given: %s", b.String())
+			t.Errorf("Expected logging output is not given: %s", b.String())
 		}
 	}
 }
@@ -140,6 +184,7 @@ func TestEachLevelWithFormat(t *testing.T) {
 		level   Level
 		logFunc func(string, ...interface{})
 	}{
+		// Access via logger instance
 		{
 			level:   DebugLevel,
 			logFunc: logger.Debugf,
@@ -156,6 +201,24 @@ func TestEachLevelWithFormat(t *testing.T) {
 			level:   ErrorLevel,
 			logFunc: logger.Errorf,
 		},
+
+		// Access to pre-set logger statically
+		{
+			level:   DebugLevel,
+			logFunc: Debugf,
+		},
+		{
+			level:   InfoLevel,
+			logFunc: Infof,
+		},
+		{
+			level:   WarnLevel,
+			logFunc: Warnf,
+		},
+		{
+			level:   ErrorLevel,
+			logFunc: Errorf,
+		},
 	}
 
 	for i, test := range testSets {
@@ -165,7 +228,7 @@ func TestEachLevelWithFormat(t *testing.T) {
 		test.logFunc(format, i, input)
 		expected := fmt.Sprintf("[%s] %s\n", test.level, fmt.Sprintf(format, i, input))
 		if expected != b.String() {
-			t.Errorf("expected logging output is not given: %s", b.String())
+			t.Errorf("Expected logging output is not given: %s", b.String())
 		}
 	}
 }
@@ -181,6 +244,6 @@ func TestSetLogger(t *testing.T) {
 	SetLogger(newLogger)
 
 	if logger != newLogger {
-		t.Errorf("assigned logger is not set: %#v.", logger)
+		t.Errorf("Assigned logger is not set: %#v.", logger)
 	}
 }

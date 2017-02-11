@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+// Level indicates what logging level the output is representing.
+// This typically indicates the severity of particular logging event.
 type Level string
 
 var (
@@ -15,16 +17,28 @@ var (
 )
 
 const (
+	// DebugLevel indicates the output is logged for debugging purpose.
 	DebugLevel Level = "DEBUG"
-	InfoLevel  Level = "INFO"
-	WarnLevel  Level = "WARN"
+
+	// InfoLevel is used to inform what is happening inside the application.
+	InfoLevel Level = "INFO"
+
+	// WarnLevel represents those events that are not critical, but deserves to note.
+	WarnLevel Level = "WARN"
+
+	// ErrorLevel indicates the error state of events. This must be noted and be fixed.
+	// In practical situation, fix may include lowering of the log level.
 	ErrorLevel Level = "ERROR"
 )
 
+// String returns the stringified representation of log level.
 func (level Level) String() string {
 	return string(level)
 }
 
+// Logger defines the interface that can be used as logging tool in this application.
+// Developer may provide a customized logger via SetLogger to modify behavior.
+// By default, instance of defaultLogger is set as default Logger just like http's DefaultClient.
 type Logger interface {
 	Debug(args ...interface{})
 	Debugf(format string, args ...interface{})
@@ -87,11 +101,24 @@ func (l *defaultLogger) outf(level Level, format string, args ...interface{}) {
 }
 
 func newDefaultLogger() Logger {
+	return NewWithStandardLogger(log.New(os.Stdout, "sarah ", log.LstdFlags|log.Llongfile))
+}
+
+// NewWithStandardLogger creates an instance of defaultLogger with Go's standard log.Logger.
+// This can be used when implementing Logger interface is too much of a task, but still a bit of modification to defaultLogger is required.
+//
+// Returning Logger can be fed to SetLogger to replace old defaultLogger.
+func NewWithStandardLogger(l *log.Logger) Logger {
 	return &defaultLogger{
-		logger: log.New(os.Stdout, "sarah ", log.LstdFlags|log.Llongfile),
+		logger: l,
 	}
 }
 
+// SetLogger receives struct that satisfies Logger interface, and set this as logger.
+// From this call forward, any call to logging method proxies arguments to corresponding logging method of given Logger.
+// e.g. call to log.Info points to Logger.Info.
+//
+// This method is "thread-safe."
 func SetLogger(l Logger) {
 	mutex.Lock()
 	defer mutex.Unlock()
