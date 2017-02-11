@@ -56,6 +56,7 @@ func (l *DummyLogger) Errorf(format string, args ...interface{}) {
 }
 
 func TestLevel_String(t *testing.T) {
+	var DummyLevel Level = 999
 	testSets := []struct {
 		level Level
 		str   string
@@ -75,6 +76,10 @@ func TestLevel_String(t *testing.T) {
 		{
 			ErrorLevel,
 			"ERROR",
+		},
+		{
+			DummyLevel,
+			"UNKNOWN",
 		},
 	}
 

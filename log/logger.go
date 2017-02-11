@@ -9,7 +9,7 @@ import (
 
 // Level indicates what logging level the output is representing.
 // This typically indicates the severity of particular logging event.
-type Level string
+type Level uint
 
 var (
 	logger = newDefaultLogger()
@@ -17,23 +17,34 @@ var (
 )
 
 const (
-	// DebugLevel indicates the output is logged for debugging purpose.
-	DebugLevel Level = "DEBUG"
-
-	// InfoLevel is used to inform what is happening inside the application.
-	InfoLevel Level = "INFO"
-
-	// WarnLevel represents those events that are not critical, but deserves to note.
-	WarnLevel Level = "WARN"
-
 	// ErrorLevel indicates the error state of events. This must be noted and be fixed.
 	// In practical situation, fix may include lowering of the log level.
-	ErrorLevel Level = "ERROR"
+	ErrorLevel Level = iota
+
+	// WarnLevel represents those events that are not critical, but deserves to note.
+	WarnLevel
+
+	// InfoLevel is used to inform what is happening inside the application.
+	InfoLevel
+
+	// DebugLevel indicates the output is logged for debugging purpose.
+	DebugLevel
 )
 
 // String returns the stringified representation of log level.
 func (level Level) String() string {
-	return string(level)
+	switch level {
+	case DebugLevel:
+		return "DEBUG"
+	case InfoLevel:
+		return "INFO"
+	case WarnLevel:
+		return "WARN"
+	case ErrorLevel:
+		return "ERROR"
+	}
+
+	return "UNKNOWN"
 }
 
 // Logger defines the interface that can be used as logging tool in this application.
