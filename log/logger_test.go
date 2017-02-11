@@ -238,6 +238,58 @@ func TestEachLevelWithFormat(t *testing.T) {
 	}
 }
 
+func TestSetOutputLevel(t *testing.T) {
+	b := bytes.NewBuffer([]byte{})
+	impl := logger.(*defaultLogger)
+	oldLogger := impl.logger
+	oldOutputLevel := outputLevel
+	impl.logger = log.New(b, "", 0)
+	defer func() {
+		impl.logger = oldLogger
+		outputLevel = oldOutputLevel
+	}()
+
+	testSets := []struct {
+		level   []Level
+		logFunc func(string, ...interface{})
+	}{
+		{
+			level:   []Level{DebugLevel},
+			logFunc: logger.Debugf,
+		},
+		{
+			level:   []Level{DebugLevel, InfoLevel},
+			logFunc: logger.Infof,
+		},
+		{
+			level:   []Level{DebugLevel, InfoLevel, WarnLevel},
+			logFunc: logger.Warnf,
+		},
+		{
+			level:   []Level{DebugLevel, InfoLevel, WarnLevel, ErrorLevel},
+			logFunc: logger.Errorf,
+		},
+	}
+
+	for i, test := range testSets {
+		for _, level := range []Level{DebugLevel, InfoLevel, WarnLevel, ErrorLevel} {
+			SetOutputLevel(level)
+
+			for _, outputAllowedLevel := range test.level {
+				_, _ = io.Copy(ioutil.Discard, b) // make sure the buffer is reset before each test
+				input := "test"
+				format := "%d : %s"
+				test.logFunc(format, i, input)
+				if level == outputAllowedLevel {
+					if b.String() == "" {
+						t.Errorf("Log output was expected, but there was none. OutputLevel: %s, Given Level: %s.", outputAllowedLevel.String(), level.String())
+					}
+				}
+			}
+		}
+	}
+}
+
 func TestSetLogger(t *testing.T) {
 	impl := logger.(*defaultLogger)
 	old := impl.logger
