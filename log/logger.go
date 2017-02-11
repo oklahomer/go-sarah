@@ -101,8 +101,16 @@ func (l *defaultLogger) outf(level Level, format string, args ...interface{}) {
 }
 
 func newDefaultLogger() Logger {
+	return NewWithStandardLogger(log.New(os.Stdout, "sarah ", log.LstdFlags|log.Llongfile))
+}
+
+// NewWithStandardLogger creates an instance of defaultLogger with Go's standard log.Logger.
+// This can be used when implementing Logger interface is too much of a task, but still a bit of modification to defaultLogger is required.
+//
+// Returning Logger can be fed to SetLogger to replace old defaultLogger.
+func NewWithStandardLogger(l *log.Logger) Logger {
 	return &defaultLogger{
-		logger: log.New(os.Stdout, "sarah ", log.LstdFlags|log.Llongfile),
+		logger: l,
 	}
 }
 

@@ -80,8 +80,33 @@ func TestLevel_String(t *testing.T) {
 
 	for i, set := range testSets {
 		if set.level.String() != set.str {
-			t.Errorf("expected string value is not returned on test #%d: %s.", i, set.level.String())
+			t.Errorf("Expected string value is not returned on test #%d: %s.", i, set.level.String())
 		}
+	}
+}
+
+func Test_newDefaultLogger(t *testing.T) {
+	l := newDefaultLogger()
+
+	if l == nil {
+		t.Fatal("Instance of defaultLogger is not returned.")
+	}
+
+	if _, ok := l.(*defaultLogger); !ok {
+		t.Fatalf("Returned instance is not defaultLogger type: %#v.", l)
+	}
+}
+
+func TestNewWithStandardLogger(t *testing.T) {
+	standardLogger := log.New(bytes.NewBuffer([]byte{}), "", 0)
+	l := NewWithStandardLogger(standardLogger)
+
+	if l == nil {
+		t.Fatal("Instance of defaultLogger is not returned.")
+	}
+
+	if l.(*defaultLogger).logger != standardLogger {
+		t.Fatal("Given standard logger is not set.")
 	}
 }
 
