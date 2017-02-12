@@ -116,7 +116,7 @@ func TestRunner_Run(t *testing.T) {
 		AppendCommandFunc: func(cmd Command) {
 			passedCommand <- cmd
 		},
-		RunFunc: func(_ context.Context, _ func(Input), _ func(error)) {
+		RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {
 			return
 		},
 	}
@@ -300,8 +300,15 @@ func Test_setupInputReceiver(t *testing.T) {
 
 	receiveInput := setupInputReceiver(botCtx, bot, workerJob)
 	time.Sleep(100 * time.Millisecond) // Why is this required...
-	receiveInput(&DummyInput{})        // Should be received
-	receiveInput(&DummyInput{})        // Channel is blocked, but function does not block
+	if err := receiveInput(&DummyInput{}); err != nil {
+		// Should be received
+		t.Errorf("Error should not be returned at this point: %s.", err.Error())
+	}
+
+	if err := receiveInput(&DummyInput{}); err == nil {
+		// Channel is blocked, but function does not block
+		t.Error("Error should be returned on this call.")
+	}
 
 	select {
 	case job := <-workerJob:
@@ -318,5 +325,8 @@ func Test_setupInputReceiver(t *testing.T) {
 	}
 
 	cancelBot()
-	receiveInput(&DummyInput{}) // Receiving goroutine is canceled, but does not block
+	if err := receiveInput(&DummyInput{}); err == nil {
+		// Receiving goroutine is canceled, but does not block
+		t.Error("Error should be returned on this call.")
+	}
 }

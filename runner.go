@@ -285,7 +285,7 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters []Alerte
 	return botCtx, errNotifier
 }
 
-func setupInputReceiver(botCtx context.Context, bot Bot, workerJob chan<- func()) func(Input) {
+func setupInputReceiver(botCtx context.Context, bot Bot, workerJob chan<- func()) func(Input) error {
 	incomingInput := make(chan Input)
 
 	activated := make(chan struct{})
@@ -318,12 +318,17 @@ func setupInputReceiver(botCtx context.Context, bot Bot, workerJob chan<- func()
 	// Test shows there is a chance that goroutine is not fully activated right after this method call.
 	<-activated
 
-	return func(input Input) {
+	continuousEnqueueErrCnt := 0
+	return func(input Input) error {
 		select {
 		case incomingInput <- input:
+			continuousEnqueueErrCnt = 0
 			// Successfully sent without blocking
+			return nil
 		default:
+			continuousEnqueueErrCnt++
 			// Could not send because probably the workers are too busy or the bot context is already cancecled.
+			return NewBlockedInputError(continuousEnqueueErrCnt)
 		}
 	}
 }
