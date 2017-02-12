@@ -25,7 +25,6 @@ func NewConfig() *Config {
 }
 
 // Run creates as many child workers as specified and start those child workers.
-// First argument, cancel channel, can be context.Context.Done to propagate upstream status change.
 func Run(ctx context.Context, config *Config) chan<- func() {
 	log.Infof("start workers")
 
