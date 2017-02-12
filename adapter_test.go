@@ -4,7 +4,7 @@ import "golang.org/x/net/context"
 
 type DummyAdapter struct {
 	BotTypeValue    BotType
-	RunFunc         func(context.Context, func(Input), func(error))
+	RunFunc         func(context.Context, func(Input) error, func(error))
 	SendMessageFunc func(context.Context, Output)
 }
 
@@ -12,7 +12,7 @@ func (adapter *DummyAdapter) BotType() BotType {
 	return adapter.BotTypeValue
 }
 
-func (adapter *DummyAdapter) Run(ctx context.Context, enqueueInput func(Input), notifyErr func(error)) {
+func (adapter *DummyAdapter) Run(ctx context.Context, enqueueInput func(Input) error, notifyErr func(error)) {
 	adapter.RunFunc(ctx, enqueueInput, notifyErr)
 }
 

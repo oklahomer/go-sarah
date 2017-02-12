@@ -49,7 +49,7 @@ func (adapter *Adapter) BotType() sarah.BotType {
 	return SLACK
 }
 
-func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input), notifyErr func(error)) {
+func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) error, notifyErr func(error)) {
 	for {
 		conn, err := adapter.connect(ctx)
 		if err != nil {
@@ -127,7 +127,7 @@ func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) 
 	return connectRTM(ctx, adapter.client, rtmSession, adapter.config.RetryLimit, adapter.config.RetryInterval)
 }
 
-func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, enqueueInput func(sarah.Input)) {
+func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, enqueueInput func(sarah.Input) error) {
 	for {
 		select {
 		case <-connCtx.Done():

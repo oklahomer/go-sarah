@@ -18,7 +18,7 @@ type Adapter interface {
 	// This may run in a blocking manner til given context is canceled since a new goroutine is allocated for this task.
 	// When the service provider sends message to us, convert that message payload to Input and send to Input channel.
 	// Runner will receive the Input instance and proceed to find and execute corresponding command.
-	Run(context.Context, func(Input), func(error))
+	Run(context.Context, func(Input) error, func(error))
 
 	// SendMessage sends message to corresponding service provider.
 	// This can be called by scheduled task or in response to input from service provider.

@@ -35,7 +35,7 @@ func (adapter *Adapter) BotType() sarah.BotType {
 }
 
 // Run fetches all belonging Room and connects to them.
-func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input), notifyErr func(error)) {
+func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) error, notifyErr func(error)) {
 	// fetch joined rooms
 	rooms, err := fetchRooms(ctx, adapter.restAPIClient, adapter.config.RetryLimit, adapter.config.RetryInterval)
 	if err != nil {
@@ -63,7 +63,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	}
 }
 
-func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInput func(sarah.Input)) {
+func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInput func(sarah.Input) error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -105,7 +105,7 @@ func fetchRooms(ctx context.Context, fetcher RoomsFetcher, retrial uint, interva
 	return rooms, err
 }
 
-func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(sarah.Input)) error {
+func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(sarah.Input) error) error {
 	log.Infof("start receiving message")
 	for {
 		message, err := messageReceiver.Receive()

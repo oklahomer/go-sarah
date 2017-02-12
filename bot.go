@@ -32,12 +32,12 @@ type Bot interface {
 	// This may run in a blocking manner til given context is canceled since a new goroutine is allocated for this task.
 	// When the service provider sends message to us, convert that message payload to Input and send to Input channel.
 	// Runner will receive the Input instance and proceed to find and execute corresponding command.
-	Run(context.Context, func(Input), func(error))
+	Run(context.Context, func(Input) error, func(error))
 }
 
 type defaultBot struct {
 	botType          BotType
-	runFunc          func(context.Context, func(Input), func(error))
+	runFunc          func(context.Context, func(Input) error, func(error))
 	sendMessageFunc  func(context.Context, Output)
 	commands         *Commands
 	userContextCache UserContexts
@@ -107,7 +107,7 @@ func (bot *defaultBot) AppendCommand(command Command) {
 	bot.commands.Append(command)
 }
 
-func (bot *defaultBot) Run(ctx context.Context, enqueueInput func(Input), notifyErr func(error)) {
+func (bot *defaultBot) Run(ctx context.Context, enqueueInput func(Input) error, notifyErr func(error)) {
 	bot.runFunc(ctx, enqueueInput, notifyErr)
 }
 
