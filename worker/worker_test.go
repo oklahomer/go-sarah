@@ -10,6 +10,14 @@ import (
 	"time"
 )
 
+type DummyReporter struct {
+	ReportQueueSizeFunc func(context.Context, int)
+}
+
+func (r *DummyReporter) ReportQueueSize(ctx context.Context, i int) {
+	r.ReportQueueSizeFunc(ctx, i)
+}
+
 func TestNewConfig(t *testing.T) {
 	config := NewConfig()
 	if config.QueueSize == 0 {
@@ -103,4 +111,50 @@ func TestRun(t *testing.T) {
 		panic("Panic! Catch me!!")
 	}
 	time.Sleep(100 * time.Millisecond)
+}
+
+func Test_superviseQueueLength(t *testing.T) {
+	job := make(chan func(), 10)
+	for i := 0; i < cap(job); i++ {
+		job <- func() {}
+	}
+
+	reportedSize := make(chan int, 1)
+	reporter := &DummyReporter{
+		ReportQueueSizeFunc: func(_ context.Context, i int) {
+			reportedSize <- i
+		},
+	}
+
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+	go superviseQueueLength(ctx, reporter, job, 1*time.Millisecond)
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case size := <-reportedSize:
+		if size != cap(job) {
+			t.Errorf("Expected report size to be %d, but was %d.", cap(job), size)
+		}
+	case <-time.NewTimer(1 * time.Second).C:
+		t.Fatal("Taking too long.")
+	}
+}
+
+func TestDefaultReporter_ReportQueueSize(t *testing.T) {
+	reportedSize := 0
+	reporter := &defaultReporter{
+		reportQueueSizeFunc: func(_ context.Context, i int) {
+			reportedSize = i
+		},
+	}
+
+	reportingSize := 100
+	reporter.ReportQueueSize(context.TODO(), reportingSize)
+
+	if reportedSize != reportingSize {
+		t.Errorf("Expected size %d, but was %d.", reportingSize, reportedSize)
+	}
 }
