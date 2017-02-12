@@ -78,12 +78,12 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 	removeFunc := func(botType BotType, taskID string) error {
 		botSchedule, ok := schedule[botType]
 		if !ok {
-			return fmt.Errorf("registered task not found: %s. %s.", botType.String(), taskID)
+			return fmt.Errorf("registered task for %s is not found with ID of %s", botType.String(), taskID)
 		}
 
 		storedID, ok := botSchedule[taskID]
 		if !ok {
-			return fmt.Errorf("registered task not found: %s. %s.", botType.String(), taskID)
+			return fmt.Errorf("task for %s is not found with ID of %s", botType.String(), taskID)
 		}
 
 		delete(botSchedule, taskID)
@@ -104,7 +104,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 
 		case add := <-s.updatingTask:
 			if add.task.Schedule() == "" {
-				add.err <- fmt.Errorf("empty schedule is given: %s.", add.task.Identifier())
+				add.err <- fmt.Errorf("empty schedule is given for %s", add.task.Identifier())
 			}
 
 			removeFunc(add.botType, add.task.Identifier())

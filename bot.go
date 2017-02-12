@@ -43,6 +43,15 @@ type defaultBot struct {
 	userContextCache UserContexts
 }
 
+// NewBot creates and returns new defaultBot instance with given Adapter.
+// While Adapter takes care of actual collaboration with each chat service provider,
+// defaultBot takes care of some common tasks including:
+//   - receive Input
+//   - find corresponding Command for Input
+//   - execute it
+//   - call Adapter.SendMessage to send output
+// The aim of defaultBot is to lessen the tasks of Adapter developer by providing some common tasks' implementations, and achieve easier creation of Bot implementation.
+// Hence this method returns Bot interface instead of any concrete instance so this can be ONLY treated as Bot implementation to be fed to Runner.RegisterBot.
 func NewBot(adapter Adapter, cacheConfig *CacheConfig) Bot {
 	return &defaultBot{
 		botType:          adapter.BotType(),

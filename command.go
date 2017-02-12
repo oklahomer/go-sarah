@@ -31,7 +31,7 @@ type CommandResponse struct {
 	Next    ContextualFunc
 }
 
-// Command defines interface that all Command must satisfy.
+// Command defines interface that all command MUST satisfy.
 type Command interface {
 	// Identifier returns unique id that represents this Command.
 	Identifier() string
@@ -140,6 +140,15 @@ type CommandConfig interface{}
 
 type commandFunc func(context.Context, Input, ...CommandConfig) (*CommandResponse, error)
 
+// CommandBuilder is a helper to create instance that implements Command.
+// While any struct that satisfies Command interface can be treated as so, this builder helps developers implement Command interface.
+// By calling CommandBuilder.Build when proper setting is done, an instance of simpleCommand is created with provided parameters.
+// This, of course, satisfies Command interface so can be passed to Bot.AppendCommand directly.
+//
+// When this is passed to Runner.StashCommandBuilder before Runner.Run, the Command is instanciated on Runner.Run.
+// One benefit of using Runner.StashCommandBuilder is that, if CommandConfig is set with CommandBuilder.ConfigurableFunc,
+// the CommandConfig is updated on-the-fly if corresponding configuration file is updated.
+// The search for configuration file is only available if Config.PluginConfigRoot is set.
 type CommandBuilder struct {
 	identifier   string
 	matchPattern *regexp.Regexp
@@ -195,7 +204,7 @@ func (builder *CommandBuilder) InputExample(example string) *CommandBuilder {
 	return builder
 }
 
-// build builds new Command instance with provided values.
+// Build builds new Command instance with provided values.
 func (builder *CommandBuilder) Build(configDir string) (Command, error) {
 	if builder.identifier == "" ||
 		builder.example == "" ||

@@ -10,10 +10,14 @@ import (
 )
 
 var (
+	// ErrTaskInsufficientArgument is returned when required parameters are not set.
 	ErrTaskInsufficientArgument = errors.New("Identifier and Func must be set.")
-	ErrTaskScheduleNotGiven     = errors.New("Task schedule is not set or given from config struct.")
+
+	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskBuilder's parameter or config.
+	ErrTaskScheduleNotGiven = errors.New("Task schedule is not set or given from config struct.")
 )
 
+// ScheduledTaskResult is a struct that ScheduledTask returns on its execution.
 type ScheduledTaskResult struct {
 	Content     interface{}
 	Destination OutputDestination
@@ -25,14 +29,20 @@ type taskFunc func(context.Context, ...TaskConfig) ([]*ScheduledTaskResult, erro
 // TaskConfig provides an interface that every task configuration must satisfy, which actually means empty.
 type TaskConfig interface{}
 
+// ScheduledConfig defines an interface that config with schedule MUST satisfy.
+// When no execution schedule is set with ScheduledTaskBuilder.Schedule, this value is taken as default on ScheduledTaskBuilder.Build.
 type ScheduledConfig interface {
 	Schedule() string
 }
 
+// DestinatedConfig defines an interface that config with default destination MUST satisfy.
+// When no default output destination is set with ScheduledTaskBuilder.DefaultDestination, this value is taken as default on ScheduledTaskBuilder.Build.
 type DestinatedConfig interface {
 	DefaultDestination() OutputDestination
 }
 
+// ScheduledTask defines interface that all scheduled task MUST satisfy.
+// As long as a struct satisfies this interface, the struct can be registered as ScheduledTask via Runner.RegisterScheduledTask.
 type ScheduledTask interface {
 	Identifier() string
 	Execute(context.Context) ([]*ScheduledTaskResult, error)
@@ -48,6 +58,7 @@ type scheduledTask struct {
 	config             TaskConfig
 }
 
+// Identifier returns unique ID of this task.
 func (task *scheduledTask) Identifier() string {
 	return task.identifier
 }
@@ -63,14 +74,18 @@ func (task *scheduledTask) Execute(ctx context.Context) ([]*ScheduledTaskResult,
 	return task.taskFunc(ctx, task.config)
 }
 
+// Schedule returns execution schedule.
 func (task *scheduledTask) Schedule() string {
 	return task.schedule
 }
 
+// DefaultDestination returns the default output destination of this task.
+// OutputDestination returned by task execution has higher priority.
 func (task *scheduledTask) DefaultDestination() OutputDestination {
 	return task.defaultDestination
 }
 
+// ScheduledTaskBuilder is a helper that creates scheduledTask with given parameter.
 type ScheduledTaskBuilder struct {
 	identifier         string
 	taskFunc           taskFunc
@@ -79,15 +94,20 @@ type ScheduledTaskBuilder struct {
 	config             TaskConfig
 }
 
+// NewScheduledTaskBuilder creates and returns ScheduledTaskBuilder instance.
 func NewScheduledTaskBuilder() *ScheduledTaskBuilder {
 	return &ScheduledTaskBuilder{}
 }
 
+// Identifier sets unique ID of this task.
+// This is used to identify re-configure tasks and replace old ones.
 func (builder *ScheduledTaskBuilder) Identifier(id string) *ScheduledTaskBuilder {
 	builder.identifier = id
 	return builder
 }
 
+// Func sets function to be called on task execution.
+// To set function that requires some sort of configuration struct, use ConfigurableFunc.
 func (builder *ScheduledTaskBuilder) Func(fn func(context.Context) ([]*ScheduledTaskResult, error)) *ScheduledTaskBuilder {
 	builder.config = nil
 	builder.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
@@ -96,16 +116,25 @@ func (builder *ScheduledTaskBuilder) Func(fn func(context.Context) ([]*Scheduled
 	return builder
 }
 
+// Schedule sets execution schedule.
+// Representation spec. is identical to that of github.com/robfig/cron.
 func (builder *ScheduledTaskBuilder) Schedule(schedule string) *ScheduledTaskBuilder {
 	builder.schedule = schedule
 	return builder
 }
 
+// DefaultDestination sets default output destination of this task.
+// OutputDestination returned by task execution has higher priority.
 func (builder *ScheduledTaskBuilder) DefaultDestination(dest OutputDestination) *ScheduledTaskBuilder {
 	builder.defaultDestination = dest
 	return builder
 }
 
+// ConfigurableFunc sets function for ScheduledTask with configuration struct.
+// Passed configuration struct is passed to function as a third argument.
+//
+// When this builder is stashed via StashScheduledTaskBuilder and Runner runs with Config.PluginConfigRoot,
+// configuration struct gets updated automatically when corresponding configuration file is modified.
 func (builder *ScheduledTaskBuilder) ConfigurableFunc(config TaskConfig, fn func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error)) *ScheduledTaskBuilder {
 	builder.config = config
 	builder.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
@@ -114,6 +143,7 @@ func (builder *ScheduledTaskBuilder) ConfigurableFunc(config TaskConfig, fn func
 	return builder
 }
 
+// Build creates instance of scheduledTask with given parameters.
 func (builder *ScheduledTaskBuilder) Build(configDir string) (ScheduledTask, error) {
 	if builder.identifier == "" || builder.taskFunc == nil {
 		return nil, ErrTaskInsufficientArgument

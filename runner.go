@@ -11,12 +11,15 @@ import (
 	"time"
 )
 
+// Config contains some configuration variables for Runner and its underlying structs.
 type Config struct {
 	Worker           *worker.Config `json:"worker" yaml:"worker"`
 	PluginConfigRoot string         `json:"plugin_config_root" yaml:"plugin_config_root"`
 	TimeZone         string         `json:"timezone" yaml:"timezone"`
 }
 
+// NewConfig creates and returns new Config instance with default settings.
+// Use json.Unmarshal, yaml.Unmarshal, or manual manipulation to overload default values.
 func NewConfig() *Config {
 	return &Config{
 		Worker: worker.NewConfig(),
@@ -49,11 +52,13 @@ func NewRunner(config *Config) *Runner {
 	}
 }
 
-// RegisterBot register given Bot implementation's instance to runner instance
+// RegisterBot register given Bot implementation to Runner instance
 func (runner *Runner) RegisterBot(bot Bot) {
 	runner.bots = append(runner.bots, bot)
 }
 
+// RegisterScheduledTask register given ScheduledTask implementation to Runner.
+// Once Runner.Run is called, registered tasks are scheduled and will be executed as configured.
 func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask) {
 	tasks, ok := runner.scheduledTasks[botType]
 	if !ok {
@@ -63,6 +68,8 @@ func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask)
 	runner.scheduledTasks[botType] = append(tasks, task)
 }
 
+// RegisterAlerter register given Alerter implementation to Runner instance.
+// Developer can register as many Alerters as one wishes.
 func (runner *Runner) RegisterAlerter(alerter Alerter) {
 	runner.alerters = append(runner.alerters, alerter)
 }
