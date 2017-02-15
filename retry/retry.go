@@ -6,24 +6,22 @@ import (
 	"time"
 )
 
-type Errors struct {
-	Errors []error
-}
+type Errors []error
 
 func NewErrors() *Errors {
-	return &Errors{Errors: []error{}}
+	return &Errors{}
 }
 
 func (e *Errors) Error() string {
 	errs := []string{}
-	for _, err := range e.Errors {
+	for _, err := range *e {
 		errs = append(errs, err.Error())
 	}
 	return strings.Join(errs, "\n")
 }
 
 func (e *Errors) appendError(err error) {
-	e.Errors = append(e.Errors, err)
+	*e = append(*e, err)
 }
 
 func Retry(trial uint, function func() error) error {

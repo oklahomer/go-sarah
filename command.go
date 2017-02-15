@@ -83,30 +83,28 @@ func StripMessage(pattern *regexp.Regexp, input string) string {
 }
 
 // Commands stashes all registered Command.
-type Commands struct {
-	cmd []Command
-}
+type Commands []Command
 
 // NewCommands creates and returns new Commands instance.
 func NewCommands() *Commands {
-	return &Commands{cmd: make([]Command, 0)}
+	return &Commands{}
 }
 
 // Append let developers register new Command to its internal stash.
 // If any command is registered with the same ID, the old one is replaced in favor of new one.
 func (commands *Commands) Append(command Command) {
 	// See if command with the same identifier exists.
-	for i, cmd := range commands.cmd {
+	for i, cmd := range *commands {
 		if cmd.Identifier() == command.Identifier() {
 			log.Infof("replacing old command in favor of newly appending one: %s.", command.Identifier())
-			commands.cmd[i] = command
+			(*commands)[i] = command
 			return
 		}
 	}
 
 	// Not stored, then append to the last.
 	log.Infof("appending new command: %s.", command.Identifier())
-	commands.cmd = append(commands.cmd, command)
+	*commands = append(*commands, command)
 }
 
 // FindFirstMatched look for first matching command by calling Command's Match method: First Command.Match to return true
@@ -115,7 +113,7 @@ func (commands *Commands) Append(command Command) {
 // This check is run in the order of Command registration: Earlier the Commands.Append is called, the command is checked
 // earlier. So register important Command first.
 func (commands *Commands) FindFirstMatched(text string) Command {
-	for _, command := range commands.cmd {
+	for _, command := range *commands {
 		if command.Match(text) {
 			return command
 		}

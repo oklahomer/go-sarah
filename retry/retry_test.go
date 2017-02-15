@@ -45,7 +45,7 @@ func TestRetry(t *testing.T) {
 			if !ok {
 				t.Errorf("Returned error is not RetryErrors: %#v.", err)
 			}
-			if uint(len(retryErr.Errors)) != trial {
+			if uint(len(*retryErr)) != trial {
 				t.Errorf("Something is wrong with retrial: %s.", err.Error())
 			}
 		} else {
@@ -62,7 +62,7 @@ func TestRetry(t *testing.T) {
 
 func TestNewErrors(t *testing.T) {
 	errs := NewErrors()
-	if errs.Errors == nil {
+	if errs == nil {
 		t.Fatal("Internal error stash is not initialized.")
 	}
 }

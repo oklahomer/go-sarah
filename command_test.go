@@ -184,13 +184,13 @@ func TestCommandBuilder_MustBuild(t *testing.T) {
 
 func TestNewCommands(t *testing.T) {
 	commands := NewCommands()
-	if commands.cmd == nil {
+	if commands == nil {
 		t.Error("Not properly initialized.")
 	}
 }
 
 func TestCommands_FindFirstMatched(t *testing.T) {
-	commands := &Commands{cmd: []Command{}}
+	commands := &Commands{}
 	matchedCommand := commands.FindFirstMatched("echo")
 	if matchedCommand != nil {
 		t.Fatalf("Something is returned while nothing other than nil may returned: %#v.", matchedCommand)
@@ -211,7 +211,7 @@ func TestCommands_FindFirstMatched(t *testing.T) {
 	irrelevantCommand2.MatchFunc = func(msg string) bool {
 		return false
 	}
-	commands.cmd = []Command{irrelevantCommand, echoCommand, irrelevantCommand2}
+	commands = &Commands{irrelevantCommand, echoCommand, irrelevantCommand2}
 
 	matchedCommand = commands.FindFirstMatched("echo")
 	if matchedCommand == nil {
@@ -224,7 +224,7 @@ func TestCommands_FindFirstMatched(t *testing.T) {
 }
 
 func TestCommands_ExecuteFirstMatched(t *testing.T) {
-	commands := &Commands{cmd: []Command{}}
+	commands := &Commands{}
 
 	input := &DummyInput{}
 	input.MessageValue = "echo foo"
@@ -243,7 +243,7 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 	echoCommand.ExecuteFunc = func(_ context.Context, _ Input) (*CommandResponse, error) {
 		return &CommandResponse{Content: ""}, nil
 	}
-	commands.cmd = []Command{echoCommand}
+	commands = &Commands{echoCommand}
 	response, err = commands.ExecuteFirstMatched(context.TODO(), input)
 	if err != nil {
 		t.Errorf("Unexpected error on command execution: %#v.", err)
@@ -264,16 +264,16 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 }
 
 func TestCommands_Append(t *testing.T) {
-	commands := &Commands{cmd: []Command{}}
+	commands := &Commands{}
 
 	command := &DummyCommand{}
 	commands.Append(command)
-	if len(commands.cmd) == 0 {
+	if len(*commands) == 0 {
 		t.Fatal("Provided command was not appended.")
 	}
 
-	if commands.cmd[0] != command {
-		t.Fatalf("Appended command is not the one provided: %#v", commands.cmd[0])
+	if (*commands)[0] != command {
+		t.Fatalf("Appended command is not the one provided: %#v", (*commands)[0])
 	}
 }
 

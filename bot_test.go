@@ -59,7 +59,7 @@ func TestDefaultBot_AppendCommand(t *testing.T) {
 	myBot.AppendCommand(command)
 
 	registeredCommands := myBot.commands
-	if len(registeredCommands.cmd) != 1 {
+	if len(*registeredCommands) != 1 {
 		t.Errorf("1 registered command should exists: %#v.", registeredCommands)
 	}
 }
@@ -138,7 +138,7 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 	isSent := false
 	myBot := &defaultBot{
 		userContextCache: dummyCache,
-		commands:         &Commands{cmd: []Command{command}},
+		commands:         &Commands{command},
 		sendMessageFunc: func(_ context.Context, output Output) {
 			isSent = true
 		},
