@@ -39,7 +39,7 @@ type Runner struct {
 	config         *Config
 	bots           []Bot
 	scheduledTasks map[BotType][]ScheduledTask
-	alerters       []Alerter
+	alerters       *alerters
 }
 
 // NewRunner creates and return new Runner instance.
@@ -48,7 +48,7 @@ func NewRunner(config *Config) *Runner {
 		config:         config,
 		bots:           []Bot{},
 		scheduledTasks: make(map[BotType][]ScheduledTask),
-		alerters:       []Alerter{},
+		alerters:       &alerters{},
 	}
 }
 
@@ -71,7 +71,7 @@ func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask)
 // RegisterAlerter register given Alerter implementation to Runner instance.
 // Developer can register as many Alerters as one wishes.
 func (runner *Runner) RegisterAlerter(alerter Alerter) {
-	runner.alerters = append(runner.alerters, alerter)
+	runner.alerters.appendAlerter(alerter)
 }
 
 // Run starts Bot interaction.
@@ -229,7 +229,7 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	}
 }
 
-func botSupervisor(runnerCtx context.Context, botType BotType, alerters []Alerter) (context.Context, func(error)) {
+func botSupervisor(runnerCtx context.Context, botType BotType, alerters *alerters) (context.Context, func(error)) {
 	botCtx, cancel := context.WithCancel(runnerCtx)
 	errCh := make(chan error)
 
@@ -250,11 +250,9 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters []Alerte
 				case *BotNonContinuableError:
 					log.Errorf("stop unrecoverable bot. BotType: %s. error: %s.", botType.String(), e.Error())
 					cancel()
-					for _, alerter := range alerters {
-						alertErr := alerter.Alert(runnerCtx, botType, e)
-						if alertErr != nil {
-							log.Errorf("failed to send alert via %T: %s", alerter, alertErr.Error())
-						}
+					err := alerters.alertAll(runnerCtx, botType, e)
+					if err != nil {
+						log.Errorf("failed to send alert for %s: %s", botType.String(), err.Error())
 					}
 
 					// Doesn't require return statement at this point.

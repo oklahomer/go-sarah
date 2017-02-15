@@ -71,18 +71,18 @@ func TestRunner_RegisterBot(t *testing.T) {
 
 func TestRunner_RegisterAlerter(t *testing.T) {
 	runner := &Runner{}
-	runner.alerters = []Alerter{}
+	runner.alerters = &alerters{}
 
 	alerter := &DummyAlerter{}
 	runner.RegisterAlerter(alerter)
 
 	registeredAlerters := runner.alerters
-	if len(registeredAlerters) != 1 {
-		t.Fatalf("One and only one alerter should be registered, but actual number was %d.", len(registeredAlerters))
+	if len(*registeredAlerters) != 1 {
+		t.Fatalf("One and only one alerter should be registered, but actual number was %d.", len(*registeredAlerters))
 	}
 
-	if registeredAlerters[0] != alerter {
-		t.Fatalf("Passed alerter is not registered: %#v.", registeredAlerters[0])
+	if (*registeredAlerters)[0] != alerter {
+		t.Fatalf("Passed alerter is not registered: %#v.", (*registeredAlerters)[0])
 	}
 }
 
@@ -236,7 +236,12 @@ func Test_executeScheduledTask(t *testing.T) {
 func Test_botSupervisor(t *testing.T) {
 	rootCxt := context.Background()
 	alerted := make(chan bool)
-	alerters := []Alerter{
+	alerters := &alerters{
+		&DummyAlerter{
+			AlertFunc: func(_ context.Context, _ BotType, err error) error {
+				panic("Panic should not affect other alerters' behavior.")
+			},
+		},
 		&DummyAlerter{
 			AlertFunc: func(_ context.Context, _ BotType, err error) error {
 				alerted <- true
