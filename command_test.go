@@ -266,7 +266,11 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 func TestCommands_Append(t *testing.T) {
 	commands := &Commands{}
 
-	command := &DummyCommand{}
+	command := &DummyCommand{
+		IdentifierValue: "first",
+	}
+
+	// First operation
 	commands.Append(command)
 	if len(*commands) == 0 {
 		t.Fatal("Provided command was not appended.")
@@ -274,6 +278,21 @@ func TestCommands_Append(t *testing.T) {
 
 	if (*commands)[0] != command {
 		t.Fatalf("Appended command is not the one provided: %#v", (*commands)[0])
+	}
+
+	// Second operation with same command
+	commands.Append(command)
+	if len(*commands) != 1 {
+		t.Fatalf("Expected only one command to stay, but was: %d.", len(*commands))
+	}
+
+	// Third operation with different command
+	anotherCommand := &DummyCommand{
+		IdentifierValue: "second",
+	}
+	commands.Append(anotherCommand)
+	if len(*commands) != 2 {
+		t.Fatalf("Expected 2 commands to stay, but was: %d.", len(*commands))
 	}
 }
 
