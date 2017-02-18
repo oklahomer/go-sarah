@@ -126,7 +126,7 @@ func TestRunner_Run(t *testing.T) {
 		config: NewConfig(),
 		bots:   []Bot{bot},
 		scheduledTasks: map[BotType][]ScheduledTask{
-			bot.BotType(): []ScheduledTask{
+			bot.BotType(): {
 				&DummyScheduledTask{},
 				&DummyScheduledTask{ScheduleValue: "@every 1m"},
 			},
