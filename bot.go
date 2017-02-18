@@ -76,7 +76,15 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	var res *CommandResponse
 	var err error
 	if userContext == nil {
-		res, err = bot.commands.ExecuteFirstMatched(ctx, input)
+		switch input.(type) {
+		case *HelpInput:
+			res = &CommandResponse{
+				Content: bot.commands.Helps(),
+				Next:    nil,
+			}
+		default:
+			res, err = bot.commands.ExecuteFirstMatched(ctx, input)
+		}
 	} else {
 		bot.userContextCache.Delete(senderKey)
 		if strings.TrimSpace(input.Message()) == ".abort" {

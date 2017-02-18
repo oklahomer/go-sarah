@@ -5,6 +5,7 @@ import (
 	"golang.org/x/net/context"
 	"reflect"
 	"testing"
+	"time"
 )
 
 type DummyBot struct {
@@ -245,6 +246,52 @@ func TestDefaultBot_Respond_Abort(t *testing.T) {
 	}
 	if isCacheDeleted == false {
 		t.Error("Cached context is not deleted.")
+	}
+}
+
+func TestDefaultBot_Respond_Help(t *testing.T) {
+	commandID := "id"
+	example := "e.g."
+	cmd := &DummyCommand{
+		IdentifierValue: commandID,
+		InputExampleFunc: func() string {
+			return example
+		},
+	}
+
+	var givenOutput Output
+	dummyCache := &DummyCachedUserContexts{
+		GetFunc: func(_ string) (*UserContext, error) {
+			return nil, nil
+		},
+	}
+	myBot := &defaultBot{
+		userContextCache: dummyCache,
+		commands:         &Commands{cmd},
+		sendMessageFunc: func(_ context.Context, output Output) {
+			givenOutput = output
+		},
+	}
+
+	dest := "destination"
+	dummyInput := NewHelpInput("sender", "message", time.Now(), dest)
+	err := myBot.Respond(context.TODO(), dummyInput)
+	if err != nil {
+		t.Errorf("Unexpected error is returned: %#v.", err)
+	}
+
+	if givenOutput == nil {
+		t.Fatal("Passed output is nil")
+	}
+	helps := givenOutput.Content().(*CommandHelps)
+	if len(*helps) != 1 {
+		t.Fatalf("Expectnig one help to be given, but was %d.", len(*helps))
+	}
+	if (*helps)[0].Identifier != commandID {
+		t.Errorf("Expected ID was not returned: %s.", (*helps)[0].Identifier)
+	}
+	if (*helps)[0].InputExample != example {
+		t.Errorf("Expected example was not returned: %s.", (*helps)[0].InputExample)
 	}
 }
 

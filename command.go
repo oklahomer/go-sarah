@@ -133,6 +133,27 @@ func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) 
 	return command.Execute(ctx, input)
 }
 
+func (commands *Commands) Helps() *CommandHelps {
+	helps := &CommandHelps{}
+	for _, command := range *commands {
+		h := &CommandHelp{
+			Identifier:   command.Identifier(),
+			InputExample: command.InputExample(),
+		}
+		*helps = append(*helps, h)
+	}
+	return helps
+}
+
+// CommandHelps is an alias to slice of CommandHelps' pointers.
+type CommandHelps []*CommandHelp
+
+// CommandHelp represents help messages for corresponding Command.
+type CommandHelp struct {
+	Identifier   string
+	InputExample string
+}
+
 // CommandConfig provides an interface that every command configuration must satisfy, which actually means empty.
 type CommandConfig interface{}
 

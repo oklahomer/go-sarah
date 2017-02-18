@@ -4,6 +4,7 @@ import "time"
 
 type Config struct {
 	Token            string        `json:"token" yaml:"token"`
+	HelpCommand      string        `json:"help_command" yaml:"help_command"`
 	SendingQueueSize uint          `json:"sending_queue_size" yaml:"sending_queue_size"`
 	RetryLimit       uint          `json:"retry_limit" yaml:"retry_limit"`
 	RequestTimeout   time.Duration `json:"request_timeout" yaml:"request_timeout"`
@@ -17,6 +18,7 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		Token:            "",
+		HelpCommand:      ".help",
 		SendingQueueSize: 100,
 		RetryLimit:       10,
 		RequestTimeout:   3 * time.Second,

@@ -1,6 +1,9 @@
 package sarah
 
-import "time"
+import (
+	"testing"
+	"time"
+)
 
 type DummyInput struct {
 	SenderKeyValue string
@@ -23,4 +26,25 @@ func (i *DummyInput) SentAt() time.Time {
 
 func (i *DummyInput) ReplyTo() OutputDestination {
 	return i.ReplyToValue
+}
+
+func TestNewHelpInput(t *testing.T) {
+	senderKey := "sender"
+	message := "Hello, 世界."
+	sentAt := time.Now()
+	dest := "100 N University Dr Edmond, OK"
+	input := NewHelpInput(senderKey, message, sentAt, dest)
+
+	if input.SenderKey() != senderKey {
+		t.Errorf("Expected sender key was not returned: %s.", senderKey)
+	}
+	if input.Message() != message {
+		t.Errorf("Expected message was not returned: %s.", message)
+	}
+	if input.SentAt() != sentAt {
+		t.Errorf("Expected time was not returned: %s.", sentAt.String())
+	}
+	if input.ReplyTo() != dest {
+		t.Errorf("Expected reply destination was not returned: %s.", dest)
+	}
 }

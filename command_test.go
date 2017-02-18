@@ -277,6 +277,27 @@ func TestCommands_Append(t *testing.T) {
 	}
 }
 
+func TestCommands_Helps(t *testing.T) {
+	cmd := &DummyCommand{
+		IdentifierValue: "id",
+		InputExampleFunc: func() string {
+			return "example"
+		},
+	}
+	commands := &Commands{cmd}
+
+	helps := commands.Helps()
+	if len(*helps) != 1 {
+		t.Fatalf("Expectnig one help to be given, but was %d.", len(*helps))
+	}
+	if (*helps)[0].Identifier != cmd.IdentifierValue {
+		t.Errorf("Expected ID was not returned: %s.", (*helps)[0].Identifier)
+	}
+	if (*helps)[0].InputExample != cmd.InputExampleFunc() {
+		t.Errorf("Expected example was not returned: %s.", (*helps)[0].InputExample)
+	}
+}
+
 func TestSimpleCommand_Identifier(t *testing.T) {
 	id := "bar"
 	command := simpleCommand{identifier: id}
