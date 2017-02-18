@@ -9,6 +9,7 @@ import (
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
+	"strings"
 	"time"
 )
 
@@ -155,7 +156,19 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 					log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
 				}
 			case *rtmapi.Message:
-				enqueueInput(&MessageInput{event: p})
+				trimmed := strings.TrimSpace(p.Text)
+				if adapter.config.HelpCommand != "" && trimmed == adapter.config.HelpCommand {
+					// Help command
+					help := sarah.NewHelpInput(p.Sender, p.Text, p.TimeStamp.Time, p.Channel)
+					enqueueInput(help)
+				} else if adapter.config.AbortCommand != "" && trimmed == adapter.config.AbortCommand {
+					// Abort command
+					abort := sarah.NewAbortInput(p.Sender, p.Text, p.TimeStamp.Time, p.Channel)
+					enqueueInput(abort)
+				} else {
+					// Regular input
+					enqueueInput(&MessageInput{event: p})
+				}
 			case *rtmapi.Pong:
 				continue
 			case nil:
@@ -203,11 +216,42 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 			channel: channel,
 			text:    content,
 		}
+
 	case *webapi.PostMessage:
 		message := output.Content().(*webapi.PostMessage)
 		if _, err := adapter.client.PostMessage(ctx, message); err != nil {
 			log.Error("something went wrong with Web API posting", err)
 		}
+
+	case *sarah.CommandHelps:
+		channel, ok := output.Destination().(*rtmapi.Channel)
+		if !ok {
+			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
+			return
+		}
+
+		fields := []*webapi.AttachmentField{}
+		for _, commandHelp := range *output.Content().(*sarah.CommandHelps) {
+			fields = append(fields, &webapi.AttachmentField{
+				Title: commandHelp.Identifier,
+				Value: commandHelp.InputExample,
+				Short: false,
+			})
+		}
+		attachments := []*webapi.MessageAttachment{
+			{
+				Fallback: "Here are some input examples.", // TODO
+				Pretext:  "Help:",
+				Title:    "",
+				Fields:   fields,
+			},
+		}
+		postMessage := webapi.NewPostMessageWithAttachments(channel.Name, "", attachments)
+
+		if _, err := adapter.client.PostMessage(ctx, postMessage); err != nil {
+			log.Error("something went wrong with Web API posting", err)
+		}
+
 	default:
 		log.Warnf("unexpected output %#v", output)
 	}

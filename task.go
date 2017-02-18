@@ -13,7 +13,7 @@ var (
 	// ErrTaskInsufficientArgument is returned when required parameters are not set.
 	ErrTaskInsufficientArgument = errors.New("Identifier and Func must be set.")
 
-	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskBuilder's parameter or config.
+	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskBuilder's parameter nor config.
 	ErrTaskScheduleNotGiven = errors.New("Task schedule is not set or given from config struct.")
 )
 

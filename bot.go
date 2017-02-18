@@ -2,7 +2,6 @@ package sarah
 
 import (
 	"golang.org/x/net/context"
-	"strings"
 )
 
 // Bot provides interface for each bot implementation.
@@ -76,14 +75,23 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	var res *CommandResponse
 	var err error
 	if userContext == nil {
-		res, err = bot.commands.ExecuteFirstMatched(ctx, input)
+		switch input.(type) {
+		case *HelpInput:
+			res = &CommandResponse{
+				Content: bot.commands.Helps(),
+				Next:    nil,
+			}
+		default:
+			res, err = bot.commands.ExecuteFirstMatched(ctx, input)
+		}
 	} else {
 		bot.userContextCache.Delete(senderKey)
-		if strings.TrimSpace(input.Message()) == ".abort" {
-			// abort
+		switch input.(type) {
+		case *AbortInput:
 			return nil
+		default:
+			res, err = (userContext.Next)(ctx, input)
 		}
-		res, err = (userContext.Next)(ctx, input)
 	}
 
 	if err != nil {

@@ -158,6 +158,30 @@ func TestCommandBuilder_Build(t *testing.T) {
 	}
 }
 
+func TestCommandBuilder_Build_BrokenYaml(t *testing.T) {
+	builder := &CommandBuilder{}
+	builder.Identifier("broken").
+		MatchPattern(regexp.MustCompile(`^\.echo`)).
+		InputExample(".echo knock knock")
+
+	config := &struct {
+		Token string `yaml:"token"`
+	}{}
+	builder.ConfigurableFunc(config, func(_ context.Context, input Input, passedConfig CommandConfig) (*CommandResponse, error) {
+		return &CommandResponse{
+			Content: "",
+		}, nil
+	})
+
+	command, err := builder.Build(filepath.Join("testdata", "commandbuilder"))
+	if err == nil {
+		t.Fatal("Error must be returned")
+	}
+	if command != nil {
+		t.Fatal("Expected nil command, but was not")
+	}
+}
+
 func TestCommandBuilder_MustBuild(t *testing.T) {
 	builder := &CommandBuilder{}
 	builder.Identifier("dummy").
@@ -266,7 +290,11 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 func TestCommands_Append(t *testing.T) {
 	commands := &Commands{}
 
-	command := &DummyCommand{}
+	command := &DummyCommand{
+		IdentifierValue: "first",
+	}
+
+	// First operation
 	commands.Append(command)
 	if len(*commands) == 0 {
 		t.Fatal("Provided command was not appended.")
@@ -274,6 +302,42 @@ func TestCommands_Append(t *testing.T) {
 
 	if (*commands)[0] != command {
 		t.Fatalf("Appended command is not the one provided: %#v", (*commands)[0])
+	}
+
+	// Second operation with same command
+	commands.Append(command)
+	if len(*commands) != 1 {
+		t.Fatalf("Expected only one command to stay, but was: %d.", len(*commands))
+	}
+
+	// Third operation with different command
+	anotherCommand := &DummyCommand{
+		IdentifierValue: "second",
+	}
+	commands.Append(anotherCommand)
+	if len(*commands) != 2 {
+		t.Fatalf("Expected 2 commands to stay, but was: %d.", len(*commands))
+	}
+}
+
+func TestCommands_Helps(t *testing.T) {
+	cmd := &DummyCommand{
+		IdentifierValue: "id",
+		InputExampleFunc: func() string {
+			return "example"
+		},
+	}
+	commands := &Commands{cmd}
+
+	helps := commands.Helps()
+	if len(*helps) != 1 {
+		t.Fatalf("Expectnig one help to be given, but was %d.", len(*helps))
+	}
+	if (*helps)[0].Identifier != cmd.IdentifierValue {
+		t.Errorf("Expected ID was not returned: %s.", (*helps)[0].Identifier)
+	}
+	if (*helps)[0].InputExample != cmd.InputExampleFunc() {
+		t.Errorf("Expected example was not returned: %s.", (*helps)[0].InputExample)
 	}
 }
 
