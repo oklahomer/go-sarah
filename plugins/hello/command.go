@@ -7,8 +7,7 @@ import (
 	"regexp"
 )
 
-// Command provides default setup of random user command.
-// If different setup with another identifier, match pattern, etc. directly feed CommandFunc to preferred CommandBuilder
+// SlackCommand provides default setup of hello command.
 var SlackCommand = sarah.NewCommandBuilder().
 	Identifier("hello").
 	InputExample(".hello").
