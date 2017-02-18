@@ -158,6 +158,30 @@ func TestCommandBuilder_Build(t *testing.T) {
 	}
 }
 
+func TestCommandBuilder_Build_BrokenYaml(t *testing.T) {
+	builder := &CommandBuilder{}
+	builder.Identifier("broken").
+		MatchPattern(regexp.MustCompile(`^\.echo`)).
+		InputExample(".echo knock knock")
+
+	config := &struct {
+		Token string `yaml:"token"`
+	}{}
+	builder.ConfigurableFunc(config, func(_ context.Context, input Input, passedConfig CommandConfig) (*CommandResponse, error) {
+		return &CommandResponse{
+			Content: "",
+		}, nil
+	})
+
+	command, err := builder.Build(filepath.Join("testdata", "commandbuilder"))
+	if err == nil {
+		t.Fatal("Error must be returned")
+	}
+	if command != nil {
+		t.Fatal("Expected nil command, but was not")
+	}
+}
+
 func TestCommandBuilder_MustBuild(t *testing.T) {
 	builder := &CommandBuilder{}
 	builder.Identifier("dummy").
