@@ -127,7 +127,7 @@ func TestWithBackOff(t *testing.T) {
 
 	elapsed := endAt.Sub(startAt)
 	if float64(elapsed.Nanoseconds()) <= min {
-		t.Errorf("Expected minimum retry interval is %d, but actual interval was %d.", min, elapsed.Nanoseconds())
+		t.Errorf("Expected minimum retry interval is %f, but actual interval was %d.", min, elapsed.Nanoseconds())
 	}
 }
 
@@ -168,7 +168,7 @@ func Test_randInterval(t *testing.T) {
 		expected := float64(mean)
 		given := randInterval(mean, factor)
 		if float64(given) != expected {
-			t.Errorf("expected interval is not returned: %g", given)
+			t.Errorf("expected interval is not returned: %d", given)
 		}
 	}
 }
