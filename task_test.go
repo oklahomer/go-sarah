@@ -245,6 +245,6 @@ func TestScheduledTask_Schedule(t *testing.T) {
 	task := &scheduledTask{schedule: schedule}
 
 	if task.Schedule() != schedule {
-		t.Fatalf("Returnd schedule differs: %s.", task.Schedule())
+		t.Fatalf("Returned schedule differs: %s.", task.Schedule())
 	}
 }

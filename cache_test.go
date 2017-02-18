@@ -67,7 +67,7 @@ func TestCachedUserContexts_CRUD(t *testing.T) {
 	cachedContexts.cache.Set(invalidKey, &struct{}{}, 10*time.Second)
 	invalidVal, getErr := cachedContexts.Get(invalidKey)
 	if getErr == nil {
-		t.Error("Error must be returnd for invalid stored value.")
+		t.Error("Error must be returned for invalid stored value.")
 	}
 	if invalidVal != nil {
 		t.Errorf("Invalid stored value shouldn't be returned: %T", invalidVal)
