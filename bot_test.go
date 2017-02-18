@@ -234,13 +234,7 @@ func TestDefaultBot_Respond_Abort(t *testing.T) {
 		userContextCache: dummyCache,
 	}
 
-	dummyInput := &DummyInput{
-		SenderKeyValue: "senderKey",
-		MessageValue:   ".abort",
-		ReplyToValue:   "replyTo",
-	}
-
-	err := myBot.Respond(context.TODO(), dummyInput)
+	err := myBot.Respond(context.TODO(), &AbortInput{})
 	if err != nil {
 		t.Errorf("Unexpected error returned: %#v.", err)
 	}

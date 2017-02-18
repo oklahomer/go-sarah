@@ -33,18 +33,61 @@ func NewHelpInput(senderKey, message string, sentAt time.Time, replyTo OutputDes
 	}
 }
 
+// SenderKey returns string representing message sender.
 func (hi *HelpInput) SenderKey() string {
 	return hi.senderKey
 }
 
+// Message returns sent message.
 func (hi *HelpInput) Message() string {
 	return hi.message
 }
 
+// SentAt returns message event's timestamp.
 func (hi *HelpInput) SentAt() time.Time {
 	return hi.sentAt
 }
 
+// ReplyTo returns slack channel to send reply to.
 func (hi *HelpInput) ReplyTo() OutputDestination {
 	return hi.replyTo
+}
+
+// AbortInput is a common Input implementation that represents user's request for context cancellation.
+// When this type is given, each Bot/Adapter implementation should cancel and remove corresponding user's conversational context.
+type AbortInput struct {
+	senderKey string
+	message   string
+	sentAt    time.Time
+	replyTo   OutputDestination
+}
+
+// SenderKey returns string representing message sender.
+func (ai *AbortInput) SenderKey() string {
+	return ai.senderKey
+}
+
+// Message returns sent message.
+func (ai *AbortInput) Message() string {
+	return ai.message
+}
+
+// SentAt returns message event's timestamp.
+func (ai *AbortInput) SentAt() time.Time {
+	return ai.sentAt
+}
+
+// ReplyTo returns slack channel to send reply to.
+func (ai *AbortInput) ReplyTo() OutputDestination {
+	return ai.replyTo
+}
+
+// NewAbortInput creates a new AbortInput instance with given arguments and returns it.
+func NewAbortInput(senderKey, message string, sentAt time.Time, replyTo OutputDestination) *AbortInput {
+	return &AbortInput{
+		senderKey: senderKey,
+		message:   message,
+		sentAt:    sentAt,
+		replyTo:   replyTo,
+	}
 }

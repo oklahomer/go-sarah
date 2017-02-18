@@ -156,10 +156,15 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 					log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
 				}
 			case *rtmapi.Message:
-				if strings.TrimSpace(p.Text) == adapter.config.HelpCommand {
+				trimmed := strings.TrimSpace(p.Text)
+				if adapter.config.HelpCommand != "" && trimmed == adapter.config.HelpCommand {
 					// Help command
 					help := sarah.NewHelpInput(p.Sender, p.Text, p.TimeStamp.Time, p.Channel)
 					enqueueInput(help)
+				} else if adapter.config.AbortCommand != "" && trimmed == adapter.config.AbortCommand {
+					// Abort command
+					abort := sarah.NewAbortInput(p.Sender, p.Text, p.TimeStamp.Time, p.Channel)
+					enqueueInput(abort)
 				} else {
 					// Regular input
 					enqueueInput(&MessageInput{event: p})

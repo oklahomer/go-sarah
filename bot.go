@@ -2,7 +2,6 @@ package sarah
 
 import (
 	"golang.org/x/net/context"
-	"strings"
 )
 
 // Bot provides interface for each bot implementation.
@@ -87,11 +86,12 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 		}
 	} else {
 		bot.userContextCache.Delete(senderKey)
-		if strings.TrimSpace(input.Message()) == ".abort" {
-			// abort
+		switch input.(type) {
+		case *AbortInput:
 			return nil
+		default:
+			res, err = (userContext.Next)(ctx, input)
 		}
-		res, err = (userContext.Next)(ctx, input)
 	}
 
 	if err != nil {
