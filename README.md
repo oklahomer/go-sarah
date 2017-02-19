@@ -4,32 +4,38 @@ Sarah is a general purpose bot framework named after author's firstborn daughter
 
 While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
 
+# Version
+Sarah is currently at her Pre-Alpha stage, and is under active development. Interfaces are subjects to change without notice.
+
+Author plans to release 1.0 by actual Sarah's birthday, but does not disclose what year it will be.
+
 # Components
 
 ## Runner
-Runner is the core of Sarah; It manages other components' lifecycle, handles concurrency with internal workers, watch configuration file changes, **re**-configures commands/tasks on file changes, execute scheduled tasks, and most importantly make Sarah comes alive.
+```Runner``` is the core of Sarah; It manages other components' lifecycle, handles concurrency with internal workers, watch configuration file changes, **re**-configures commands/tasks on file changes, execute scheduled tasks, and most importantly make Sarah comes alive.
 
-Runner may take multiple Bot implementations to run multiple Bots in single process, so resources such as workers can be shared.
+```Runner``` may take multiple ```Bot``` implementations to run multiple Bots in single process, so resources such as workers can be shared.
 
 ## Bot / Adapter
-Bot is responsible for actual interaction with chat services such as Slack, LINE, gitter, etc...
+```Bot``` interface is responsible for actual interaction with chat services such as Slack, [LINE](https://github.com/oklahomer/go-sarah-line), gitter, etc...
 
-Bot receives messages from chat services, see if the sending user is in the middle of *user context*, search for corresponding command, execute command, and send response back to chat service.
+```Bot``` receives messages from chat services, see if the sending user is in the middle of *user context*, search for corresponding ```Command```, execute ```Command```, and send response back to chat service.
 
-Important thing to be aware of is that, once Bot receives message from chat service, it sends the input to Runner via a channel.
-Runner then dispatch a job to internal worker, which calls sarah.Bot.Respond and sends response via Bot.SendMessage.
+Important thing to be aware of is that, once ```Bot``` receives message from chat service, it sends the input to ```Runner``` via a channel.
+```Runner``` then dispatch a job to internal worker, which calls ```Bot.Respond``` and sends response via ```Bot.SendMessage```.
 In other words, after sending input via channel, things are done in concurrent manner without any additional work.
+Change worker configuration to throttle the number of concurrent execution -- this may also impact the number of concurrent HTTP requests against chat service provider.
 
 ### DefaultBot
-Technically Bot is just an interface. So, if desired, developers can create their own Bot implementations to interact with preferred chat services.
+Technically ```Bot``` is just an interface. So, if desired, developers can create their own ```Bot``` implementations to interact with preferred chat services.
 However most Bots have similar functionalities, and it is truly cumbersome to implement one for every chat service of choice.
 
-So defaultBot is already predefined. This can be initialized via sarah.NewBot.
+So ```defaultBot``` is already predefined. This can be initialized via ```sarah.NewBot```.
 
 ### Adapter
-sarah.NewBot takes two arguments: Adapter implementation and sarah.CacheConfig.
-This Adapter thing becomes a bridge between defaultBot and chat services.
-DefaultBot takes care of finding corresponding command against given input, handle cached user context and other miscellaneous tasks; Adapter takes care of connecting/requesting to and sending/receiving from chat service.
+```sarah.NewBot``` takes two arguments: ```Adapter``` implementation and ```sarah.CacheConfig```.
+This ```Adapter``` thing becomes a bridge between defaultBot and chat service.
+```DefaultBot``` takes care of finding corresponding command against given input, handling cached user context, and other miscellaneous tasks; ```Adapter``` takes care of connecting/requesting to and sending/receiving from chat service.
 
 ```go
 package main
@@ -42,7 +48,7 @@ import	(
 )
 
 func main() {
-        // Setup slack bot and register desired Command(s).
+        // Setup slack bot.
         // Any Bot implementation can be fed to Runner.RegisterBot(), but for convenience slack and gitter adapters are predefined.
         // sarah.NewBot takes adapter and returns defaultBot instance, which satisfies Bot interface.
         configBuf, _ := ioutil.ReadFile("/path/to/adapter/config.yaml")
@@ -53,11 +59,11 @@ func main() {
 ```
 
 ## Command
-Command is a plugin that receives user input and return response.
-Command.Match is called against user input in Bot.Respond. If it returns *true*, the command is considered *"corresponds to user input,"* and hence its Execute method is called.
+```Command``` interface represents a plugin that receives user input and return response.
+```Command.Match``` is called against user input in ```Bot.Respond```. If it returns *true*, the command is considered *"corresponds to user input,"* and hence its ```Execute``` method is called.
 
-Any struct that satisfies Command interface can be fed to Bot.AppendCommand as a command.
-CommandBuilder is provided to easily implement Component interface:
+Any struct that satisfies ```Command``` interface can be fed to ```Bot.AppendCommand``` as a command.
+```CommandBuilder``` is provided to easily implement ```Command``` interface on the fly:
 
 ### Simple Command
 
@@ -73,7 +79,7 @@ import (
 
 var matchPattern = regexp.MustCompile(`^\.echo`)
 
-// This can be fed to bot via slackBot.AppendCommand(echo.SlackCommand)
+// This can be fed to bot via Bot.AppendCommand
 var SlackCommand = sarah.NewCommandBuilder().
         Identifier("echo").
         MatchPattern(matchPattern).
@@ -86,15 +92,19 @@ var SlackCommand = sarah.NewCommandBuilder().
 ```
 
 ### Reconfigurable Command
-With CommandBuilder.ConfigurableFunc, a desired configuration struct may be added.
+With ```CommandBuilder.ConfigurableFunc```, a desired configuration struct may be added.
 This configuration struct is passed on command execution as 3rd argument.
-Runner is watching the changes on configuration files' directory and if configuration file is updated, then the corresponding command is built, again.
+```Runner``` is watching the changes on configuration files' directory and if configuration file is updated, then the corresponding command is built, again.
 
 ## Scheduled Task
 While commands are set of functions that responds to user input, scheduled task is one that runs in scheduled manner.
-e.g. Say "Good morning, sir!" every 7:00 a.m., search on database and sends "today's chores list" to each specific room, etc...
+e.g. Say "Good morning, sir!" every 7:00 a.m., search on database and send "today's chores list" to each specific room, etc...
+
+```ScheduledTask``` implementation can be fed to ```Runner.RegisterScheduledTask```.
+When ```Runner.Run``` is called, clock starts to tick and scheduled task become active; Tasks will be executed as scheduled, and results are sent to chat service via ```Bot.SendMessage```.
 
 ### Simple Scheduled Task
+Technically any struct that satisfies ```ScheduledTask``` interface can be treated as scheduled task, but a builder is provided to construct a ```ScheduledTask``` on the fly.
 
 ```go
 package foo
@@ -120,9 +130,9 @@ var Task = sarah.NewScheduledTaskBuilder().
 ```
 
 ### Reconfigurable Scheduled Task
-With ScheduledTaskBuilder.ConfigurableFunc, a desired configuration struct may be added.
+With ```ScheduledTaskBuilder.ConfigurableFunc```, a desired configuration struct may be added.
 This configuration struct is passed on task execution as 2nd argument.
-Runner is watching the changes on configuration files' directory and if configuration file is updated, then the corresponding task is built/scheduled, again.
+```Runner``` is watching the changes on configuration files' directory and if configuration file is updated, then the corresponding task is built/scheduled, again.
 
 # Features
 
@@ -134,7 +144,7 @@ To be declared...
 
 # Getting Started
 
-It is pretty easy to add support for developers' choice of chat service, but this supports Slack and Gitter out of the box as reference implementations.
+It is pretty easy to add support for developers' choice of chat service, but this supports Slack, [LINE](https://github.com/oklahomer/go-sarah-line), and Gitter out of the box as reference implementations.
 
 Configuration for Slack goes like below:
 
@@ -146,11 +156,9 @@ import	(
         "github.com/oklahomer/go-sarah/log"
         "github.com/oklahomer/go-sarah/plugins/hello"
         "github.com/oklahomer/go-sarah/slack"
-        "github.com/oklahomer/golack/rtmapi"
         "golang.org/x/net/context"
         "gopkg.in/yaml.v2"
         "io/ioutil"
-        "regexp"
         "os"
         "os/signal"
         "syscall"
@@ -165,43 +173,8 @@ func main() {
         yaml.Unmarshal(configBuf, slackConfig)
         slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.NewCacheConfig())
 
-        // Register desired command
+        // Register desired command(s)
         slackBot.AppendCommand(hello.SlackCommand)
-
-        // Create a builder for simple command that requires no config struct.
-        // sarah.StashCommandBuilder can be used to stash this builder and build Command on Runner.Run,
-        // or use Build() / MustBuild() to build by hand.
-        //
-        // MustBuild() simplifies safe initialization of global variables holding built Command instance.
-        // e.g. Define echo package and expose echo.Command for later use with bot.AppendCommand(echo.Command).
-        echoCommand := sarah.NewCommandBuilder().
-                Identifier("echo").
-                MatchPattern(regexp.MustCompile(`^\.echo`)).
-                Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-                        return slack.NewStringResponse(input.Message()), nil
-                }).
-                InputExample(".echo knock knock").
-                MustBuild()
-        slackBot.AppendCommand(echoCommand)
-
-        // Create a builder for a bit complex command that requires config struct.
-        // Configuration file is lazily read on Runner.Run, and command is built with fully configured config struct.
-        // The path to the configuration file MUST be equivalent to below:
-        //
-        //   filepath.Join(sarah.Config.PluginConfigRoot, Bot.BotType(), Command.Identifier() + ".yaml")
-        //
-        // When configuration file is updated, runner will notify and rebuild the command to apply.
-        pluginConfig := &struct{
-                Token string `yaml:"api_key"`
-        }{}
-        configCommandBuilder := sarah.NewCommandBuilder().
-                Identifier("configurableCommandSample").
-                MatchPattern(regexp.MustCompile(`^\.complexCommand`)).
-                ConfigurableFunc(pluginConfig, func(_ context.Context, input sarah.Input, config sarah.Config) (*sarah.CommandResponse, error) {
-                        return slack.NewStringResponse("return something"), nil
-                }).
-                InputExample(".echo knock knock")
-        sarah.StashCommandBuilder(slack.SLACK, configCommandBuilder)
 
         // Initialize Runner
         config := sarah.NewConfig()
@@ -211,43 +184,26 @@ func main() {
         // Register declared bot.
         runner.RegisterBot(slackBot)
 
-        // Register scheduled task that require no configuration.
-        sarah.NewScheduledTaskBuilder().Identifier("scheduled").Func
-        task := sarah.NewScheduledTaskBuilder().
-                Identifier("greeting").
-                Func(func(_ context.Context) ([]*sarah.ScheduledTaskResult, error) {
-                        return []*sarah.ScheduledTaskResult{
-				                {
-					                    Content:     "Howdy!!",
-					                    Destination: &rtmapi.Channel{Name: "XXXX"},
-				                },
-			            }, nil
-		        }).
-		        Schedule("@everyday").
-		        MustBuild()
-		runner.RegisterScheduledTask(slack.SLACK, task)
-
         // Start interaction
         rootCtx := context.Background()
         runnerCtx, cancelRunner := context.WithCancel(rootCtx)
-        runner.Run(runnerCtx)
         runnerStop := make(chan struct{})
         go func() {
-                runner.Run(runnerCtx)
+                runner.Run(runnerCtx) // Blocks til all registered Bots stop
                 runnerStop <- struct{}{}
         }()
 
+        // Receives signal to stop Runner.
         c := make(chan os.Signal, 1)
         signal.Notify(c, os.Interrupt)
         signal.Notify(c, syscall.SIGTERM)
-
         select {
         case <-c:
 		        log.Info("Canceled Runner.")
 		        cancelRunner()
         case <-runnerStop:
                 log.Error("Runner stopped.")
-                // Stop because all bots stopped
+                // Stop because all bots stopped.
 	    }
 }
 ```
