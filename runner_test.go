@@ -150,7 +150,7 @@ func TestRunner_Run(t *testing.T) {
 		if cmd == nil || cmd.Identifier() != commandBuilder.identifier {
 			t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
 		}
-	case <-time.NewTicker(10 * time.Second).C:
+	case <-time.NewTimer(10 * time.Second).C:
 		t.Fatal("CommandBuilder was not properly built.")
 	}
 
