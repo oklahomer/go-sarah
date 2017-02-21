@@ -145,48 +145,62 @@ func SetOutputLevel(level Level) {
 	outputLevel = level
 }
 
+// Debug outputs given arguments via pre-set Logger implementation.
+// Logging level must be set to DebugLevel via logger.SetOutputLevel
 func Debug(args ...interface{}) {
 	if outputLevel >= DebugLevel {
 		logger.Debug(args...)
 	}
 }
 
+// Debugf outputs given arguments with format via pre-set Logger implementation.
+// Logging level must be set to DebugLevel via logger.SetOutputLevel
 func Debugf(format string, args ...interface{}) {
 	if outputLevel >= DebugLevel {
 		logger.Debugf(format, args...)
 	}
 }
 
+// Info outputs given arguments via pre-set Logger implementation.
+// Logging level must be set to DebugLevel or InfoLevel via logger.SetOutputLevel
 func Info(args ...interface{}) {
 	if outputLevel >= InfoLevel {
 		logger.Info(args...)
 	}
 }
 
+// Infof outputs given arguments with format via pre-set Logger implementation.
+// Logging level must be set to DebugLevel or InfoLevel via logger.SetOutputLevel
 func Infof(format string, args ...interface{}) {
 	if outputLevel >= InfoLevel {
 		logger.Infof(format, args...)
 	}
 }
 
+// Warn outputs given arguments via pre-set Logger implementation.
+// Logging level must be set to DebugLevel, InfoLevel or WarnLevel via logger.SetOutputLevel
 func Warn(args ...interface{}) {
 	if outputLevel >= WarnLevel {
 		logger.Warn(args...)
 	}
 }
 
+// Warnf outputs given arguments with format via pre-set Logger implementation.
+// Logging level must be set to DebugLevel, InfoLevel or WarnLevel via logger.SetOutputLevel
 func Warnf(format string, args ...interface{}) {
 	if outputLevel >= WarnLevel {
 		logger.Warnf(format, args...)
 	}
 }
 
+// Error outputs given arguments via pre-set Logger implementation.
 func Error(args ...interface{}) {
 	if outputLevel >= ErrorLevel {
 		logger.Error(args...)
 	}
 }
 
+// Errorf outputs given arguments with format via pre-set Logger implementation.
 func Errorf(format string, args ...interface{}) {
 	if outputLevel >= ErrorLevel {
 		logger.Errorf(format, args...)

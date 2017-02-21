@@ -33,6 +33,7 @@ type Adapter struct {
 	messageQueue chan *textMessage
 }
 
+// NewAdapter creates new Adapter with given *Config, and returns it.
 func NewAdapter(config *Config) *Adapter {
 	golackConfig := golack.NewConfig()
 	golackConfig.Token = config.Token
@@ -50,6 +51,14 @@ func (adapter *Adapter) BotType() sarah.BotType {
 	return SLACK
 }
 
+// Run establishes connection with Slack, supervise it, and tries to reconnect when current connection is gone.
+// Connection will be
+//
+// When message is sent from slack server, the payload is passed to Runner via the function given as 2nd argument, enqueueInput.
+// This function simply wraps a channel to prevent blocking situation. When workers are too busy and channel blocks, this function returns BlockedInputError.
+//
+// When critical situation such as reconnection trial fails for specified times, this critical situation is notified to Runner via 3rd argument function, notifyErr.
+// Runner cancels this Bot/Adapter and related resources when BotNonContinuableError is given to this function.
 func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) error, notifyErr func(error)) {
 	for {
 		conn, err := adapter.connect(ctx)

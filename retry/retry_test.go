@@ -60,15 +60,8 @@ func TestRetry(t *testing.T) {
 	}
 }
 
-func TestNewErrors(t *testing.T) {
-	errs := NewErrors()
-	if errs == nil {
-		t.Fatal("Internal error stash is not initialized.")
-	}
-}
-
 func TestErrors_Error(t *testing.T) {
-	errs := NewErrors()
+	errs := &Errors{}
 	firstErr := errors.New("1st error.")
 	errs.appendError(firstErr)
 	secondErr := errors.New("2nd error.")
@@ -76,6 +69,9 @@ func TestErrors_Error(t *testing.T) {
 
 	if errs.Error() != strings.Join([]string{firstErr.Error(), secondErr.Error()}, "\n") {
 		t.Errorf("Unexpected error message is returned: %s.", errs.Error())
+	}
+	if (*errs)[0] != firstErr {
+		t.Errorf("Each error should be correctly accessible in the appended order: %#v.", (*errs)[0])
 	}
 }
 

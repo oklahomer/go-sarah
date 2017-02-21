@@ -2,6 +2,7 @@ package slack
 
 import "time"
 
+// Config contains some configuration variables for slack Adapter.
 type Config struct {
 	Token            string        `json:"token" yaml:"token"`
 	HelpCommand      string        `json:"help_command" yaml:"help_command"`
