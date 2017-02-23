@@ -4,20 +4,29 @@ import (
 	"context"
 	"errors"
 	"github.com/fsnotify/fsnotify"
-	"io/ioutil"
-	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
 
-func setupTmpDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", "dirwatcher")
-	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %s.", err.Error())
-	}
+type DummyWatcher struct {
+	addFunc    func(string) error
+	removeFunc func(string) error
+	closeFunc  func() error
+}
 
-	return dir
+func (w *DummyWatcher) Add(dir string) error {
+	return w.addFunc(dir)
+}
+
+func (w *DummyWatcher) Remove(dir string) error {
+	return w.removeFunc(dir)
+}
+
+func (w *DummyWatcher) Close() error {
+	return w.closeFunc()
 }
 
 func Test_runConfigWatcher(t *testing.T) {
@@ -34,22 +43,18 @@ func Test_runConfigWatcher(t *testing.T) {
 }
 
 func TestDirWatcher_watch(t *testing.T) {
-	dir := setupTmpDir(t)
-	defer func() {
-		os.RemoveAll(dir)
-	}()
-
-	fsWatcher, err := fsnotify.NewWatcher()
+	dir, err := filepath.Abs("dummy")
 	if err != nil {
-		t.Fatalf("Unexpected error returned: %s.", err.Error())
+		t.Fatalf("Unexpected error on path string generation: %s.", err.Error())
 	}
 
+	watcher := &DummyWatcher{}
 	target := make(chan *watchingDir, 1)
 	cancelWatch := make(chan BotType, 1)
 	dw := &dirWatcher{
-		fsWatcher: fsWatcher,
-		watchDir:  target,
-		cancel:    cancelWatch,
+		watcher:  watcher,
+		watchDir: target,
+		cancel:   cancelWatch,
 	}
 
 	var botType BotType = "Foo"
@@ -90,20 +95,18 @@ func TestDirWatcher_watch(t *testing.T) {
 }
 
 func TestDirWatcher_watch_InitError(t *testing.T) {
-	dir := setupTmpDir(t)
-	defer func() {
-		os.RemoveAll(dir)
-	}()
-
-	fsWatcher, err := fsnotify.NewWatcher()
+	dir, err := filepath.Abs("dummy")
 	if err != nil {
-		t.Fatalf("Unexpected error returned: %s.", err.Error())
+		t.Fatalf("Unexpected error on path string generation: %s.", err.Error())
 	}
 
+	watcher := &DummyWatcher{}
 	target := make(chan *watchingDir, 1)
+	cancelWatch := make(chan BotType, 1)
 	dw := &dirWatcher{
-		fsWatcher: fsWatcher,
-		watchDir:  target,
+		watcher:  watcher,
+		watchDir: target,
+		cancel:   cancelWatch,
 	}
 
 	initErr := errors.New("")
@@ -123,60 +126,161 @@ func TestDirWatcher_watch_InitError(t *testing.T) {
 	}
 }
 
-func TestDirWatcher_receiveEvent_Events(t *testing.T) {
-	dir := setupTmpDir(t)
-	defer func() {
-		os.RemoveAll(dir)
-	}()
-
-	fsWatcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("Unexpected error returned: %s.", err.Error())
+func TestDirWatcher_receiveEvent_watchFailure(t *testing.T) {
+	watchErr := errors.New("")
+	watcher := &DummyWatcher{
+		addFunc: func(_ string) error {
+			return watchErr
+		},
+		closeFunc: func() error {
+			return nil
+		},
 	}
-
-	target := make(chan *watchingDir, 1)
-	cancelWatch := make(chan BotType, 1)
 	dw := &dirWatcher{
-		fsWatcher: fsWatcher,
-		watchDir:  target,
-		cancel:    cancelWatch,
+		watcher:  watcher,
+		watchDir: make(chan *watchingDir, 1),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go dw.receiveEvent(ctx)
+	go dw.receiveEvent(ctx, make(chan fsnotify.Event, 1), make(chan error, 1))
 
+	target := &watchingDir{
+		dir:      "dummy",
+		botType:  "DummyBot",
+		callback: func(path string) {},
+		initErr:  make(chan error, 1),
+	}
+	dw.watchDir <- target
+	select {
+	case initErr := <-target.initErr:
+		if initErr != watchErr {
+			t.Fatalf("Unexpected error is returned: %s.", initErr.Error())
+		}
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Fatal("Directory addition did not complete in time.")
+	}
+}
+
+func TestDirWatcher_receiveEvent_Events(t *testing.T) {
+	watcher := &DummyWatcher{
+		addFunc: func(_ string) error {
+			return nil
+		},
+		closeFunc: func() error {
+			return nil
+		},
+	}
+	watchTarget := make(chan *watchingDir, 1)
+	cancelWatch := make(chan BotType, 1)
+	dw := &dirWatcher{
+		watcher:  watcher,
+		watchDir: watchTarget,
+		cancel:   cancelWatch,
+	}
+
+	// Start receiving events
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	eventChan := make(chan fsnotify.Event, 1)
+	errorChan := make(chan error, 1)
+	go dw.receiveEvent(ctx, eventChan, errorChan)
+
+	// Let receiveEvent stash directory information internally.
 	var botType BotType = "Foo"
 	callbackPath := make(chan string, 1)
-	watchingDir := &watchingDir{
-		dir:     dir,
+	configDir, err := filepath.Abs(filepath.Join("dummy", strings.ToLower(botType.String())))
+	if err != nil {
+		t.Fatalf("Unexpected error on path string generation: %s.", err.Error())
+	}
+	watch := &watchingDir{
+		dir:     configDir,
 		botType: botType,
 		callback: func(path string) {
 			callbackPath <- path
 		},
 		initErr: make(chan error, 1),
 	}
+	watchingDir := watch
+	dw.watchDir <- watchingDir
 	select {
-	case dw.watchDir <- watchingDir:
-		// ok
+	case initErr := <-watch.initErr:
+		if initErr != nil {
+			t.Fatalf("Unexpected error is returned: %s.", initErr.Error())
+		}
 	case <-time.NewTimer(10 * time.Second).C:
-		t.Fatal("Can not enqueue watching directory.")
+		t.Fatal("Directory addition did not complete in time.")
 	}
 
-	file, err := ioutil.TempFile(dir, "Foo")
+	// Event is sent for the stashed directory
+	createdFile, err := filepath.Abs(filepath.Join(watch.dir, "newFile"))
 	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+		t.Fatalf("Unexpected error on path string generation: %s.", err.Error())
 	}
-	file.WriteString("Dummy")
-	file.Sync()
-	file.Close()
-	ioutil.WriteFile(file.Name(), []byte(""), 0600) // Hmmm...
+	event := fsnotify.Event{Name: createdFile}
+	event.Op |= fsnotify.Create
+	eventChan <- event
+
 	select {
-	case d := <-callbackPath:
-		if d != file.Name() {
-			t.Errorf("Expected %s, but was %s.", file.Name(), d)
+	case path := <-callbackPath:
+		if filepath.Dir(path) != watch.dir {
+			t.Errorf("Expected %s, but was %s.", watch.dir, path)
 		}
 	case <-time.NewTimer(10 * time.Second).C:
 		t.Fatal("Callback function is not called.")
 	}
+}
+
+func TestDirWatcher_receiveEvent_cancel(t *testing.T) {
+	watcher := &DummyWatcher{
+		addFunc: func(_ string) error {
+			return nil
+		},
+		closeFunc: func() error {
+			return nil
+		},
+		removeFunc: func(_ string) error {
+			return nil
+		},
+	}
+
+	// Start receiving events
+	dw := &dirWatcher{
+		watcher:  watcher,
+		watchDir: make(chan *watchingDir, 1),
+		cancel:   make(chan BotType, 1),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	eventChan := make(chan fsnotify.Event, 1)
+	errorChan := make(chan error, 1)
+	go dw.receiveEvent(ctx, eventChan, errorChan)
+
+	// Let receiveEvent stash directory information internally.
+	var botType BotType = "Foo"
+	callbackPath := make(chan string, 1)
+	configDir, err := filepath.Abs(filepath.Join("dummy", strings.ToLower(botType.String())))
+	if err != nil {
+		t.Fatalf("Unexpected error on path string generation: %s.", err.Error())
+	}
+	watch := &watchingDir{
+		dir:     configDir,
+		botType: botType,
+		callback: func(path string) {
+			callbackPath <- path
+		},
+		initErr: make(chan error, 1),
+	}
+	dw.watchDir <- watch
+	select {
+	case <-watch.initErr:
+		// no-opp
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Fatal("Directory addition did not complete in time.")
+	}
+
+	// Do the cancellation
+	dw.cancel <- botType
+
+	// Nothing bad happens
 }
