@@ -1,9 +1,9 @@
 package sarah
 
 import (
-	"context"
 	"errors"
 	"github.com/fsnotify/fsnotify"
+	"golang.org/x/net/context"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -217,8 +217,10 @@ func TestDirWatcher_receiveEvent_Events(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error on path string generation: %s.", err.Error())
 	}
-	event := fsnotify.Event{Name: createdFile}
-	event.Op |= fsnotify.Create
+	event := fsnotify.Event{
+		Name: createdFile,
+		Op:   fsnotify.Create,
+	}
 	eventChan <- event
 
 	select {
