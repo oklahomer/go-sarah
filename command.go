@@ -133,6 +133,7 @@ func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) 
 	return command.Execute(ctx, input)
 }
 
+// Helps returns underlying commands help messages in a form of *CommandHelps.
 func (commands *Commands) Helps() *CommandHelps {
 	helps := &CommandHelps{}
 	for _, command := range *commands {
