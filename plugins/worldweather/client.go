@@ -14,20 +14,26 @@ const (
 	weatherAPIEndpointFormat = "https://api.worldweatheronline.com/free/v2/%s.ashx"
 )
 
+// Config contains some configuration variables for World Weather.
 type Config struct {
 	apiKey string
 }
 
+// NewConfig returns initialized Config struct with default settings.
+// APIKey is empty at this point. This can be set by feeding this instance to json.Unmarshal/yaml.Unmarshal,
+// or by direct assignment.
 func NewConfig(apiKey string) *Config {
 	return &Config{
 		apiKey: apiKey,
 	}
 }
 
+// Client is a API client for World Weather.
 type Client struct {
 	config *Config
 }
 
+// NewClient creates and returns new API client with given Config struct.
 func NewClient(config *Config) *Client {
 	return &Client{config: config}
 }
@@ -48,7 +54,8 @@ func (client *Client) buildEndpoint(apiType string, queryParams *url.Values) *ur
 	return requestURL
 }
 
-func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.Values, intf interface{}) error {
+// Get makes HTTP GET request to World Weather API endpoint.
+func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.Values, data interface{}) error {
 	endpoint := client.buildEndpoint(apiType, queryParams)
 	resp, err := ctxhttp.Get(ctx, http.DefaultClient, endpoint.String())
 	if err != nil {
@@ -71,18 +78,19 @@ func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.
 		return err
 	}
 
-	if err := json.Unmarshal(body, &intf); err != nil {
+	if err := json.Unmarshal(body, data); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+// LocalWeather fetches given location's weather.
 func (client *Client) LocalWeather(ctx context.Context, location string) (*LocalWeatherResponse, error) {
 	queryParams := &url.Values{}
 	queryParams.Add("q", location)
 	data := &LocalWeatherResponse{}
-	if err := client.Get(ctx, "weather", queryParams, &data); err != nil {
+	if err := client.Get(ctx, "weather", queryParams, data); err != nil {
 		return nil, err
 	}
 

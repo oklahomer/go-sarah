@@ -10,12 +10,24 @@ import (
 	"regexp"
 )
 
+// MatchPattern defines regular expression pattern that is checked against user input
 var MatchPattern = regexp.MustCompile(`^\.weather`)
 
+// CommandConfig contains some configuration variables for weather command.
 type CommandConfig struct {
 	APIKey string `yaml:"api_key"`
 }
 
+// NewCommandConfig creates and returns CommandConfig with default settings.
+// To override default settings, pass the returned value to (json|yaml).Unmarshal or do this manually.
+func NewCommandConfig() *CommandConfig {
+	return &CommandConfig{
+		APIKey: "",
+	}
+}
+
+// SlackCommandFunc is a function that satisfies sarah.CommandConfig type.
+// This can be fed to CommandBuilder.ConfigurableFunc.
 func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.CommandResponse, error) {
 	strippedMessage := sarah.StripMessage(MatchPattern, input.Message())
 
