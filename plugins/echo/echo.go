@@ -22,7 +22,7 @@ func SlackCommandFunc(_ context.Context, input sarah.Input) (*sarah.CommandRespo
 	return slack.NewStringResponse(commandFnc(input)), nil
 }
 
-// SlackCommandFunc is a sarah.CommandFunc especially designed for gitter adapter.
+// GitterCommandFunc is a sarah.CommandFunc especially designed for gitter adapter.
 func GitterCommandFunc(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 	return gitter.NewStringResponse(commandFnc(input)), nil
 }
