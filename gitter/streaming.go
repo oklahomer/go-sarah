@@ -13,6 +13,7 @@ const (
 	StreamingAPIEndpointFormat = "https://stream.gitter.im/%s/rooms/%s/chatMessages"
 )
 
+// StreamConnector defines an interface that connects to given gitter room
 type StreamConnector interface {
 	Connect(context.Context, *Room) (Connection, error)
 }

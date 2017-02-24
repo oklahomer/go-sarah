@@ -2,6 +2,7 @@ package gitter
 
 import "time"
 
+// Config contains some configuration variables for gitter Adapter.
 type Config struct {
 	Token         string        `json:"token" yaml:"token"`
 	RetryLimit    uint          `json:"retry_limit" yaml:"retry_limit"`

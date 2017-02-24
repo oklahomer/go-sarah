@@ -17,6 +17,7 @@ const (
 	RestAPIEndpoint = "https://api.gitter.im/"
 )
 
+// RoomsFetcher defines interface that fetch gitter rooms.
 type RoomsFetcher interface {
 	Rooms(context.Context) (*Rooms, error)
 }

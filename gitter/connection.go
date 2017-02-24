@@ -12,13 +12,16 @@ import (
 )
 
 var (
+	// ErrEmptyPayload is an error that represents empty payload.
 	ErrEmptyPayload = errors.New("empty payload was given")
 )
 
+// MessageReceiver defines an interface that receives RoomMessage.
 type MessageReceiver interface {
 	Receive() (*RoomMessage, error)
 }
 
+// Connection defines an interface that satisfies both MessageReceiver and io.Closer.
 type Connection interface {
 	MessageReceiver
 	io.Closer
@@ -80,8 +83,7 @@ func decodePayload(payload []byte) (*Message, error) {
 	return message, nil
 }
 
-// MessageWithRoom stashes received Message and additional Room information.
-// This implements Input.
+// RoomMessage stashes received Message and additional Room information.
 type RoomMessage struct {
 	Room            *Room
 	ReceivedMessage *Message
