@@ -15,9 +15,16 @@ type watchingDir struct {
 }
 
 type dirWatcher struct {
-	fsWatcher *fsnotify.Watcher
-	watchDir  chan *watchingDir
-	cancel    chan BotType
+	watcher  watcher
+	watchDir chan *watchingDir
+	cancel   chan BotType
+}
+
+// watcher defines interface to ease test.
+type watcher interface {
+	Add(string) error
+	Remove(string) error
+	Close() error
 }
 
 func runConfigWatcher(ctx context.Context) (*dirWatcher, error) {
@@ -27,26 +34,28 @@ func runConfigWatcher(ctx context.Context) (*dirWatcher, error) {
 	}
 
 	dw := &dirWatcher{
-		fsWatcher: fsWatcher,
-		watchDir:  make(chan *watchingDir),
-		cancel:    make(chan BotType),
+		watcher:  fsWatcher,
+		watchDir: make(chan *watchingDir),
+		cancel:   make(chan BotType),
 	}
 
-	go dw.receiveEvent(ctx)
+	// fsnotify.Watcher directly exposes Events and Errors fields so these can not be included to watcher interface.
+	// Pass these channels to let receiveEvent only deals with watcher interface.
+	go dw.receiveEvent(ctx, fsWatcher.Events, fsWatcher.Errors)
 
 	return dw, nil
 }
 
-func (dw *dirWatcher) receiveEvent(ctx context.Context) {
+func (dw *dirWatcher) receiveEvent(ctx context.Context, events chan fsnotify.Event, errors chan error) {
 	subscription := map[string][]*watchingDir{}
 	for {
 		select {
 		case <-ctx.Done():
-			dw.fsWatcher.Close()
+			dw.watcher.Close()
 			log.Info("stop subscribing to file system event due to context cancel")
 			return
 
-		case event := <-dw.fsWatcher.Events:
+		case event := <-events:
 			switch {
 			case event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create:
 				log.Infof("%s %s.", event.Op.String(), event.Name)
@@ -62,7 +71,7 @@ func (dw *dirWatcher) receiveEvent(ctx context.Context) {
 			}
 
 		case w := <-dw.watchDir:
-			err := dw.fsWatcher.Add(w.dir)
+			err := dw.watcher.Add(w.dir)
 			if err != nil {
 				w.initErr <- err
 				break
@@ -87,7 +96,7 @@ func (dw *dirWatcher) receiveEvent(ctx context.Context) {
 
 				// If none should remain, stop subscribing to watch corresponding directory.
 				if len(remains) == 0 {
-					dw.fsWatcher.Remove(dir)
+					dw.watcher.Remove(dir)
 					delete(subscription, dir)
 					break
 				}
@@ -96,7 +105,7 @@ func (dw *dirWatcher) receiveEvent(ctx context.Context) {
 				subscription[dir] = remains
 			}
 
-		case err := <-dw.fsWatcher.Errors:
+		case err := <-errors:
 			log.Errorf("error on subscribing to directory change: %s.", err.Error())
 
 		}
