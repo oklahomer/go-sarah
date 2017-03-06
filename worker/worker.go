@@ -1,9 +1,11 @@
 package worker
 
 import (
+	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -75,13 +77,14 @@ func runChild(ctx context.Context, job <-chan func(), workerID uint) {
 		case <-ctx.Done():
 			log.Infof("stopping worker id: %d", workerID)
 			return
+
 		case job := <-job:
 			log.Debugf("receiving job on worker: %d", workerID)
 			// To avoid given job's panic affect later jobs, wrap them with recover.
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						log.Warnf("panic in given job. recovered: %#v", r)
+						stack := []string{fmt.Sprintf("panic in given job. recovered: %#v", r)}
 
 						// Display stack trace
 						for depth := 0; ; depth++ {
@@ -89,11 +92,13 @@ func runChild(ctx context.Context, job <-chan func(), workerID uint) {
 							if !ok {
 								break
 							}
-							log.Warnf(" -> depth:%d. file:%s. line:%d.", depth, src, line)
+							stack = append(stack, fmt.Sprintf(" -> depth:%d. file:%s. line:%d.", depth, src, line))
 						}
-					}
 
+						log.Warn(strings.Join(stack, "\n"))
+					}
 				}()
+
 				job()
 			}()
 		}
@@ -108,6 +113,7 @@ func superviseQueueLength(ctx context.Context, reporter Reporter, job chan<- fun
 		select {
 		case <-ctx.Done():
 			return
+
 		case <-ticker.C:
 			reporter.ReportQueueSize(ctx, len(job))
 		}
