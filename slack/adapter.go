@@ -165,18 +165,21 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 					log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
 				}
 			case *rtmapi.Message:
-				trimmed := strings.TrimSpace(p.Text)
+				// Convert RTM specific message to one that satisfies sarah.Input interface.
+				input := &MessageInput{event: p}
+
+				trimmed := strings.TrimSpace(input.Message())
 				if adapter.config.HelpCommand != "" && trimmed == adapter.config.HelpCommand {
 					// Help command
-					help := sarah.NewHelpInput(p.Sender, p.Text, p.TimeStamp.Time, p.Channel)
+					help := sarah.NewHelpInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
 					enqueueInput(help)
 				} else if adapter.config.AbortCommand != "" && trimmed == adapter.config.AbortCommand {
 					// Abort command
-					abort := sarah.NewAbortInput(p.Sender, p.Text, p.TimeStamp.Time, p.Channel)
+					abort := sarah.NewAbortInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
 					enqueueInput(abort)
 				} else {
 					// Regular input
-					enqueueInput(&MessageInput{event: p})
+					enqueueInput(input)
 				}
 			case *rtmapi.Pong:
 				continue
@@ -207,7 +210,7 @@ func nonBlockSignal(id string, target chan<- struct{}) {
 }
 
 type textMessage struct {
-	channel *rtmapi.Channel
+	channel rtmapi.ChannelID
 	text    string
 }
 
@@ -215,7 +218,7 @@ type textMessage struct {
 func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	switch content := output.Content().(type) {
 	case string:
-		channel, ok := output.Destination().(*rtmapi.Channel)
+		channel, ok := output.Destination().(rtmapi.ChannelID)
 		if !ok {
 			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
@@ -233,7 +236,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 		}
 
 	case *sarah.CommandHelps:
-		channel, ok := output.Destination().(*rtmapi.Channel)
+		channelID, ok := output.Destination().(rtmapi.ChannelID)
 		if !ok {
 			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
@@ -255,7 +258,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 				Fields:   fields,
 			},
 		}
-		postMessage := webapi.NewPostMessageWithAttachments(channel.Name, "", attachments)
+		postMessage := webapi.NewPostMessageWithAttachments(channelID.String(), "", attachments)
 
 		if _, err := adapter.client.PostMessage(ctx, postMessage); err != nil {
 			log.Error("something went wrong with Web API posting", err)
@@ -305,7 +308,7 @@ type MessageInput struct {
 
 // SenderKey returns string representing message sender.
 func (message *MessageInput) SenderKey() string {
-	return fmt.Sprintf("%s|%s", message.event.Channel.Name, message.event.Sender)
+	return fmt.Sprintf("%s|%s", message.event.ChannelID, message.event.Sender.String())
 }
 
 // Message returns sent message.
@@ -320,7 +323,7 @@ func (message *MessageInput) SentAt() time.Time {
 
 // ReplyTo returns slack channel to send reply to.
 func (message *MessageInput) ReplyTo() sarah.OutputDestination {
-	return message.event.Channel
+	return message.event.ChannelID
 }
 
 // NewStringResponse creates new sarah.CommandResponse instance with given string.
@@ -347,7 +350,7 @@ func NewPostMessageResponse(input sarah.Input, message string, attachments []*we
 func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
 	inputMessage, _ := input.(*MessageInput)
 	return &sarah.CommandResponse{
-		Content: webapi.NewPostMessageWithAttachments(inputMessage.event.Channel.Name, message, attachments),
+		Content: webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID.String(), message, attachments),
 		Next:    next,
 	}
 }
