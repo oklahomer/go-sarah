@@ -6,6 +6,7 @@ import (
 	"github.com/oklahomer/go-sarah/worker"
 	"golang.org/x/net/context"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -97,14 +98,16 @@ func (runner *Runner) Run(ctx context.Context) {
 		botType := bot.BotType()
 		log.Infof("starting %s", botType.String())
 
-		// each Bot has its own context propagating Runner's lifecycle
+		// Each Bot has its own context propagating Runner's lifecycle.
 		botCtx, errNotifier := botSupervisor(ctx, botType, runner.alerters)
 
-		// run Bot
-		receiveInput := setupInputReceiver(botCtx, bot, workerJob)
-		go bot.Run(botCtx, receiveInput, errNotifier)
+		// Prepare function  that receives Input.
+		receiveInput := setupInputReceiver(ctx, bot, workerJob)
 
-		// setup config directory
+		// run Bot
+		go runBot(botCtx, bot, receiveInput, errNotifier)
+
+		// Setup config directory.
 		var configDir string
 		if runner.config.PluginConfigRoot != "" {
 			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
@@ -116,7 +119,7 @@ func (runner *Runner) Run(ctx context.Context) {
 			bot.AppendCommand(command)
 		}
 
-		// Setup schedule registration function that tied to this particular bot type.
+		// Setup schedule registration function that is tied to this particular bot type.
 		updateSchedule := func(c context.Context, b Bot) func(ScheduledTask) error {
 			return func(t ScheduledTask) error {
 				log.Infof("registering task for %s: %s", b.BotType().String(), t.Identifier())
@@ -126,22 +129,17 @@ func (runner *Runner) Run(ctx context.Context) {
 			}
 		}(botCtx, bot) // Beware of closure...
 
-		// set cron jobs with registered scheduled task
-		if tasks, ok := runner.scheduledTasks[botType]; ok {
-			for _, task := range tasks {
-				if task.Schedule() == "" {
-					log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), "No schedule given.")
-					continue
-				}
-				if err := updateSchedule(task); err != nil {
-					log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
-				}
-			}
-		}
-
-		// build scheduled task with stashed builder settings
-		tasks := stashedScheduledTaskBuilders.build(botType, configDir)
+		// Set cron jobs. Jobs include...
+		// - pre-registered scheduled task
+		// - those built with stashed builders
+		tasks := append(runner.scheduledTasks[botType], stashedScheduledTaskBuilders.build(botType, configDir)...)
 		for _, task := range tasks {
+			// Make sure schedule is given. Especially those pre-registered tasks.
+			if task.Schedule() == "" {
+				log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), "No schedule given.")
+				continue
+			}
+
 			if err := updateSchedule(task); err != nil {
 				log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
 			}
@@ -164,6 +162,29 @@ func (runner *Runner) Run(ctx context.Context) {
 	}
 
 	wg.Wait()
+}
+
+func runBot(ctx context.Context, bot Bot, receiveInput func(Input) error, errNotifier func(error)) {
+	// When bot panics, recover and tell as much detailed information as possible via error notification channel.
+	// Notified channel sends alert to notify administrator.
+	defer func() {
+		if r := recover(); r != nil {
+			stack := []string{fmt.Sprintf("panic in bot: %s. %#v.", bot.BotType(), r)}
+
+			// Inform stack trace
+			for depth := 0; ; depth++ {
+				_, src, line, ok := runtime.Caller(depth)
+				if !ok {
+					break
+				}
+				stack = append(stack, fmt.Sprintf(" -> depth:%d. file:%s. line:%d.", depth, src, line))
+			}
+
+			errNotifier(NewBotNonContinuableError(strings.Join(stack, "\n")))
+		}
+	}()
+
+	bot.Run(ctx, receiveInput, errNotifier)
 }
 
 func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
