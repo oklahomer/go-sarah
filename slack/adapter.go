@@ -334,8 +334,8 @@ func NewStringResponse(responseContent string) *sarah.CommandResponse {
 // NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
 func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
 	return &sarah.CommandResponse{
-		Content: responseContent,
-		Next:    next,
+		Content:     responseContent,
+		UserContext: sarah.NewUserContext(next),
 	}
 }
 
@@ -350,7 +350,7 @@ func NewPostMessageResponse(input sarah.Input, message string, attachments []*we
 func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
 	inputMessage, _ := input.(*MessageInput)
 	return &sarah.CommandResponse{
-		Content: webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID.String(), message, attachments),
-		Next:    next,
+		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID.String(), message, attachments),
+		UserContext: sarah.NewUserContext(next),
 	}
 }

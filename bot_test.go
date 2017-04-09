@@ -131,8 +131,8 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 		},
 		ExecuteFunc: func(_ context.Context, _ Input) (*CommandResponse, error) {
 			return &CommandResponse{
-				Content: nil,
-				Next:    nextFunc,
+				Content:     nil,
+				UserContext: NewUserContext(nextFunc),
 			}, nil
 		},
 	}
@@ -173,8 +173,8 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 		GetFunc: func(_ string) (*UserContext, error) {
 			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
 				return &CommandResponse{
-					Content: responseContent,
-					Next:    nextFunc,
+					Content:     responseContent,
+					UserContext: NewUserContext(nextFunc),
 				}, nil
 			}), nil
 		},
@@ -336,7 +336,11 @@ func TestNewSuppressedResponseWithNext(t *testing.T) {
 		t.Fatal("CommandResponse is not initialized.")
 	}
 
-	if reflect.ValueOf(res.Next).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
-		t.Errorf("Unexpected ContextualFunc is set %#v.", res.Next)
+	if res.UserContext == nil {
+		t.Fatal("Expected UserContext is not stored.")
+	}
+
+	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
+		t.Errorf("Unexpected ContextualFunc is set %#v.", res.UserContext.Next)
 	}
 }

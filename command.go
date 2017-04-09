@@ -27,8 +27,8 @@ type ContextualFunc func(context.Context, Input) (*CommandResponse, error)
 
 // CommandResponse is returned by Command or Task when the execution is finished.
 type CommandResponse struct {
-	Content interface{}
-	Next    ContextualFunc
+	Content     interface{}
+	UserContext *UserContext
 }
 
 // Command defines interface that all command MUST satisfy.
