@@ -54,7 +54,7 @@ func main() {
         configBuf, _ := ioutil.ReadFile("/path/to/adapter/config.yaml")
         slackConfig := slack.NewConfig() // config struct is returned with default settings.
         yaml.Unmarshal(configBuf, slackConfig)
-        _ = sarah.NewBot(slack.NewAdapter(slackConfig), sarah.NewCacheConfig())
+        sarah.NewBot(slack.NewAdapter(slackConfig))
 }
 ```
 
@@ -172,7 +172,7 @@ func main() {
         slackConfig := slack.NewConfig()
         yaml.Unmarshal(configBuf, slackConfig)
         storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
-        slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), storage)
+        slackBot, _ := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.BotWithStorage(storage))
 
         // Register desired command(s)
         slackBot.AppendCommand(hello.SlackCommand)
