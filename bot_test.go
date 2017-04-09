@@ -116,8 +116,9 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 		GetFunc: func(_ string) (*UserContext, error) {
 			return nil, nil
 		},
-		SetFunc: func(_ string, userContext *UserContext) {
+		SetFunc: func(_ string, userContext *UserContext) error {
 			givenNext = userContext.Next
+			return nil
 		},
 	}
 
@@ -166,8 +167,8 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	responseContent := &struct{}{}
 	var givenNext ContextualFunc
 	dummyCache := &DummyCachedUserContexts{
-		DeleteFunc: func(_ string) {
-			return
+		DeleteFunc: func(_ string) error {
+			return nil
 		},
 		GetFunc: func(_ string) (*UserContext, error) {
 			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
@@ -177,8 +178,9 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 				}, nil
 			}), nil
 		},
-		SetFunc: func(_ string, userContext *UserContext) {
+		SetFunc: func(_ string, userContext *UserContext) error {
 			givenNext = userContext.Next
+			return nil
 		},
 	}
 
@@ -220,8 +222,9 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 func TestDefaultBot_Respond_Abort(t *testing.T) {
 	isCacheDeleted := false
 	dummyCache := &DummyCachedUserContexts{
-		DeleteFunc: func(_ string) {
+		DeleteFunc: func(_ string) error {
 			isCacheDeleted = true
+			return nil
 		},
 		GetFunc: func(_ string) (*UserContext, error) {
 			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {

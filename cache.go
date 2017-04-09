@@ -40,9 +40,9 @@ func NewUserContext(next ContextualFunc) *UserContext {
 // UserContexts defines an interface of Bot's cache mechanism for users' conversational contexts.
 type UserContexts interface {
 	Get(string) (*UserContext, error)
-	Set(string, *UserContext)
-	Delete(string)
-	Flush()
+	Set(string, *UserContext) error
+	Delete(string) error
+	Flush() error
 }
 
 // CachedUserContexts is the default implementation of UserContexts.
@@ -75,17 +75,20 @@ func (contexts *CachedUserContexts) Get(key string) (*UserContext, error) {
 
 // Delete removes currently stored user's conversational context.
 // This does nothing if corresponding cache is not found.
-func (contexts *CachedUserContexts) Delete(key string) {
+func (contexts *CachedUserContexts) Delete(key string) error {
 	contexts.cache.Delete(key)
+	return nil
 }
 
 // Set stores given UserContext.
 // Stored context is tied to given key, which represents a particular user.
-func (contexts *CachedUserContexts) Set(key string, userContext *UserContext) {
+func (contexts *CachedUserContexts) Set(key string, userContext *UserContext) error {
 	contexts.cache.Set(key, userContext, cache.DefaultExpiration)
+	return nil
 }
 
 // Flush removes all stored UserContext from its in-memory cache.
-func (contexts *CachedUserContexts) Flush() {
+func (contexts *CachedUserContexts) Flush() error {
 	contexts.cache.Flush()
+	return nil
 }

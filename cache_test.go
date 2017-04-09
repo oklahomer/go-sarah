@@ -9,25 +9,25 @@ import (
 
 type DummyCachedUserContexts struct {
 	GetFunc    func(string) (*UserContext, error)
-	SetFunc    func(string, *UserContext)
-	DeleteFunc func(string)
-	FlushFunc  func()
+	SetFunc    func(string, *UserContext) error
+	DeleteFunc func(string) error
+	FlushFunc  func() error
 }
 
 func (cache *DummyCachedUserContexts) Get(key string) (*UserContext, error) {
 	return cache.GetFunc(key)
 }
 
-func (cache *DummyCachedUserContexts) Set(key string, userContext *UserContext) {
-	cache.SetFunc(key, userContext)
+func (cache *DummyCachedUserContexts) Set(key string, userContext *UserContext) error {
+	return cache.SetFunc(key, userContext)
 }
 
-func (cache *DummyCachedUserContexts) Delete(key string) {
-	cache.DeleteFunc(key)
+func (cache *DummyCachedUserContexts) Delete(key string) error {
+	return cache.DeleteFunc(key)
 }
 
-func (cache *DummyCachedUserContexts) Flush() {
-	cache.FlushFunc()
+func (cache *DummyCachedUserContexts) Flush() error {
+	return cache.FlushFunc()
 }
 
 func TestNewCachedUserContexts(t *testing.T) {
