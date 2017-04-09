@@ -67,14 +67,17 @@ func (bot *defaultBot) BotType() BotType {
 
 func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	senderKey := input.SenderKey()
-	userContext, storageErr := bot.userContextStorage.Get(senderKey)
+
+	// See if any conversational context is stored.
+	nextFunc, storageErr := bot.userContextStorage.Get(senderKey)
 	if storageErr != nil {
 		return storageErr
 	}
 
 	var res *CommandResponse
 	var err error
-	if userContext == nil {
+	if nextFunc == nil {
+		// If no conversational context is stored, simply search for corresponding command.
 		switch input.(type) {
 		case *HelpInput:
 			res = &CommandResponse{
@@ -90,7 +93,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 		case *AbortInput:
 			return nil
 		default:
-			res, err = (userContext.Next)(ctx, input)
+			res, err = nextFunc(ctx, input)
 		}
 	}
 

@@ -8,13 +8,13 @@ import (
 )
 
 type DummyUserContextStorage struct {
-	GetFunc    func(string) (*UserContext, error)
+	GetFunc    func(string) (ContextualFunc, error)
 	SetFunc    func(string, *UserContext) error
 	DeleteFunc func(string) error
 	FlushFunc  func() error
 }
 
-func (storage *DummyUserContextStorage) Get(key string) (*UserContext, error) {
+func (storage *DummyUserContextStorage) Get(key string) (ContextualFunc, error) {
 	return storage.GetFunc(key)
 }
 

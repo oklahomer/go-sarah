@@ -1,6 +1,7 @@
 package sarah
 
 import (
+	"errors"
 	"fmt"
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/net/context"
@@ -28,17 +29,35 @@ func NewCacheConfig() *CacheConfig {
 // If CommandResponse.Next is given again as part of result, the same step must be followed.
 type ContextualFunc func(context.Context, Input) (*CommandResponse, error)
 
+// SerializableArgument defines user context data to be stored in external storage.
+// This data is read from storage on next user input, deserialized, and executed to continue previous conversation.
 type SerializableArgument struct {
-	Argument       interface{}
 	FuncIdentifier string
+	Argument       interface {
+		Marshal() ([]byte, error)
+		Unmarshal([]byte) error
+	}
 }
 
 // UserContext represents a user's conversational context.
-// If this is present, user is considered "in the middle of conversation,"
-// which means the next input of the user MUST be fed to UserContext.Next to continue the conversation.
+// If this is returned as part of CommandResponse, user is considered "in the middle of conversation,"
+// which means the next input of the user MUST be fed to a function declared in UserContext to continue the conversation.
 // This has higher priority than finding and executing Command by checking Command.Match against Input.
+//
+// Currently this structure supports two forms of context storage.
+// See GitHub issue, https://github.com/oklahomer/go-sarah/issues/34, for detailed motives.
 type UserContext struct {
-	Next         ContextualFunc
+	// Next contains a function to be called on next user input.
+	// Default implementation of UserContextStorage, defaultUserContextStorage, uses this to store conversational contexts.
+	//
+	// Since this is a plain function, this is stored in the exact same memory space the Bot is currently running,
+	// which means this function can not be shared with other Bot instance or can not be stored in external storage such as Redis.
+	// To store user context in externally, set Serializable to store serialized arguments in external storage.
+	Next ContextualFunc
+
+	// Serializable, on the other hand, contains arguments and function identifier to be stored in external storage.
+	// When user input is given next time, serialized SerializableArgument is fetched from storage, deserialized, and fed to pre-registered function.
+	// Pre-registered function is identified by SerializableArgument.FuncIdentifier.
 	Serializable *SerializableArgument
 }
 
@@ -52,7 +71,7 @@ func NewUserContext(next ContextualFunc) *UserContext {
 
 // UserContextStorage defines an interface of Bot's storage mechanism for users' conversational contexts.
 type UserContextStorage interface {
-	Get(string) (*UserContext, error)
+	Get(string) (ContextualFunc, error)
 	Set(string, *UserContext) error
 	Delete(string) error
 	Flush() error
@@ -72,7 +91,7 @@ func NewUserContextStorage(config *CacheConfig) UserContextStorage {
 }
 
 // Get searches for user's stored state with given user key, and return it if any found.
-func (storage *defaultUserContextStorage) Get(key string) (*UserContext, error) {
+func (storage *defaultUserContextStorage) Get(key string) (ContextualFunc, error) {
 	val, hasKey := storage.cache.Get(key)
 	if !hasKey || val == nil {
 		return nil, nil
@@ -80,7 +99,7 @@ func (storage *defaultUserContextStorage) Get(key string) (*UserContext, error) 
 
 	switch v := val.(type) {
 	case *UserContext:
-		return v, nil
+		return v.Next, nil
 	default:
 		return nil, fmt.Errorf("cached value has illegal type of %T", v)
 	}
@@ -96,6 +115,10 @@ func (storage *defaultUserContextStorage) Delete(key string) error {
 // Set stores given UserContext.
 // Stored context is tied to given key, which represents a particular user.
 func (storage *defaultUserContextStorage) Set(key string, userContext *UserContext) error {
+	if userContext.Next == nil {
+		return errors.New("UserContext.Next is not set. defaultUserContextStorage only supports in-memory ContextualFunc cache.")
+	}
+
 	storage.cache.Set(key, userContext, cache.DefaultExpiration)
 	return nil
 }

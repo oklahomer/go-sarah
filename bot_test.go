@@ -68,7 +68,7 @@ func TestDefaultBot_AppendCommand(t *testing.T) {
 func TestDefaultBot_Respond_StorageAcquisitionError(t *testing.T) {
 	storageError := errors.New("storage error")
 	dummyStorage := &DummyUserContextStorage{
-		GetFunc: func(_ string) (*UserContext, error) {
+		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nil, storageError
 		},
 	}
@@ -89,7 +89,7 @@ func TestDefaultBot_Respond_StorageAcquisitionError(t *testing.T) {
 
 func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 	dummyStorage := &DummyUserContextStorage{
-		GetFunc: func(_ string) (*UserContext, error) {
+		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nil, nil
 		},
 	}
@@ -113,7 +113,7 @@ func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 	var givenNext ContextualFunc
 	dummyStorage := &DummyUserContextStorage{
-		GetFunc: func(_ string) (*UserContext, error) {
+		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nil, nil
 		},
 		SetFunc: func(_ string, userContext *UserContext) error {
@@ -170,13 +170,13 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 		DeleteFunc: func(_ string) error {
 			return nil
 		},
-		GetFunc: func(_ string) (*UserContext, error) {
-			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
+		GetFunc: func(_ string) (ContextualFunc, error) {
+			return func(_ context.Context, input Input) (*CommandResponse, error) {
 				return &CommandResponse{
 					Content:     responseContent,
 					UserContext: NewUserContext(nextFunc),
 				}, nil
-			}), nil
+			}, nil
 		},
 		SetFunc: func(_ string, userContext *UserContext) error {
 			givenNext = userContext.Next
@@ -226,10 +226,10 @@ func TestDefaultBot_Respond_Abort(t *testing.T) {
 			isStorageDeleted = true
 			return nil
 		},
-		GetFunc: func(_ string) (*UserContext, error) {
-			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
+		GetFunc: func(_ string) (ContextualFunc, error) {
+			return func(_ context.Context, input Input) (*CommandResponse, error) {
 				panic("Don't call me!!!")
-			}), nil
+			}, nil
 		},
 	}
 
@@ -258,7 +258,7 @@ func TestDefaultBot_Respond_Help(t *testing.T) {
 
 	var givenOutput Output
 	dummyStorage := &DummyUserContextStorage{
-		GetFunc: func(_ string) (*UserContext, error) {
+		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nil, nil
 		},
 	}
