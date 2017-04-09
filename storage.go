@@ -33,10 +33,7 @@ type ContextualFunc func(context.Context, Input) (*CommandResponse, error)
 // This data is read from storage on next user input, deserialized, and executed to continue previous conversation.
 type SerializableArgument struct {
 	FuncIdentifier string
-	Argument       interface {
-		Marshal() ([]byte, error)
-		Unmarshal([]byte) error
-	}
+	Argument       interface{}
 }
 
 // UserContext represents a user's conversational context.
@@ -58,6 +55,7 @@ type UserContext struct {
 	// Serializable, on the other hand, contains arguments and function identifier to be stored in external storage.
 	// When user input is given next time, serialized SerializableArgument is fetched from storage, deserialized, and fed to pre-registered function.
 	// Pre-registered function is identified by SerializableArgument.FuncIdentifier.
+	// A reference implementation is available at https://github.com/oklahomer/go-sarah-rediscontext
 	Serializable *SerializableArgument
 }
 

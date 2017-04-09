@@ -332,6 +332,9 @@ func NewStringResponse(responseContent string) *sarah.CommandResponse {
 }
 
 // NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
+//
+// With this method user context is directly stored as an anonymous function since Slack Bot works with single WebSocket connection and hence usually works with single process.
+// To use external storage to store user context, use go-sarah-rediscontext or similar sarah.UserContextStorage implementation.
 func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
 	return &sarah.CommandResponse{
 		Content:     responseContent,
@@ -347,6 +350,9 @@ func NewPostMessageResponse(input sarah.Input, message string, attachments []*we
 
 // NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.
 // Use NewStringResponse for simple text response.
+//
+// With this method user context is directly stored as an anonymous function since Slack Bot works with single WebSocket connection and hence usually works with single process.
+// To use external storage to store user context, use go-sarah-rediscontext or similar sarah.UserContextStorage implementation.
 func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
 	inputMessage, _ := input.(*MessageInput)
 	return &sarah.CommandResponse{
