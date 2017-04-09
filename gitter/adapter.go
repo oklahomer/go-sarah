@@ -151,7 +151,7 @@ func NewStringResponse(responseContent string) *sarah.CommandResponse {
 // NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
 func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
 	return &sarah.CommandResponse{
-		Content: responseContent,
-		Next:    next,
+		Content:     responseContent,
+		UserContext: sarah.NewUserContext(next),
 	}
 }

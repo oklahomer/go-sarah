@@ -3,6 +3,7 @@ package gitter
 import (
 	"github.com/oklahomer/go-sarah"
 	"golang.org/x/net/context"
+	"reflect"
 	"testing"
 )
 
@@ -26,7 +27,11 @@ func TestNewStringResponseWithNext(t *testing.T) {
 		t.Errorf("expected content is not returned: %s.", res.Content)
 	}
 
-	if res.Next == nil {
-		t.Fatalf("expected next step is not returned: %#v.", res.Next)
+	if res.UserContext == nil {
+		t.Fatal("Expected UserContxt is not stored.")
+	}
+
+	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
+		t.Fatalf("expected next step is not returned: %#v.", res.UserContext.Next)
 	}
 }

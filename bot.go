@@ -35,11 +35,11 @@ type Bot interface {
 }
 
 type defaultBot struct {
-	botType          BotType
-	runFunc          func(context.Context, func(Input) error, func(error))
-	sendMessageFunc  func(context.Context, Output)
-	commands         *Commands
-	userContextCache UserContexts
+	botType            BotType
+	runFunc            func(context.Context, func(Input) error, func(error))
+	sendMessageFunc    func(context.Context, Output)
+	commands           *Commands
+	userContextStorage UserContextStorage
 }
 
 // NewBot creates and returns new defaultBot instance with given Adapter.
@@ -51,13 +51,45 @@ type defaultBot struct {
 //   - call Adapter.SendMessage to send output
 // The aim of defaultBot is to lessen the tasks of Adapter developer by providing some common tasks' implementations, and achieve easier creation of Bot implementation.
 // Hence this method returns Bot interface instead of any concrete instance so this can be ONLY treated as Bot implementation to be fed to Runner.RegisterBot.
-func NewBot(adapter Adapter, cacheConfig *CacheConfig) Bot {
-	return &defaultBot{
-		botType:          adapter.BotType(),
-		runFunc:          adapter.Run,
-		sendMessageFunc:  adapter.SendMessage,
-		commands:         NewCommands(),
-		userContextCache: NewCachedUserContexts(cacheConfig),
+//
+// Some optional settings can be supplied by passing sarah.WithStorage and others that return DefaultBotOption.
+//
+//  // Use pre-defined storage.
+//  storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
+//  bot, err := sarah.NewBot(myAdapter, sarah.WithStorage(sarah.NewUserContextStorage(sarah.NewCacheConfig())))
+func NewBot(adapter Adapter, options ...DefaultBotOption) (Bot, error) {
+	bot := &defaultBot{
+		botType:            adapter.BotType(),
+		runFunc:            adapter.Run,
+		sendMessageFunc:    adapter.SendMessage,
+		commands:           NewCommands(),
+		userContextStorage: nil,
+	}
+
+	for _, opt := range options {
+		err := opt(bot)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return bot, nil
+}
+
+// DefaultBotOption defines function that defaultBot's functional option must satisfy.
+type DefaultBotOption func(bot *defaultBot) error
+
+// BotWithStorage creates and returns DefaultBotOption to set preferred UserContextStorage implementation.
+// Below example utilizes pre-defined in-memory storage.
+//
+//  config := sarah.NewCacheConfig()
+//  configBuf, _ := ioutil.ReadFile("/path/to/storage/config.yaml")
+//  yaml.Unmarshal(configBuf, config)
+//  bot, err := sarah.NewBot(myAdapter, storage)
+func BotWithStorage(storage UserContextStorage) DefaultBotOption {
+	return func(bot *defaultBot) error {
+		bot.userContextStorage = storage
+		return nil
 	}
 }
 
@@ -67,30 +99,37 @@ func (bot *defaultBot) BotType() BotType {
 
 func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	senderKey := input.SenderKey()
-	userContext, cacheErr := bot.userContextCache.Get(senderKey)
-	if cacheErr != nil {
-		return cacheErr
+
+	// See if any conversational context is stored.
+	var nextFunc ContextualFunc
+	if bot.userContextStorage != nil {
+		var storageErr error
+		nextFunc, storageErr = bot.userContextStorage.Get(senderKey)
+		if storageErr != nil {
+			return storageErr
+		}
 	}
 
 	var res *CommandResponse
 	var err error
-	if userContext == nil {
+	if nextFunc == nil {
+		// If no conversational context is stored, simply search for corresponding command.
 		switch input.(type) {
 		case *HelpInput:
 			res = &CommandResponse{
-				Content: bot.commands.Helps(),
-				Next:    nil,
+				Content:     bot.commands.Helps(),
+				UserContext: nil,
 			}
 		default:
 			res, err = bot.commands.ExecuteFirstMatched(ctx, input)
 		}
 	} else {
-		bot.userContextCache.Delete(senderKey)
+		bot.userContextStorage.Delete(senderKey)
 		switch input.(type) {
 		case *AbortInput:
 			return nil
 		default:
-			res, err = (userContext.Next)(ctx, input)
+			res, err = nextFunc(ctx, input)
 		}
 	}
 
@@ -105,8 +144,8 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	// https://github.com/oklahomer/go-sarah/issues/7
 	// Bot may return no message to client and still keep the client in the middle of conversational context.
 	// This may damage user experience since user is left in conversational context set by CommandResponse without any sort of notification.
-	if res.Next != nil {
-		bot.userContextCache.Set(senderKey, NewUserContext(res.Next))
+	if res.UserContext != nil {
+		bot.userContextStorage.Set(senderKey, res.UserContext)
 	}
 	if res.Content != nil {
 		message := NewOutputMessage(input.ReplyTo(), res.Content)
@@ -131,7 +170,7 @@ func (bot *defaultBot) Run(ctx context.Context, enqueueInput func(Input) error, 
 // NewSuppressedResponseWithNext creates new sarah.CommandResponse instance with no message and next function to continue
 func NewSuppressedResponseWithNext(next ContextualFunc) *CommandResponse {
 	return &CommandResponse{
-		Content: nil,
-		Next:    next,
+		Content:     nil,
+		UserContext: NewUserContext(next),
 	}
 }

@@ -36,11 +36,58 @@ func (bot *DummyBot) Run(ctx context.Context, enqueueInput func(Input) error, no
 	bot.RunFunc(ctx, enqueueInput, notifyErr)
 }
 
-func Test_NewBot(t *testing.T) {
+func TestNewBot_WithoutFunctionalOption(t *testing.T) {
 	adapter := &DummyAdapter{}
-	myBot := NewBot(adapter, NewCacheConfig())
+	myBot, err := NewBot(adapter)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %#v.", err)
+	}
+
 	if _, ok := myBot.(*defaultBot); !ok {
-		t.Errorf("newBot did not return bot instance: %#v.", myBot)
+		t.Errorf("NewBot did not return bot instance: %#v.", myBot)
+	}
+}
+
+func TestNewBot_WithFunctionalOption(t *testing.T) {
+	adapter := &DummyAdapter{}
+	expectedErr := errors.New("this is expected.")
+	myBot, err := NewBot(
+		adapter,
+		func(bot *defaultBot) error {
+			return nil
+		},
+		func(bot *defaultBot) error {
+			return expectedErr
+		},
+	)
+
+	if err == nil {
+		t.Fatal("Expected error is not returned")
+	}
+
+	if err != expectedErr {
+		t.Fatalf("Unexpected error is returned: %#v.", err)
+	}
+
+	if myBot != nil {
+		t.Fatalf("Bot should not be returned: %#v.", myBot)
+	}
+}
+
+func TestBotWithStorage(t *testing.T) {
+	storage := &DummyUserContextStorage{}
+	option := BotWithStorage(storage)
+
+	bot := &defaultBot{}
+	option(bot)
+
+	if bot.userContextStorage == nil {
+		t.Fatal("UserContextStorage is not set")
+	}
+
+	if bot.userContextStorage != storage {
+		t.Fatalf("Expected UserContextStorage implementation is not set: %#v", bot.userContextStorage)
 	}
 }
 
@@ -65,16 +112,16 @@ func TestDefaultBot_AppendCommand(t *testing.T) {
 	}
 }
 
-func TestDefaultBot_Respond_CacheAcquisitionError(t *testing.T) {
-	cacheError := errors.New("cache error")
-	dummyCache := &DummyCachedUserContexts{
-		GetFunc: func(_ string) (*UserContext, error) {
-			return nil, cacheError
+func TestDefaultBot_Respond_StorageAcquisitionError(t *testing.T) {
+	storageError := errors.New("storage error")
+	dummyStorage := &DummyUserContextStorage{
+		GetFunc: func(_ string) (ContextualFunc, error) {
+			return nil, storageError
 		},
 	}
 
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
+		userContextStorage: dummyStorage,
 	}
 
 	dummyInput := &DummyInput{
@@ -82,21 +129,21 @@ func TestDefaultBot_Respond_CacheAcquisitionError(t *testing.T) {
 	}
 
 	err := myBot.Respond(context.TODO(), dummyInput)
-	if err != cacheError {
+	if err != storageError {
 		t.Errorf("Expected error was not returned: %#v.", err)
 	}
 }
 
 func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
-	dummyCache := &DummyCachedUserContexts{
-		GetFunc: func(_ string) (*UserContext, error) {
+	dummyStorage := &DummyUserContextStorage{
+		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nil, nil
 		},
 	}
 
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
-		commands:         NewCommands(),
+		userContextStorage: dummyStorage,
+		commands:           NewCommands(),
 	}
 
 	dummyInput := &DummyInput{
@@ -112,12 +159,13 @@ func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 
 func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 	var givenNext ContextualFunc
-	dummyCache := &DummyCachedUserContexts{
-		GetFunc: func(_ string) (*UserContext, error) {
+	dummyStorage := &DummyUserContextStorage{
+		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nil, nil
 		},
-		SetFunc: func(_ string, userContext *UserContext) {
+		SetFunc: func(_ string, userContext *UserContext) error {
 			givenNext = userContext.Next
+			return nil
 		},
 	}
 
@@ -130,16 +178,16 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 		},
 		ExecuteFunc: func(_ context.Context, _ Input) (*CommandResponse, error) {
 			return &CommandResponse{
-				Content: nil,
-				Next:    nextFunc,
+				Content:     nil,
+				UserContext: NewUserContext(nextFunc),
 			}, nil
 		},
 	}
 
 	isSent := false
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
-		commands:         &Commands{command},
+		userContextStorage: dummyStorage,
+		commands:           &Commands{command},
 		sendMessageFunc: func(_ context.Context, output Output) {
 			isSent = true
 		},
@@ -165,20 +213,21 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	}
 	responseContent := &struct{}{}
 	var givenNext ContextualFunc
-	dummyCache := &DummyCachedUserContexts{
-		DeleteFunc: func(_ string) {
-			return
+	dummyStorage := &DummyUserContextStorage{
+		DeleteFunc: func(_ string) error {
+			return nil
 		},
-		GetFunc: func(_ string) (*UserContext, error) {
-			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
+		GetFunc: func(_ string) (ContextualFunc, error) {
+			return func(_ context.Context, input Input) (*CommandResponse, error) {
 				return &CommandResponse{
-					Content: responseContent,
-					Next:    nextFunc,
+					Content:     responseContent,
+					UserContext: NewUserContext(nextFunc),
 				}, nil
-			}), nil
+			}, nil
 		},
-		SetFunc: func(_ string, userContext *UserContext) {
+		SetFunc: func(_ string, userContext *UserContext) error {
 			givenNext = userContext.Next
+			return nil
 		},
 	}
 
@@ -189,8 +238,8 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 			passedContent = output.Content()
 			passedDestination = output.Destination()
 		},
-		userContextCache: dummyCache,
-		commands:         NewCommands(),
+		userContextStorage: dummyStorage,
+		commands:           NewCommands(),
 	}
 
 	dummyInput := &DummyInput{
@@ -218,28 +267,29 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 }
 
 func TestDefaultBot_Respond_Abort(t *testing.T) {
-	isCacheDeleted := false
-	dummyCache := &DummyCachedUserContexts{
-		DeleteFunc: func(_ string) {
-			isCacheDeleted = true
+	isStorageDeleted := false
+	dummyStorage := &DummyUserContextStorage{
+		DeleteFunc: func(_ string) error {
+			isStorageDeleted = true
+			return nil
 		},
-		GetFunc: func(_ string) (*UserContext, error) {
-			return NewUserContext(func(_ context.Context, input Input) (*CommandResponse, error) {
+		GetFunc: func(_ string) (ContextualFunc, error) {
+			return func(_ context.Context, input Input) (*CommandResponse, error) {
 				panic("Don't call me!!!")
-			}), nil
+			}, nil
 		},
 	}
 
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
+		userContextStorage: dummyStorage,
 	}
 
 	err := myBot.Respond(context.TODO(), &AbortInput{})
 	if err != nil {
 		t.Errorf("Unexpected error returned: %#v.", err)
 	}
-	if isCacheDeleted == false {
-		t.Error("Cached context is not deleted.")
+	if isStorageDeleted == false {
+		t.Error("Stored context is not deleted.")
 	}
 }
 
@@ -254,14 +304,14 @@ func TestDefaultBot_Respond_Help(t *testing.T) {
 	}
 
 	var givenOutput Output
-	dummyCache := &DummyCachedUserContexts{
-		GetFunc: func(_ string) (*UserContext, error) {
+	dummyStorage := &DummyUserContextStorage{
+		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nil, nil
 		},
 	}
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
-		commands:         &Commands{cmd},
+		userContextStorage: dummyStorage,
+		commands:           &Commands{cmd},
 		sendMessageFunc: func(_ context.Context, output Output) {
 			givenOutput = output
 		},
@@ -333,7 +383,11 @@ func TestNewSuppressedResponseWithNext(t *testing.T) {
 		t.Fatal("CommandResponse is not initialized.")
 	}
 
-	if reflect.ValueOf(res.Next).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
-		t.Errorf("Unexpected ContextualFunc is set %#v.", res.Next)
+	if res.UserContext == nil {
+		t.Fatal("Expected UserContext is not stored.")
+	}
+
+	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
+		t.Errorf("Unexpected ContextualFunc is set %#v.", res.UserContext.Next)
 	}
 }
