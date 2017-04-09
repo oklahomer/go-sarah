@@ -35,11 +35,11 @@ type Bot interface {
 }
 
 type defaultBot struct {
-	botType          BotType
-	runFunc          func(context.Context, func(Input) error, func(error))
-	sendMessageFunc  func(context.Context, Output)
-	commands         *Commands
-	userContextCache UserContexts
+	botType            BotType
+	runFunc            func(context.Context, func(Input) error, func(error))
+	sendMessageFunc    func(context.Context, Output)
+	commands           *Commands
+	userContextStorage UserContextStorage
 }
 
 // NewBot creates and returns new defaultBot instance with given Adapter.
@@ -53,11 +53,11 @@ type defaultBot struct {
 // Hence this method returns Bot interface instead of any concrete instance so this can be ONLY treated as Bot implementation to be fed to Runner.RegisterBot.
 func NewBot(adapter Adapter, cacheConfig *CacheConfig) Bot {
 	return &defaultBot{
-		botType:          adapter.BotType(),
-		runFunc:          adapter.Run,
-		sendMessageFunc:  adapter.SendMessage,
-		commands:         NewCommands(),
-		userContextCache: NewCachedUserContexts(cacheConfig),
+		botType:            adapter.BotType(),
+		runFunc:            adapter.Run,
+		sendMessageFunc:    adapter.SendMessage,
+		commands:           NewCommands(),
+		userContextStorage: NewUserContextStorage(cacheConfig),
 	}
 }
 
@@ -67,9 +67,9 @@ func (bot *defaultBot) BotType() BotType {
 
 func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	senderKey := input.SenderKey()
-	userContext, cacheErr := bot.userContextCache.Get(senderKey)
-	if cacheErr != nil {
-		return cacheErr
+	userContext, storageErr := bot.userContextStorage.Get(senderKey)
+	if storageErr != nil {
+		return storageErr
 	}
 
 	var res *CommandResponse
@@ -85,7 +85,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 			res, err = bot.commands.ExecuteFirstMatched(ctx, input)
 		}
 	} else {
-		bot.userContextCache.Delete(senderKey)
+		bot.userContextStorage.Delete(senderKey)
 		switch input.(type) {
 		case *AbortInput:
 			return nil
@@ -106,7 +106,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	// Bot may return no message to client and still keep the client in the middle of conversational context.
 	// This may damage user experience since user is left in conversational context set by CommandResponse without any sort of notification.
 	if res.UserContext != nil {
-		bot.userContextCache.Set(senderKey, res.UserContext)
+		bot.userContextStorage.Set(senderKey, res.UserContext)
 	}
 	if res.Content != nil {
 		message := NewOutputMessage(input.ReplyTo(), res.Content)

@@ -35,7 +35,7 @@ So ```defaultBot``` is already predefined. This can be initialized via ```sarah.
 ### Adapter
 ```sarah.NewBot``` takes two arguments: ```Adapter``` implementation and ```sarah.CacheConfig```.
 This ```Adapter``` thing becomes a bridge between defaultBot and chat service.
-```DefaultBot``` takes care of finding corresponding command against given input, handling cached user context, and other miscellaneous tasks; ```Adapter``` takes care of connecting/requesting to and sending/receiving from chat service.
+```DefaultBot``` takes care of finding corresponding command against given input, handling stored user context, and other miscellaneous tasks; ```Adapter``` takes care of connecting/requesting to and sending/receiving from chat service.
 
 ```go
 package main

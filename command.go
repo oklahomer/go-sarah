@@ -19,12 +19,6 @@ var (
 	ErrCommandInsufficientArgument = errors.New("Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
 )
 
-// ContextualFunc defines a function signature that defines user's next step.
-// When a function or instance method is given as CommandResponse.Next, Bot implementation must store this with Input.SenderKey.
-// On user's next input, inside of Bot.Respond, Bot retrieves stored ContextualFunc and execute this.
-// If CommandResponse.Next is given again as part of result, the same step must be followed.
-type ContextualFunc func(context.Context, Input) (*CommandResponse, error)
-
 // CommandResponse is returned by Command or Task when the execution is finished.
 type CommandResponse struct {
 	Content     interface{}

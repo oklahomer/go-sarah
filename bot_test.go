@@ -65,16 +65,16 @@ func TestDefaultBot_AppendCommand(t *testing.T) {
 	}
 }
 
-func TestDefaultBot_Respond_CacheAcquisitionError(t *testing.T) {
-	cacheError := errors.New("cache error")
-	dummyCache := &DummyCachedUserContexts{
+func TestDefaultBot_Respond_StorageAcquisitionError(t *testing.T) {
+	storageError := errors.New("storage error")
+	dummyStorage := &DummyUserContextStorage{
 		GetFunc: func(_ string) (*UserContext, error) {
-			return nil, cacheError
+			return nil, storageError
 		},
 	}
 
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
+		userContextStorage: dummyStorage,
 	}
 
 	dummyInput := &DummyInput{
@@ -82,21 +82,21 @@ func TestDefaultBot_Respond_CacheAcquisitionError(t *testing.T) {
 	}
 
 	err := myBot.Respond(context.TODO(), dummyInput)
-	if err != cacheError {
+	if err != storageError {
 		t.Errorf("Expected error was not returned: %#v.", err)
 	}
 }
 
 func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
-	dummyCache := &DummyCachedUserContexts{
+	dummyStorage := &DummyUserContextStorage{
 		GetFunc: func(_ string) (*UserContext, error) {
 			return nil, nil
 		},
 	}
 
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
-		commands:         NewCommands(),
+		userContextStorage: dummyStorage,
+		commands:           NewCommands(),
 	}
 
 	dummyInput := &DummyInput{
@@ -112,7 +112,7 @@ func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 
 func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 	var givenNext ContextualFunc
-	dummyCache := &DummyCachedUserContexts{
+	dummyStorage := &DummyUserContextStorage{
 		GetFunc: func(_ string) (*UserContext, error) {
 			return nil, nil
 		},
@@ -139,8 +139,8 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 
 	isSent := false
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
-		commands:         &Commands{command},
+		userContextStorage: dummyStorage,
+		commands:           &Commands{command},
 		sendMessageFunc: func(_ context.Context, output Output) {
 			isSent = true
 		},
@@ -166,7 +166,7 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	}
 	responseContent := &struct{}{}
 	var givenNext ContextualFunc
-	dummyCache := &DummyCachedUserContexts{
+	dummyStorage := &DummyUserContextStorage{
 		DeleteFunc: func(_ string) error {
 			return nil
 		},
@@ -191,8 +191,8 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 			passedContent = output.Content()
 			passedDestination = output.Destination()
 		},
-		userContextCache: dummyCache,
-		commands:         NewCommands(),
+		userContextStorage: dummyStorage,
+		commands:           NewCommands(),
 	}
 
 	dummyInput := &DummyInput{
@@ -220,10 +220,10 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 }
 
 func TestDefaultBot_Respond_Abort(t *testing.T) {
-	isCacheDeleted := false
-	dummyCache := &DummyCachedUserContexts{
+	isStorageDeleted := false
+	dummyStorage := &DummyUserContextStorage{
 		DeleteFunc: func(_ string) error {
-			isCacheDeleted = true
+			isStorageDeleted = true
 			return nil
 		},
 		GetFunc: func(_ string) (*UserContext, error) {
@@ -234,15 +234,15 @@ func TestDefaultBot_Respond_Abort(t *testing.T) {
 	}
 
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
+		userContextStorage: dummyStorage,
 	}
 
 	err := myBot.Respond(context.TODO(), &AbortInput{})
 	if err != nil {
 		t.Errorf("Unexpected error returned: %#v.", err)
 	}
-	if isCacheDeleted == false {
-		t.Error("Cached context is not deleted.")
+	if isStorageDeleted == false {
+		t.Error("Stored context is not deleted.")
 	}
 }
 
@@ -257,14 +257,14 @@ func TestDefaultBot_Respond_Help(t *testing.T) {
 	}
 
 	var givenOutput Output
-	dummyCache := &DummyCachedUserContexts{
+	dummyStorage := &DummyUserContextStorage{
 		GetFunc: func(_ string) (*UserContext, error) {
 			return nil, nil
 		},
 	}
 	myBot := &defaultBot{
-		userContextCache: dummyCache,
-		commands:         &Commands{cmd},
+		userContextStorage: dummyStorage,
+		commands:           &Commands{cmd},
 		sendMessageFunc: func(_ context.Context, output Output) {
 			givenOutput = output
 		},
