@@ -51,13 +51,45 @@ type defaultBot struct {
 //   - call Adapter.SendMessage to send output
 // The aim of defaultBot is to lessen the tasks of Adapter developer by providing some common tasks' implementations, and achieve easier creation of Bot implementation.
 // Hence this method returns Bot interface instead of any concrete instance so this can be ONLY treated as Bot implementation to be fed to Runner.RegisterBot.
-func NewBot(adapter Adapter, cacheConfig *CacheConfig) Bot {
-	return &defaultBot{
+//
+// Some optional settings can be supplied by passing sarah.WithStorage and others that return DefaultBotOption.
+//
+//  // Use pre-defined storage.
+//  storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
+//  bot, err := sarah.NewBot(myAdapter, sarah.WithStorage(sarah.NewUserContextStorage(sarah.NewCacheConfig())))
+func NewBot(adapter Adapter, options ...DefaultBotOption) (Bot, error) {
+	bot := &defaultBot{
 		botType:            adapter.BotType(),
 		runFunc:            adapter.Run,
 		sendMessageFunc:    adapter.SendMessage,
 		commands:           NewCommands(),
-		userContextStorage: NewUserContextStorage(cacheConfig),
+		userContextStorage: nil,
+	}
+
+	for _, opt := range options {
+		err := opt(bot)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return bot, nil
+}
+
+// DefaultBotOption defines function that defaultBot's functional option must satisfy.
+type DefaultBotOption func(bot *defaultBot) error
+
+// BotWithStorage creates and returns DefaultBotOption to set preferred UserContextStorage implementation.
+// Below example utilizes pre-defined in-memory storage.
+//
+//  config := sarah.NewCacheConfig()
+//  configBuf, _ := ioutil.ReadFile("/path/to/storage/config.yaml")
+//  yaml.Unmarshal(configBuf, config)
+//  bot, err := sarah.NewBot(myAdapter, storage)
+func BotWithStorage(storage UserContextStorage) DefaultBotOption {
+	return func(bot *defaultBot) error {
+		bot.userContextStorage = storage
+		return nil
 	}
 }
 
@@ -69,9 +101,13 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	senderKey := input.SenderKey()
 
 	// See if any conversational context is stored.
-	nextFunc, storageErr := bot.userContextStorage.Get(senderKey)
-	if storageErr != nil {
-		return storageErr
+	var nextFunc ContextualFunc
+	if bot.userContextStorage != nil {
+		var storageErr error
+		nextFunc, storageErr = bot.userContextStorage.Get(senderKey)
+		if storageErr != nil {
+			return storageErr
+		}
 	}
 
 	var res *CommandResponse

@@ -121,7 +121,7 @@ var Task = sarah.NewScheduledTaskBuilder().
                 return []*sarah.ScheduledTaskResult{
 				        {
 		                        Content:     "Howdy!!",
-					            Destination: &rtmapi.Channel{Name: "XXXX"},
+		                        Destination: rtmapi.ChannelID("XXX"),
 				        },
 			    }, nil
 		}).
@@ -171,7 +171,8 @@ func main() {
         configBuf, _ := ioutil.ReadFile("/path/to/adapter/config.yaml")
         slackConfig := slack.NewConfig()
         yaml.Unmarshal(configBuf, slackConfig)
-        slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.NewCacheConfig())
+        storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
+        slackBot := sarah.NewBot(slack.NewAdapter(slackConfig), storage)
 
         // Register desired command(s)
         slackBot.AppendCommand(hello.SlackCommand)
