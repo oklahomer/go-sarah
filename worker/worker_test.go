@@ -49,7 +49,7 @@ func TestNewConfig_UnmarshalJson(t *testing.T) {
 	}
 
 	if config.SuperviseInterval != 80*time.Nanosecond {
-		t.Errorf("SuperviseInterval is not overridden with JSON value: %f.", config.SuperviseInterval.Nanoseconds())
+		t.Errorf("SuperviseInterval is not overridden with JSON value: %d.", config.SuperviseInterval.Nanoseconds())
 	}
 
 	if config.WorkerNum != oldWorkerNum {
@@ -74,7 +74,7 @@ func TestNewConfig_UnmarshalYaml(t *testing.T) {
 	}
 
 	if config.SuperviseInterval != time.Duration(newIntervalSec)*time.Second {
-		t.Errorf("SuperviseInterval is not overridden with YAML value: %f.", config.SuperviseInterval)
+		t.Errorf("SuperviseInterval is not overridden with YAML value: %d.", config.SuperviseInterval)
 	}
 
 	if config.WorkerNum != oldWorkerNum {

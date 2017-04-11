@@ -69,7 +69,7 @@ func TestDirWatcher_watch(t *testing.T) {
 				t.Errorf("Unexpected directory is given: %s.", d.dir)
 			}
 			if reflect.ValueOf(d.callback).Pointer() != reflect.ValueOf(callback).Pointer() {
-				t.Errorf("Unexpected callback function is given: %#v.", d.callback)
+				t.Error("Unexpected callback function is given")
 			}
 			d.initErr <- nil
 			return
