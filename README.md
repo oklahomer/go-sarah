@@ -137,7 +137,33 @@ This configuration struct is passed on task execution as 2nd argument.
 # Features
 
 ## User context
-To be declared...
+In this project, user's conversational context is referred to as "**user context**," which states what function should be executed on next user input.
+While typical bot implementation is somewhat "stateless" and hence user-bot interaction does not consider previous state, Sarah natively supports this conversational context.
+Its aim is to let user provide information as they send messages, and finally build up complex command arguments.
+
+For example, instead of obligating user to input ".todo Fix Sarah's issue #123 by 2017-04-15 12:00:00" let user build up arguments as below in a conversational manner:
+- User: .todo Fix Sarah's issue #123
+- Bot: Is there any due date? YYYY-MM-DD
+- User: 2017-04-15
+- Bot: Time? HH:MM
+- User: 12:00
+- Bot: Adding todo task "Fix Sarah's issue #123." Deadline is 2017-04-15. Is this O.K.? y/n
+- User: y
+- Bot: Saved.
+
+A common interface, ```UserContextStorage```, and two implementations are currently provided.
+
+### Store in process memory space
+defaultUserContextStorage is a ```UserContextStorage``` implementation that stores ```ContextualFunc```, a function to be executed on next user input, in the exact same memory space that process is currently running.
+Under the hood this storage is simply a map where key is user identifier and value is ```ContextualFunc```.
+This ```ContextFunc``` can be any function including instance method and anonymous function that satisfies ```ContextFunc``` type.
+However it is recommended to use anonymous function since some variable declared on last method call can be casually referenced in this scope.
+
+### Store in external KVS
+[go-sarah-rediscontext](https://github.com/oklahomer/go-sarah-rediscontext) stores combination of function identifier and serializable arguments in Redis.
+This is extremely effective when multiple Bot processes run and user context must be shared among them.
+
+e.g. Chat platform such as LINE sends HTTP requests to Bot on every user input, where Bot may consist of multiple servers/processes to balance those requests.
 
 ## Live Configuration Update
 To be declared...
