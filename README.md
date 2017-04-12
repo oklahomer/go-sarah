@@ -101,7 +101,7 @@ While commands are set of functions that responds to user input, scheduled task 
 e.g. Say "Good morning, sir!" every 7:00 a.m., search on database and send "today's chores list" to each specific room, etc...
 
 ```ScheduledTask``` implementation can be fed to ```Runner.RegisterScheduledTask```.
-When ```Runner.Run``` is called, clock starts to tick and scheduled task become active; Tasks will be executed as scheduled, and results are sent to chat service via ```Bot.SendMessage```.
+When ```Runner.Run``` is called, clock starts to tick and scheduled task becomes active; Tasks will be executed as scheduled, and results are sent to chat service via ```Bot.SendMessage```.
 
 ### Simple Scheduled Task
 Technically any struct that satisfies ```ScheduledTask``` interface can be treated as scheduled task, but a builder is provided to construct a ```ScheduledTask``` on the fly.
@@ -166,7 +166,9 @@ This is extremely effective when multiple Bot processes run and user context mus
 e.g. Chat platform such as LINE sends HTTP requests to Bot on every user input, where Bot may consist of multiple servers/processes to balance those requests.
 
 ## Live Configuration Update
-To be declared...
+Every once in a while administrators desire to change configuration for registered command.
+As already introduced, with ```dirWatcher```'s supervision, Sarah supports live configuration updates.
+To enable this, use ```CommandBuilder``` and ```ScheduledTaskBuilder``` to register ```Command``` and ```ScheduledTask``` so that ```Runner``` can rebuild corresponding ```Command``` and ```ScheduledTask```.
 
 # Getting Started
 
