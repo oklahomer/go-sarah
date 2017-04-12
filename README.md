@@ -134,6 +134,14 @@ With ```ScheduledTaskBuilder.ConfigurableFunc```, a desired configuration struct
 This configuration struct is passed on task execution as 2nd argument.
 ```Runner``` is watching the changes on configuration files' directory and if configuration file is updated, then the corresponding task is built/scheduled, again.
 
+## Alerter
+When registered Bot encounters critical situation and requires administrator's direct attention, ```Runner``` sends alert message as configured with ```Alerter```.
+LINE alerter is provided by default, but anything that satisfies ```Alerter``` interface can be registered as ```Alerter```.
+Developer may add multiple ```Alerter``` implementations via ```Runner.RegisterAlerter``` so it is recommended to register multiple ```Alerter```s to avoid Alerting channel's malfunction and make sure administrator notices critical state.
+
+Bot/Adapter may send ```BotNonContinurableError``` via error channel to notify critical state to ```Runner```.
+e.g. ```Adapter``` can not connect to chat service provider after reasonable number of retrials.
+
 # Features
 
 ## User context
