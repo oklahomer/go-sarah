@@ -12,17 +12,17 @@ Author plans to release 1.0 by actual Sarah's birthday, but does not disclose wh
 # Components
 
 ## Runner
-```Runner``` is the core of Sarah; It manages other components' lifecycle, handles concurrency with internal workers, watch configuration file changes, **re**-configures commands/tasks on file changes, execute scheduled tasks, and most importantly make Sarah comes alive.
+```Runner``` is the core of Sarah; It manages other components' lifecycle, handles concurrency with internal workers, watches configuration file changes, **re**-configures commands/tasks on file changes, executes scheduled tasks, and most importantly makes Sarah comes alive.
 
-```Runner``` may take multiple ```Bot``` implementations to run multiple Bots in single process, so resources such as workers can be shared.
+```Runner``` may take multiple ```Bot``` implementations to run multiple Bots in single process, so resources such as workers and memory space can be shared.
 
 ## Bot / Adapter
 ```Bot``` interface is responsible for actual interaction with chat services such as Slack, [LINE](https://github.com/oklahomer/go-sarah-line), gitter, etc...
 
-```Bot``` receives messages from chat services, see if the sending user is in the middle of *user context*, search for corresponding ```Command```, execute ```Command```, and send response back to chat service.
+```Bot``` receives messages from chat services, sees if the sending user is in the middle of *user context*, searches for corresponding ```Command```, executes ```Command```, and sends response back to chat service.
 
-Important thing to be aware of is that, once ```Bot``` receives message from chat service, it sends the input to ```Runner``` via a channel.
-```Runner``` then dispatch a job to internal worker, which calls ```Bot.Respond``` and sends response via ```Bot.SendMessage```.
+Important thing to be aware of is that, once ```Bot``` receives message from chat service, it sends the input to ```Runner``` via a designated channel.
+```Runner``` then dispatches a job to internal worker, which calls ```Bot.Respond``` and sends response via ```Bot.SendMessage```.
 In other words, after sending input via channel, things are done in concurrent manner without any additional work.
 Change worker configuration to throttle the number of concurrent execution -- this may also impact the number of concurrent HTTP requests against chat service provider.
 
@@ -30,10 +30,10 @@ Change worker configuration to throttle the number of concurrent execution -- th
 Technically ```Bot``` is just an interface. So, if desired, developers can create their own ```Bot``` implementations to interact with preferred chat services.
 However most Bots have similar functionalities, and it is truly cumbersome to implement one for every chat service of choice.
 
-So ```defaultBot``` is already predefined. This can be initialized via ```sarah.NewBot```.
+Therefore ```defaultBot``` is already predefined. This can be initialized via ```sarah.NewBot```.
 
 ### Adapter
-```sarah.NewBot``` takes two arguments: ```Adapter``` implementation and ```sarah.CacheConfig```.
+```sarah.NewBot``` takes multiple arguments: ```Adapter``` implementation and arbitrary number of```sarah.DefaultBotOption```s as functional options.
 This ```Adapter``` thing becomes a bridge between defaultBot and chat service.
 ```DefaultBot``` takes care of finding corresponding command against given input, handling stored user context, and other miscellaneous tasks; ```Adapter``` takes care of connecting/requesting to and sending/receiving from chat service.
 
@@ -97,7 +97,7 @@ This configuration struct is passed on command execution as 3rd argument.
 ```Runner``` is watching the changes on configuration files' directory and if configuration file is updated, then the corresponding command is built, again.
 
 ## Scheduled Task
-While commands are set of functions that responds to user input, scheduled task is one that runs in scheduled manner.
+While commands are set of functions that respond to user input, scheduled tasks are those that run in scheduled manner.
 e.g. Say "Good morning, sir!" every 7:00 a.m., search on database and send "today's chores list" to each specific room, etc...
 
 ```ScheduledTask``` implementation can be fed to ```Runner.RegisterScheduledTask```.
@@ -149,7 +149,7 @@ In this project, user's conversational context is referred to as "**user context
 While typical bot implementation is somewhat "stateless" and hence user-bot interaction does not consider previous state, Sarah natively supports this conversational context.
 Its aim is to let user provide information as they send messages, and finally build up complex command arguments.
 
-For example, instead of obligating user to input ".todo Fix Sarah's issue #123 by 2017-04-15 12:00:00" let user build up arguments as below in a conversational manner:
+For example, instead of obligating user to input ".todo Fix Sarah's issue #123 by 2017-04-15 12:00:00" at once, let user build up arguments in a conversational manner as below:
 - User: .todo Fix Sarah's issue #123
 - Bot: Is there any due date? YYYY-MM-DD
 - User: 2017-04-15
