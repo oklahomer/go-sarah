@@ -44,12 +44,71 @@ type Runner struct {
 }
 
 // NewRunner creates and return new Runner instance.
-func NewRunner(config *Config) *Runner {
-	return &Runner{
+func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
+	runner := &Runner{
 		config:         config,
 		bots:           []Bot{},
 		scheduledTasks: make(map[BotType][]ScheduledTask),
 		alerters:       &alerters{},
+	}
+
+	for _, opt := range options {
+		err := opt(runner)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return runner, nil
+}
+
+type RunnerOption func(runner *Runner) error
+
+type RunnerOptions []RunnerOption
+
+func NewRunnerOptions() *RunnerOptions {
+	return &RunnerOptions{}
+}
+
+func (options *RunnerOptions) Append(opt RunnerOption) {
+	*options = append(*options, opt)
+}
+
+func (options *RunnerOptions) Arg() RunnerOption {
+	return func(runner *Runner) error {
+		for _, opt := range *options {
+			err := opt(runner)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+}
+
+func WithBot(bot Bot) RunnerOption {
+	return func(runner *Runner) error {
+		runner.bots = append(runner.bots, bot)
+		return nil
+	}
+}
+
+func WithScheduledTask(botType BotType, task ScheduledTask) RunnerOption {
+	return func(runner *Runner) error {
+		tasks, ok := runner.scheduledTasks[botType]
+		if !ok {
+			tasks = []ScheduledTask{}
+		}
+		runner.scheduledTasks[botType] = append(tasks, task)
+		return nil
+	}
+}
+
+func WithAlerter(alerter Alerter) RunnerOption {
+	return func(runner *Runner) error {
+		runner.alerters.appendAlerter(alerter)
+		return nil
 	}
 }
 

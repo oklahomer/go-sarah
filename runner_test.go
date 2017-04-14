@@ -31,9 +31,52 @@ func TestNewConfig_UnmarshalNestedYaml(t *testing.T) {
 	}
 }
 
-func TestNewRunner(t *testing.T) {
+func TestNewRunnerOptions(t *testing.T) {
+	options := NewRunnerOptions()
+
+	if len(*options) != 0 {
+		t.Errorf("Size of stashed options should be 0 at first, but was %d.", len(*options))
+	}
+}
+
+func TestRunnerOptions_Append(t *testing.T) {
+	options := &RunnerOptions{}
+	options.Append(func(_ *Runner) error { return nil })
+
+	if len(*options) != 1 {
+		t.Errorf("Size of stashed options should be 0 at first, but was %d.", len(*options))
+	}
+}
+
+func TestRunnerOptions_Arg(t *testing.T) {
+	options := &RunnerOptions{}
+	calledCnt := 0
+	*options = append(
+		*options,
+		func(_ *Runner) error {
+			calledCnt++
+			return nil
+		},
+		func(_ *Runner) error {
+			calledCnt++
+			return nil
+		},
+	)
+
+	options.Arg()(&Runner{})
+
+	if calledCnt != 2 {
+		t.Fatalf("Options are not properly called. Count: %d.", calledCnt)
+	}
+}
+
+func TestNewRunner_WithoutRunnerOption(t *testing.T) {
 	config := NewConfig()
-	runner := NewRunner(config)
+	runner, err := NewRunner(config)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %#v.", err)
+	}
 
 	if runner == nil {
 		t.Fatal("NewRunner reutrned nil.")
@@ -49,6 +92,116 @@ func TestNewRunner(t *testing.T) {
 
 	if runner.scheduledTasks == nil {
 		t.Error("scheduledTasks are not set.")
+	}
+}
+
+func TestNewRunner_WithRunnerOption(t *testing.T) {
+	called := false
+	config := NewConfig()
+	runner, err := NewRunner(
+		config,
+		func(_ *Runner) error {
+			called = true
+			return nil
+		},
+	)
+
+	if runner == nil {
+		t.Error("Runner instance should be returned.")
+	}
+
+	if called == false {
+		t.Error("RunnerOption is not called.")
+	}
+
+	if err != nil {
+		t.Errorf("Unexpected error is returned: %#v.", err)
+	}
+}
+
+func TestNewRunner_WithRunnerFatalOptions(t *testing.T) {
+	called := false
+	optErr := errors.New("Second RunnerOption returns this error.")
+	config := NewConfig()
+	runner, err := NewRunner(
+		config,
+		func(_ *Runner) error {
+			called = true
+			return nil
+		},
+		func(_ *Runner) error {
+			return optErr
+		},
+	)
+
+	if runner != nil {
+		t.Error("Runner instance should not be returned on error.")
+	}
+
+	if called == false {
+		t.Error("RunnerOption is not called.")
+	}
+
+	if err == nil {
+		t.Error("Error should be returned.")
+	}
+
+	if err != optErr {
+		t.Errorf("Expected error is not returned: %#v.", err)
+	}
+}
+
+func TestWithBot(t *testing.T) {
+	bot := &DummyBot{}
+	runner := &Runner{
+		bots: []Bot{},
+	}
+
+	WithBot(bot)(runner)
+
+	registeredBots := runner.bots
+	if len(registeredBots) != 1 {
+		t.Fatalf("One and only one bot should be registered, but actual number was %d.", len(registeredBots))
+	}
+
+	if registeredBots[0] != bot {
+		t.Fatalf("Passed bot is not registered: %#v.", registeredBots[0])
+	}
+}
+
+func TestWithScheduledTask(t *testing.T) {
+	var botType BotType = "dummy"
+	task := &DummyScheduledTask{}
+	runner := &Runner{
+		scheduledTasks: make(map[BotType][]ScheduledTask),
+	}
+
+	WithScheduledTask(botType, task)(runner)
+
+	tasks, ok := runner.scheduledTasks[botType]
+	if !ok {
+		t.Fatal("Expected BotType is not stashed as key.")
+	}
+	if len(tasks) != 1 && tasks[0] != task {
+		t.Errorf("Expected task is not stashed: %#v", tasks)
+	}
+}
+
+func TestWithAlerter(t *testing.T) {
+	alerter := &DummyAlerter{}
+	runner := &Runner{
+		alerters: &alerters{},
+	}
+
+	WithAlerter(alerter)(runner)
+
+	registeredAlerters := runner.alerters
+	if len(*registeredAlerters) != 1 {
+		t.Fatalf("One and only one alerter should be registered, but actual number was %d.", len(*registeredAlerters))
+	}
+
+	if (*registeredAlerters)[0] != alerter {
+		t.Fatalf("Passed alerter is not registered: %#v.", (*registeredAlerters)[0])
 	}
 }
 
@@ -271,7 +424,7 @@ func Test_botSupervisor(t *testing.T) {
 	}
 	select {
 	case <-alerted:
-	// O.K.
+		// O.K.
 	case <-time.NewTimer(10 * time.Second).C:
 		t.Error("Alert should be sent at this point.")
 	}
