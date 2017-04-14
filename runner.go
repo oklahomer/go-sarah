@@ -62,18 +62,44 @@ func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
 	return runner, nil
 }
 
+// RunnerOption defines function that Runner's functional option must satisfy.
 type RunnerOption func(runner *Runner) error
 
+// RunnerOptions stashes RunnerOption for later use with NewRunner().
+//
+// On typical setup, especially when a process consists of multiple Bots and Commands, each construction step requires more lines of codes.
+// Each step ends with creating new RunnerOption instance to be fed to NewRunner(), but as code gets longer it gets hard to keep track of each RunnerOption.
+// In that case RunnerOptions becomes a handy helper to temporary stash RunnerOption.
+//
+//  options := NewRunnerOptions()
+//
+//  // 5-10 lines of codes to configure Slack bot.
+//  slackBot, _ := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.BotWithStorage(storage))
+//  options.Append(sarah.WithBot(slackBot))
+//
+//  // Here comes other 5-10 codes to configure another bot
+//  myBot, _ := NewMyBot(...)
+//
+//  // Some more codes to register Commands / ScheduledTasks
+//  myTask := customizedTask()
+//  options.Append(sarah.WithScheduledTask(myTask))
+//
+//  // Finally feed stashed options to NewRunner at once
+//  runner, _ := NewRunner(sarah.NewConfig(), options.Arg())
+//  runner.Run(ctx)
 type RunnerOptions []RunnerOption
 
+// NewRunnerOptions creates and returns new RunnerOptions instance.
 func NewRunnerOptions() *RunnerOptions {
 	return &RunnerOptions{}
 }
 
+// Append adds given RunnerOption to internal stash.
 func (options *RunnerOptions) Append(opt RunnerOption) {
 	*options = append(*options, opt)
 }
 
+// Arg returns stashed RunnerOptions in a form that can be directly fed to NewRunner's second argument.
 func (options *RunnerOptions) Arg() RunnerOption {
 	return func(runner *Runner) error {
 		for _, opt := range *options {
@@ -87,6 +113,7 @@ func (options *RunnerOptions) Arg() RunnerOption {
 	}
 }
 
+// WithBot creates RunnerOption with given Bot implementation.
 func WithBot(bot Bot) RunnerOption {
 	return func(runner *Runner) error {
 		runner.bots = append(runner.bots, bot)
@@ -94,6 +121,7 @@ func WithBot(bot Bot) RunnerOption {
 	}
 }
 
+// WithScheduledTask creates RunnerOperation with given ScheduledTask.
 func WithScheduledTask(botType BotType, task ScheduledTask) RunnerOption {
 	return func(runner *Runner) error {
 		tasks, ok := runner.scheduledTasks[botType]
@@ -105,6 +133,7 @@ func WithScheduledTask(botType BotType, task ScheduledTask) RunnerOption {
 	}
 }
 
+// WithAlerter creates RunnerOperation with given Alerter.
 func WithAlerter(alerter Alerter) RunnerOption {
 	return func(runner *Runner) error {
 		runner.alerters.appendAlerter(alerter)

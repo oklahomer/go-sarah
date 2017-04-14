@@ -119,14 +119,14 @@ var Task = sarah.NewScheduledTaskBuilder().
         Identifier("greeting").
         Func(func(_ context.Context) ([]*sarah.ScheduledTaskResult, error) {
                 return []*sarah.ScheduledTaskResult{
-				        {
-		                        Content:     "Howdy!!",
-		                        Destination: rtmapi.ChannelID("XXX"),
-				        },
-			    }, nil
-		}).
+                        {
+                                Content:     "Howdy!!",
+                                Destination: rtmapi.ChannelID("XXX"),
+                        },
+                }, nil
+        }).
         Schedule("@everyday").
-		MustBuild()
+        MustBuild()
 ```
 
 ### Reconfigurable Scheduled Task
@@ -233,11 +233,11 @@ func main() {
         signal.Notify(c, syscall.SIGTERM)
         select {
         case <-c:
-		        log.Info("Canceled Runner.")
-		        cancelRunner()
+                log.Info("Canceled Runner.")
+                cancelRunner()
         case <-runnerStop:
                 log.Error("Runner stopped.")
                 // Stop because all bots stopped.
-	    }
+        }
 }
 ```
