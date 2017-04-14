@@ -216,10 +216,7 @@ func main() {
         // Initialize Runner
         config := sarah.NewConfig()
         config.PluginConfigRoot = "path/to/plugin/configuration" // can be set manually or with (json|yaml).Unmarshal
-        runner := sarah.NewRunner(config)
-
-        // Register declared bot.
-        runner.RegisterBot(slackBot)
+        runner, _ := sarah.NewRunner(config, sarah.WithBot(slackBot))
 
         // Start interaction
         rootCtx := context.Background()

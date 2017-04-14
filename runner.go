@@ -112,28 +112,6 @@ func WithAlerter(alerter Alerter) RunnerOption {
 	}
 }
 
-// RegisterBot register given Bot implementation to Runner instance
-func (runner *Runner) RegisterBot(bot Bot) {
-	runner.bots = append(runner.bots, bot)
-}
-
-// RegisterScheduledTask register given ScheduledTask implementation to Runner.
-// Once Runner.Run is called, registered tasks are scheduled and will be executed as configured.
-func (runner *Runner) RegisterScheduledTask(botType BotType, task ScheduledTask) {
-	tasks, ok := runner.scheduledTasks[botType]
-	if !ok {
-		tasks = []ScheduledTask{}
-	}
-
-	runner.scheduledTasks[botType] = append(tasks, task)
-}
-
-// RegisterAlerter register given Alerter implementation to Runner instance.
-// Developer can register as many Alerters as one wishes.
-func (runner *Runner) RegisterAlerter(alerter Alerter) {
-	runner.alerters.appendAlerter(alerter)
-}
-
 // Run starts Bot interaction.
 // At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
 func (runner *Runner) Run(ctx context.Context) {

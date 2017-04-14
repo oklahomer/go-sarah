@@ -204,41 +204,6 @@ func TestWithAlerter(t *testing.T) {
 		t.Fatalf("Passed alerter is not registered: %#v.", (*registeredAlerters)[0])
 	}
 }
-
-func TestRunner_RegisterBot(t *testing.T) {
-	runner := &Runner{}
-	runner.bots = []Bot{}
-
-	bot := &DummyBot{}
-	runner.RegisterBot(bot)
-
-	registeredBots := runner.bots
-	if len(registeredBots) != 1 {
-		t.Fatalf("One and only one bot should be registered, but actual number was %d.", len(registeredBots))
-	}
-
-	if registeredBots[0] != bot {
-		t.Fatalf("Passed bot is not registered: %#v.", registeredBots[0])
-	}
-}
-
-func TestRunner_RegisterAlerter(t *testing.T) {
-	runner := &Runner{}
-	runner.alerters = &alerters{}
-
-	alerter := &DummyAlerter{}
-	runner.RegisterAlerter(alerter)
-
-	registeredAlerters := runner.alerters
-	if len(*registeredAlerters) != 1 {
-		t.Fatalf("One and only one alerter should be registered, but actual number was %d.", len(*registeredAlerters))
-	}
-
-	if (*registeredAlerters)[0] != alerter {
-		t.Fatalf("Passed alerter is not registered: %#v.", (*registeredAlerters)[0])
-	}
-}
-
 func TestRunner_Run(t *testing.T) {
 	var botType BotType = "myBot"
 
@@ -312,26 +277,6 @@ func TestRunner_Run(t *testing.T) {
 		// O.K.
 	case <-time.NewTimer(10 * time.Second).C:
 		t.Error("Runner is not finished.")
-	}
-}
-
-func TestRunner_RegisterScheduledTask(t *testing.T) {
-	runner := &Runner{
-		scheduledTasks: make(map[BotType][]ScheduledTask),
-	}
-
-	task := &DummyScheduledTask{
-		IdentifierValue: "foo",
-	}
-
-	var botType BotType = "Buzz"
-	runner.RegisterScheduledTask(botType, task)
-	tasks, ok := runner.scheduledTasks[botType]
-	if !ok {
-		t.Fatal("Expected BotType is not stashed as key.")
-	}
-	if len(tasks) != 1 && tasks[0] != task {
-		t.Errorf("Expected task is not stashed: %#v", tasks)
 	}
 }
 
