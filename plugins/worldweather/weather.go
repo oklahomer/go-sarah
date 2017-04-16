@@ -13,6 +13,17 @@ import (
 // MatchPattern defines regular expression pattern that is checked against user input
 var MatchPattern = regexp.MustCompile(`^\.weather`)
 
+// SlackProps provide a set of command configuration variables for weather command.
+// Since this sets *CommandConfig in ConfigurableFunc, configuration file is observed by Runner and CommandConfig is updated on file change.
+// Weather command is re-built on configuration update.
+var SlackProps = sarah.NewCommandPropsBuilder().
+	BotType(slack.SLACK).
+	Identifier("weather").
+	ConfigurableFunc(NewCommandConfig(), SlackCommandFunc).
+	InputExample(".weather tokyo").
+	MatchPattern(MatchPattern).
+	MustBuild()
+
 // CommandConfig contains some configuration variables for weather command.
 type CommandConfig struct {
 	APIKey string `yaml:"api_key"`

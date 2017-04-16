@@ -7,8 +7,9 @@ import (
 	"regexp"
 )
 
-// SlackCommand provides default setup of hello command.
-var SlackCommand = sarah.NewCommandBuilder().
+// SlackProps provides default setup of hello command.
+var SlackProps = sarah.NewCommandPropsBuilder().
+	BotType(slack.SLACK).
 	Identifier("hello").
 	InputExample(".hello").
 	MatchPattern(regexp.MustCompile(`\.hello`)).

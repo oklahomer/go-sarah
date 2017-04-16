@@ -39,6 +39,7 @@ func NewConfig() *Config {
 type Runner struct {
 	config         *Config
 	bots           []Bot
+	cmdProps       map[BotType][]*CommandProps
 	scheduledTasks map[BotType][]ScheduledTask
 	alerters       *alerters
 }
@@ -48,6 +49,7 @@ func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
 	runner := &Runner{
 		config:         config,
 		bots:           []Bot{},
+		cmdProps:       make(map[BotType][]*CommandProps),
 		scheduledTasks: make(map[BotType][]ScheduledTask),
 		alerters:       &alerters{},
 	}
@@ -121,6 +123,20 @@ func WithBot(bot Bot) RunnerOption {
 	}
 }
 
+// WithCommandProps creates RunnerOption with given CommandProps.
+// Command is built on Runner.Run with given CommandProps.
+// This props is re-used when configuration file is updated and Command needs to be re-built.
+func WithCommandProps(props *CommandProps) RunnerOption {
+	return func(runner *Runner) error {
+		stashed, ok := runner.cmdProps[props.botType]
+		if !ok {
+			stashed = []*CommandProps{}
+		}
+		runner.cmdProps[props.botType] = append(stashed, props)
+		return nil
+	}
+}
+
 // WithScheduledTask creates RunnerOperation with given ScheduledTask.
 func WithScheduledTask(botType BotType, task ScheduledTask) RunnerOption {
 	return func(runner *Runner) error {
@@ -138,6 +154,14 @@ func WithAlerter(alerter Alerter) RunnerOption {
 	return func(runner *Runner) error {
 		runner.alerters.appendAlerter(alerter)
 		return nil
+	}
+}
+
+func (runner *Runner) commandProps(botType BotType) []*CommandProps {
+	if commandProps, ok := runner.cmdProps[botType]; ok {
+		return commandProps
+	} else {
+		return []*CommandProps{}
 	}
 }
 
@@ -179,9 +203,13 @@ func (runner *Runner) Run(ctx context.Context) {
 			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
 		}
 
-		// build commands with stashed builder settings
-		commands := stashedCommandBuilders.build(botType, configDir)
-		for _, command := range commands {
+		// build commands with stashed CommandProps
+		commandProps := runner.commandProps(botType)
+		for _, props := range commandProps {
+			command, err := newCommand(props, configDir)
+			if err != nil {
+				log.Errorf("can't configure command. %s. %#v", err.Error(), props)
+			}
 			bot.AppendCommand(command)
 		}
 
@@ -213,7 +241,7 @@ func (runner *Runner) Run(ctx context.Context) {
 
 		// supervise configuration files' directory
 		if configDir != "" {
-			err := watcher.watch(botCtx, botType, configDir, pluginUpdaterFunc(botCtx, bot, taskScheduler))
+			err := watcher.watch(botCtx, botType, configDir, pluginUpdaterFunc(botCtx, bot, commandProps, taskScheduler))
 			if err != nil {
 				log.Errorf("failed to watch %s: %s", configDir, err.Error())
 			}
@@ -253,18 +281,21 @@ func runBot(ctx context.Context, bot Bot, receiveInput func(Input) error, errNot
 	bot.Run(ctx, receiveInput, errNotifier)
 }
 
-func pluginUpdaterFunc(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
+func pluginUpdaterFunc(botCtx context.Context, bot Bot, commandProps []*CommandProps, taskScheduler scheduler) func(string) {
 	return func(path string) {
 		dir, filename := filepath.Split(path)
 		id := strings.TrimSuffix(filename, filepath.Ext(filename)) // buzz.yaml to buzz
 
-		if builder := stashedCommandBuilders.find(bot.BotType(), id); builder != nil {
+		for _, p := range commandProps {
+			if p.identifier != id {
+				continue
+			}
 			log.Infof("start rebuilding command due to config file change: %s.", id)
-			command, err := builder.Build(dir)
-			if err != nil {
-				log.Errorf("can't configure command. %s. %#v", err.Error(), builder)
-			} else {
+			command, err := newCommand(p, dir)
+			if err == nil {
 				bot.AppendCommand(command) // replaces the old one.
+			} else {
+				log.Errorf("can't configure command. id: %s. error: %#v.", p.identifier, err.Error())
 			}
 		}
 

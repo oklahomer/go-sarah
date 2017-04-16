@@ -31,14 +31,14 @@ func (command *DummyCommand) Match(str string) bool {
 	return command.MatchFunc(str)
 }
 
-func TestNewCommandBuilder(t *testing.T) {
-	builder := NewCommandBuilder()
+func TestNewCommandPropsBuilder(t *testing.T) {
+	builder := NewCommandPropsBuilder()
 	if builder == nil {
-		t.Fatal("NewCommandBuilder returned nil.")
+		t.Fatal("NewCommandPropsBuilder returned nil.")
 	}
 }
 
-func TestCommandBuilder_ConfigurableFunc(t *testing.T) {
+func TestCommandPropsBuilder_ConfigurableFunc(t *testing.T) {
 	wrappedFncCalled := false
 	config := &struct{}{}
 	fnc := func(_ context.Context, _ Input, passedConfig CommandConfig) (*CommandResponse, error) {
@@ -49,7 +49,7 @@ func TestCommandBuilder_ConfigurableFunc(t *testing.T) {
 		return nil, nil
 	}
 
-	builder := &CommandBuilder{}
+	builder := &CommandPropsBuilder{}
 	builder.ConfigurableFunc(config, fnc)
 	if builder.config != config {
 		t.Error("Passed config struct is not set.")
@@ -61,9 +61,19 @@ func TestCommandBuilder_ConfigurableFunc(t *testing.T) {
 	}
 }
 
-func TestCommandBuilder_Func(t *testing.T) {
+func TestCommandPropsBuilder_BotType(t *testing.T) {
+	var botType BotType = "dummy"
+	builder := &CommandPropsBuilder{}
+
+	builder.BotType(botType)
+	if builder.botType != botType {
+		t.Error("Provided BotType was not set.")
+	}
+}
+
+func TestCommandPropsBuilder_Func(t *testing.T) {
 	wrappedFncCalled := false
-	builder := &CommandBuilder{}
+	builder := &CommandPropsBuilder{}
 	fnc := func(_ context.Context, _ Input) (*CommandResponse, error) {
 		wrappedFncCalled = true
 		return nil, nil
@@ -76,8 +86,8 @@ func TestCommandBuilder_Func(t *testing.T) {
 	}
 }
 
-func TestCommandBuilder_Identifier(t *testing.T) {
-	builder := &CommandBuilder{}
+func TestCommandPropsBuilder_Identifier(t *testing.T) {
+	builder := &CommandPropsBuilder{}
 	id := "FOO"
 	builder.Identifier(id)
 
@@ -86,8 +96,8 @@ func TestCommandBuilder_Identifier(t *testing.T) {
 	}
 }
 
-func TestCommandBuilder_InputExample(t *testing.T) {
-	builder := &CommandBuilder{}
+func TestCommandPropsBuilder_InputExample(t *testing.T) {
+	builder := &CommandPropsBuilder{}
 	example := ".echo foo"
 	builder.InputExample(example)
 
@@ -96,95 +106,66 @@ func TestCommandBuilder_InputExample(t *testing.T) {
 	}
 }
 
-func TestCommandBuilder_MatchPattern(t *testing.T) {
-	builder := &CommandBuilder{}
-	pattern := regexp.MustCompile(`^\.echo`)
-	builder.MatchPattern(pattern)
-
-	if builder.matchPattern != pattern {
-		t.Error("Provided match pattern is not set.")
-	}
-}
-
-func TestCommandBuilder_Build(t *testing.T) {
-	builder := &CommandBuilder{}
-	if _, err := builder.Build("/path/"); err == nil {
+func TestCommandPropsBuilder_Build(t *testing.T) {
+	builder := &CommandPropsBuilder{}
+	if _, err := builder.Build(); err == nil {
 		t.Error("expected error not given.")
 	} else if err != ErrCommandInsufficientArgument {
 		t.Errorf("expected error not given. %#v", err)
 	}
 
+	var botType BotType = "dummy"
 	matchPattern := regexp.MustCompile(`^\.echo`)
-	builder.Identifier("dummy").
-		MatchPattern(matchPattern).
-		InputExample(".echo knock knock")
-
-	// When corresponding configuration file is not found, then manually set schedule must stay.
-	dummyToken := "dummy"
+	identifier := "dummy"
+	example := ".echo knock knock"
 	config := &struct {
-		Token string `yaml:"token"`
+		Token string
 	}{
-		Token: dummyToken,
+		Token: "dummy",
 	}
-	builder.ConfigurableFunc(config, func(_ context.Context, input Input, passedConfig CommandConfig) (*CommandResponse, error) {
-		return &CommandResponse{
-			Content: StripMessage(matchPattern, input.Message()),
-		}, nil
-	})
+	fnc := func(_ context.Context, input Input, passedConfig CommandConfig) (*CommandResponse, error) {
+		return nil, nil
+	}
+	builder.BotType(botType).
+		Identifier(identifier).
+		MatchPattern(matchPattern).
+		InputExample(example).
+		ConfigurableFunc(config, fnc)
 
-	command, err := builder.Build(filepath.Join("unknown", "path", "foo"))
-	if err != nil {
-		t.Fatal("Error on command construction with no config file.")
-	}
-	if config.Token != dummyToken {
-		t.Errorf("Config value changed: %s.", config.Token)
-	}
-
-	command, err = builder.Build(filepath.Join("testdata", "commandbuilder"))
+	props, err := builder.Build()
 	if err != nil {
 		t.Errorf("something is wrong with command construction. %#v", err)
 	}
 
-	if command == nil {
+	if props == nil {
 		t.Fatal("Built command is not returned.")
 	}
 
-	if _, ok := command.(*simpleCommand); !ok {
-		t.Fatalf("Returned command is not type of *simpleCommand: %T.", command)
+	if props.botType != botType {
+		t.Errorf("Expected BotType is not set: %s.", props.botType)
 	}
 
-	if config.Token != "foobar" {
-		t.Error("Configuration is not read from testdata/commandbuilder/dummy.yaml file.")
+	if props.identifier != identifier {
+		t.Errorf("Expected identifier is not set: %s.", props.identifier)
 	}
-}
 
-func TestCommandBuilder_Build_BrokenYaml(t *testing.T) {
-	builder := &CommandBuilder{}
-	builder.Identifier("broken").
-		MatchPattern(regexp.MustCompile(`^\.echo`)).
-		InputExample(".echo knock knock")
-
-	config := &struct {
-		Token string `yaml:"token"`
-	}{}
-	builder.ConfigurableFunc(config, func(_ context.Context, input Input, passedConfig CommandConfig) (*CommandResponse, error) {
-		return &CommandResponse{
-			Content: "",
-		}, nil
-	})
-
-	command, err := builder.Build(filepath.Join("testdata", "commandbuilder"))
-	if err == nil {
-		t.Fatal("Error must be returned")
+	if props.matchPattern != matchPattern {
+		t.Errorf("Expected matchPattern is not set: %#v.", props.matchPattern)
 	}
-	if command != nil {
-		t.Fatal("Expected nil command, but was not")
+
+	if props.example != example {
+		t.Errorf("Expected example is not set: %s.", props.example)
+	}
+
+	if props.config != config {
+		t.Errorf("Expected config struct is not set: %#v.", config)
 	}
 }
 
-func TestCommandBuilder_MustBuild(t *testing.T) {
-	builder := &CommandBuilder{}
-	builder.Identifier("dummy").
+func TestCommandPropsBuilder_MustBuild(t *testing.T) {
+	builder := &CommandPropsBuilder{}
+	builder.BotType("dummyBot").
+		Identifier("dummy").
 		MatchPattern(regexp.MustCompile(`^\.echo`)).
 		InputExample(".echo knock knock")
 
@@ -200,9 +181,48 @@ func TestCommandBuilder_MustBuild(t *testing.T) {
 	builder.Func(func(_ context.Context, input Input) (*CommandResponse, error) {
 		return nil, nil
 	})
-	command := builder.MustBuild()
-	if command.Identifier() != builder.identifier {
+	props := builder.MustBuild()
+	if props.identifier != builder.identifier {
 		t.Error("Provided identifier is not set.")
+	}
+}
+
+func Test_newCommand(t *testing.T) {
+	config := &struct {
+		Token string `yaml:"token"`
+	}{
+		Token: "",
+	}
+	props := &CommandProps{
+		identifier: "dummy",
+		config:     config,
+	}
+
+	_, err := newCommand(props, filepath.Join("testdata", "command"))
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+	if config.Token != "foobar" {
+		t.Error("Configuration is not read from testdata/commandbuilder/dummy.yaml file.")
+	}
+}
+
+func Test_newCommand_BrokenYaml(t *testing.T) {
+	config := &struct {
+		Token string `yaml:"token"`
+	}{
+		Token: "",
+	}
+	props := &CommandProps{
+		identifier: "broken",
+		config:     config,
+	}
+
+	_, err := newCommand(props, filepath.Join("testdata", "command"))
+
+	if err == nil {
+		t.Fatal("Error must be returned.")
 	}
 }
 

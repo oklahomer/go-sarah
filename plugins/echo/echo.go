@@ -27,17 +27,20 @@ func GitterCommandFunc(_ context.Context, input sarah.Input) (*sarah.CommandResp
 	return gitter.NewStringResponse(commandFnc(input)), nil
 }
 
-// SlackCommand is a pre-built Command for Slack.
-var SlackCommand = sarah.NewCommandBuilder().
+// SlackProps is a pre-built echo command properties for Slack.
+var SlackProps = sarah.NewCommandPropsBuilder().
+	BotType(slack.SLACK).
 	Identifier(identifier).
 	MatchPattern(matchPattern).
 	Func(SlackCommandFunc).
 	InputExample(".echo knock knock").
 	MustBuild()
 
-// GitterCommand is a pre-built Command for gitter.
-var GitterCommand = sarah.NewCommandBuilder().
+// GitterProps is a pre-built echo command properties for Slack.
+var GitterProps = sarah.NewCommandPropsBuilder().
+	BotType(gitter.GITTER).
 	Identifier(identifier).
 	MatchPattern(matchPattern).
 	Func(GitterCommandFunc).
-	InputExample(".echo knock knock")
+	InputExample(".echo knock knock").
+	MustBuild()

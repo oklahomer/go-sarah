@@ -169,6 +169,26 @@ func TestWithBot(t *testing.T) {
 	}
 }
 
+func TestWithCommandProps(t *testing.T) {
+	var botType BotType = "dummy"
+	props := &CommandProps{
+		botType: botType,
+	}
+	runner := &Runner{
+		cmdProps: make(map[BotType][]*CommandProps),
+	}
+
+	WithCommandProps(props)(runner)
+
+	botCmdProps, ok := runner.cmdProps[botType]
+	if !ok {
+		t.Fatal("Expected BotType is not stashed as key.")
+	}
+	if len(botCmdProps) != 1 && botCmdProps[0] != props {
+		t.Error("Expected CommandProps is not stashed.")
+	}
+}
+
 func TestWithScheduledTask(t *testing.T) {
 	var botType BotType = "dummy"
 	task := &DummyScheduledTask{}
@@ -207,16 +227,6 @@ func TestWithAlerter(t *testing.T) {
 func TestRunner_Run(t *testing.T) {
 	var botType BotType = "myBot"
 
-	// Prepare command to be configured on the fly
-	commandBuilder := NewCommandBuilder().
-		Identifier("dummy").
-		MatchPattern(regexp.MustCompile(`^\.echo`)).
-		Func(func(_ context.Context, _ Input) (*CommandResponse, error) {
-			return nil, nil
-		}).
-		InputExample(".echo foo")
-	(*stashedCommandBuilders)[botType] = []*CommandBuilder{commandBuilder}
-
 	// Prepare scheduled task to be configured on the fly
 	dummySchedule := "@hourly"
 	dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
@@ -239,10 +249,25 @@ func TestRunner_Run(t *testing.T) {
 		},
 	}
 
+	// Prepare command to be configured on the fly
+	commandProps := &CommandProps{
+		identifier:   "dummy",
+		matchPattern: regexp.MustCompile(`^\.echo`),
+		commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
+			return nil, nil
+		},
+		example: ".echo foo",
+	}
+
 	// Configure Runner
 	runner := &Runner{
 		config: NewConfig(),
 		bots:   []Bot{bot},
+		cmdProps: map[BotType][]*CommandProps{
+			bot.BotType(): {
+				commandProps,
+			},
+		},
 		scheduledTasks: map[BotType][]ScheduledTask{
 			bot.BotType(): {
 				&DummyScheduledTask{},
@@ -265,7 +290,7 @@ func TestRunner_Run(t *testing.T) {
 
 	select {
 	case cmd := <-passedCommand:
-		if cmd == nil || cmd.Identifier() != commandBuilder.identifier {
+		if cmd == nil || cmd.Identifier() != commandProps.identifier {
 			t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
 		}
 	case <-time.NewTimer(10 * time.Second).C:
