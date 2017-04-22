@@ -177,25 +177,22 @@ func WithAlerter(alerter Alerter) RunnerOption {
 func (runner *Runner) botCommandProps(botType BotType) []*CommandProps {
 	if props, ok := runner.commandProps[botType]; ok {
 		return props
-	} else {
-		return []*CommandProps{}
 	}
+	return []*CommandProps{}
 }
 
 func (runner *Runner) botScheduledTaskProps(botType BotType) []*ScheduledTaskProps {
 	if props, ok := runner.scheduledTaskPrps[botType]; ok {
 		return props
-	} else {
-		return []*ScheduledTaskProps{}
 	}
+	return []*ScheduledTaskProps{}
 }
 
 func (runner *Runner) botScheduledTasks(botType BotType) []ScheduledTask {
 	if tasks, ok := runner.scheduledTasks[botType]; ok {
 		return tasks
-	} else {
-		return []ScheduledTask{}
 	}
+	return []ScheduledTask{}
 }
 
 // Run starts Bot interaction.

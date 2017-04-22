@@ -90,7 +90,7 @@ func TestRunnerOptions_Arg_WithError(t *testing.T) {
 	}
 
 	if calledCnt != 1 {
-		t.Error("Constraction should abort right after first error is returned, but seems like it continued.")
+		t.Error("Construction should abort right after first error is returned, but seems like it continued.")
 	}
 }
 
