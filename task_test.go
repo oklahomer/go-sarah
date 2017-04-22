@@ -41,17 +41,27 @@ func (config *DummyScheduledTaskConfig) DefaultDestination() OutputDestination {
 	return config.DestinationValue
 }
 
-func TestNewScheduledTaskBuilder(t *testing.T) {
-	builder := NewScheduledTaskBuilder()
+func TestNewScheduledTaskPropsBuilder(t *testing.T) {
+	builder := NewScheduledTaskPropsBuilder()
 
 	if builder == nil {
 		t.Fatal("Returned builder instance is nil.")
 	}
 }
 
-func TestScheduledTaskBuilder_Identifier(t *testing.T) {
+func TestScheduledTaskPropsBuilder_BotType(t *testing.T) {
+	var botType BotType = "dummy"
+	builder := &ScheduledTaskPropsBuilder{}
+	builder.BotType(botType)
+
+	if builder.botType != botType {
+		t.Error("Provided BotType was not set.")
+	}
+}
+
+func TestScheduledTaskPropsBuilder_Identifier(t *testing.T) {
 	id := "overWhelmedWithTasks"
-	builder := &ScheduledTaskBuilder{}
+	builder := &ScheduledTaskPropsBuilder{}
 	builder.Identifier(id)
 
 	if builder.identifier != id {
@@ -59,12 +69,12 @@ func TestScheduledTaskBuilder_Identifier(t *testing.T) {
 	}
 }
 
-func TestScheduledTaskBuilder_Func(t *testing.T) {
+func TestScheduledTaskPropsBuilder_Func(t *testing.T) {
 	res := "dummyResponse"
 	taskFunc := func(_ context.Context) ([]*ScheduledTaskResult, error) {
 		return []*ScheduledTaskResult{{Content: res}}, nil
 	}
-	builder := &ScheduledTaskBuilder{}
+	builder := &ScheduledTaskPropsBuilder{}
 	builder.Func(taskFunc)
 
 	actualRes, err := builder.taskFunc(context.TODO())
@@ -77,9 +87,9 @@ func TestScheduledTaskBuilder_Func(t *testing.T) {
 	}
 }
 
-func TestScheduledTaskBuilder_Schedule(t *testing.T) {
+func TestScheduledTaskPropsBuilder_Schedule(t *testing.T) {
 	schedule := "@daily"
-	builder := &ScheduledTaskBuilder{}
+	builder := &ScheduledTaskPropsBuilder{}
 	builder.Schedule(schedule)
 
 	if builder.schedule != schedule {
@@ -87,9 +97,9 @@ func TestScheduledTaskBuilder_Schedule(t *testing.T) {
 	}
 }
 
-func TestScheduledTaskBuilder_DefaultDestination(t *testing.T) {
+func TestScheduledTaskPropsBuilder_DefaultDestination(t *testing.T) {
 	destination := "dest"
-	builder := &ScheduledTaskBuilder{}
+	builder := &ScheduledTaskPropsBuilder{}
 	builder.DefaultDestination(destination)
 
 	if builder.defaultDestination != destination {
@@ -97,7 +107,7 @@ func TestScheduledTaskBuilder_DefaultDestination(t *testing.T) {
 	}
 }
 
-func TestScheduledTaskBuilder_ConfigurableFunc(t *testing.T) {
+func TestScheduledTaskPropsBuilder_ConfigurableFunc(t *testing.T) {
 	config := &DummyScheduledTaskConfig{}
 	taskFunc := func(_ context.Context, c TaskConfig) ([]*ScheduledTaskResult, error) {
 		if _, ok := c.(*DummyScheduledTaskConfig); !ok {
@@ -109,7 +119,7 @@ func TestScheduledTaskBuilder_ConfigurableFunc(t *testing.T) {
 			},
 		}, nil
 	}
-	builder := &ScheduledTaskBuilder{}
+	builder := &ScheduledTaskPropsBuilder{}
 	builder.ConfigurableFunc(config, taskFunc)
 
 	if builder.config != config {
@@ -125,60 +135,45 @@ func TestScheduledTaskBuilder_ConfigurableFunc(t *testing.T) {
 	}
 }
 
-func TestScheduledTaskBuilder_Build(t *testing.T) {
-	// Schedule is manually set at first.
-	dummySchedule := "dummy"
-	dummyDestination := "foo"
-	config := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule, DestinationValue: dummyDestination}
-	taskFunc := func(_ context.Context, _ TaskConfig) ([]*ScheduledTaskResult, error) {
-		return nil, nil
-	}
-
-	builder := &ScheduledTaskBuilder{}
-	_, err := builder.Build("dummy")
+func TestScheduledTaskPropsBuilder_Build(t *testing.T) {
+	builder := &ScheduledTaskPropsBuilder{}
+	_, err := builder.Build()
 	if err != ErrTaskInsufficientArgument {
 		t.Fatalf("Expected error is not returned: %#v.", err)
 	}
 
+	var botType BotType = "dummyBot"
+	builder.BotType(botType)
 	id := "scheduled"
 	builder.Identifier(id)
-	builder.ConfigurableFunc(config, taskFunc)
+	builder.Func(func(_ context.Context) ([]*ScheduledTaskResult, error) {
+		return nil, nil
+	})
+	builder.Schedule("@hourly")
 
-	// When corresponding configuration file is not found, then manually set schedule must stay.
-	_, err = builder.Build("no/corresponding/config")
-	if err != nil {
-		t.Fatal("Error on task construction with no config file.")
-	}
-	if config.Schedule() != dummySchedule {
-		t.Errorf("Config value changed: %s.", config.DefaultDestination())
-	}
-
-	task, err := builder.Build("testdata/taskbuilder")
+	props, err := builder.Build()
 
 	if err != nil {
 		t.Fatalf("Error returned on task build: %#v.", err)
 	}
 
-	if task.Identifier() != id {
-		t.Errorf("Supplied id is not returned: %s", task.Identifier())
+	if props.botType != botType {
+		t.Errorf("Supplied BotType is not returned: %s", props.botType)
 	}
 
-	if builder.taskFunc == nil {
+	if props.identifier != id {
+		t.Errorf("Supplied id is not returned: %s", props.identifier)
+	}
+
+	if props.taskFunc == nil {
 		t.Fatal("Supplied func is not set.")
-	}
-
-	if config.Schedule() == dummySchedule {
-		t.Errorf("Config value is not overridden: %s.", config.DefaultDestination())
-	}
-
-	if task.DefaultDestination() != dummyDestination {
-		t.Errorf("DefaultDestination value is not overridden: %s.", config.DefaultDestination())
 	}
 }
 
-func TestScheduledTaskBuilder_MustBuild(t *testing.T) {
-	builder := &ScheduledTaskBuilder{}
-	builder.Identifier("dummy").
+func TestScheduledTaskPropsBuilder_MustBuild(t *testing.T) {
+	builder := &ScheduledTaskPropsBuilder{}
+	builder.BotType("dummyBot").
+		Identifier("dummy").
 		Func(func(_ context.Context) ([]*ScheduledTaskResult, error) {
 			return nil, nil
 		})
@@ -193,8 +188,8 @@ func TestScheduledTaskBuilder_MustBuild(t *testing.T) {
 	}()
 
 	builder.Schedule("@daily")
-	command := builder.MustBuild()
-	if command.Identifier() != builder.identifier {
+	props := builder.MustBuild()
+	if props.identifier != builder.identifier {
 		t.Error("Provided identifier is not set.")
 	}
 }

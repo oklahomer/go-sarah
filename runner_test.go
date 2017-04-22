@@ -227,16 +227,6 @@ func TestWithAlerter(t *testing.T) {
 func TestRunner_Run(t *testing.T) {
 	var botType BotType = "myBot"
 
-	// Prepare scheduled task to be configured on the fly
-	dummySchedule := "@hourly"
-	dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
-	taskBuilder := NewScheduledTaskBuilder().
-		Identifier("scheduled").
-		ConfigurableFunc(dummyTaskConfig, func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error) {
-			return nil, nil
-		})
-	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
-
 	// Prepare Bot to be run
 	passedCommand := make(chan Command, 1)
 	bot := &DummyBot{
@@ -251,12 +241,27 @@ func TestRunner_Run(t *testing.T) {
 
 	// Prepare command to be configured on the fly
 	commandProps := &CommandProps{
+		botType:      botType,
 		identifier:   "dummy",
 		matchPattern: regexp.MustCompile(`^\.echo`),
 		commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
 			return nil, nil
 		},
 		example: ".echo foo",
+	}
+
+	// Prepare scheduled task to be configured on the fly
+	dummySchedule := "@hourly"
+	dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
+	scheduledTaskProps := &ScheduledTaskProps{
+		botType:    botType,
+		identifier: "dummyTask",
+		taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
+			return nil, nil
+		},
+		schedule:           dummySchedule,
+		config:             dummyTaskConfig,
+		defaultDestination: "",
 	}
 
 	// Configure Runner
@@ -266,6 +271,11 @@ func TestRunner_Run(t *testing.T) {
 		cmdProps: map[BotType][]*CommandProps{
 			bot.BotType(): {
 				commandProps,
+			},
+		},
+		taskProps: map[BotType][]*ScheduledTaskProps{
+			bot.BotType(): {
+				scheduledTaskProps,
 			},
 		},
 		scheduledTasks: map[BotType][]ScheduledTask{

@@ -16,7 +16,7 @@ import (
 var (
 	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to CommandProps.
 	// This is returned on CommandProps.Build() inside of Runner.Run()
-	ErrCommandInsufficientArgument = errors.New("Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
+	ErrCommandInsufficientArgument = errors.New("BotType, Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
 )
 
 // CommandResponse is returned by Command or Task when the execution is finished.
