@@ -70,6 +70,30 @@ func TestRunnerOptions_Arg(t *testing.T) {
 	}
 }
 
+func TestRunnerOptions_Arg_WithError(t *testing.T) {
+	calledCnt := 0
+	options := &RunnerOptions{
+		func(_ *Runner) error {
+			calledCnt++
+			return errors.New("something is wrong")
+		},
+		func(_ *Runner) error {
+			calledCnt++
+			return nil
+		},
+	}
+
+	err := options.Arg()(&Runner{})
+
+	if err == nil {
+		t.Fatal("Error should be returned.")
+	}
+
+	if calledCnt != 1 {
+		t.Error("Constraction should abort right after first error is returned, but seems like it continued.")
+	}
+}
+
 func TestNewRunner_WithoutRunnerOption(t *testing.T) {
 	config := NewConfig()
 	runner, err := NewRunner(config)
@@ -169,6 +193,46 @@ func TestWithBot(t *testing.T) {
 	}
 }
 
+func TestWithCommandProps(t *testing.T) {
+	var botType BotType = "dummy"
+	props := &CommandProps{
+		botType: botType,
+	}
+	runner := &Runner{
+		commandProps: make(map[BotType][]*CommandProps),
+	}
+
+	WithCommandProps(props)(runner)
+
+	botCmdProps, ok := runner.commandProps[botType]
+	if !ok {
+		t.Fatal("Expected BotType is not stashed as key.")
+	}
+	if len(botCmdProps) != 1 && botCmdProps[0] != props {
+		t.Error("Expected CommandProps is not stashed.")
+	}
+}
+
+func TestWithScheduledTaskProps(t *testing.T) {
+	var botType BotType = "dummy"
+	props := &ScheduledTaskProps{
+		botType: botType,
+	}
+	runner := &Runner{
+		scheduledTaskPrps: make(map[BotType][]*ScheduledTaskProps),
+	}
+
+	WithScheduledTaskProps(props)(runner)
+
+	taskProps, ok := runner.scheduledTaskPrps[botType]
+	if !ok {
+		t.Fatal("Expected BotType is not stashed as key.")
+	}
+	if len(taskProps) != 1 && taskProps[0] != props {
+		t.Error("Expected ScheduledTaskProps is not stashed.")
+	}
+}
+
 func TestWithScheduledTask(t *testing.T) {
 	var botType BotType = "dummy"
 	task := &DummyScheduledTask{}
@@ -207,26 +271,6 @@ func TestWithAlerter(t *testing.T) {
 func TestRunner_Run(t *testing.T) {
 	var botType BotType = "myBot"
 
-	// Prepare command to be configured on the fly
-	commandBuilder := NewCommandBuilder().
-		Identifier("dummy").
-		MatchPattern(regexp.MustCompile(`^\.echo`)).
-		Func(func(_ context.Context, _ Input) (*CommandResponse, error) {
-			return nil, nil
-		}).
-		InputExample(".echo foo")
-	(*stashedCommandBuilders)[botType] = []*CommandBuilder{commandBuilder}
-
-	// Prepare scheduled task to be configured on the fly
-	dummySchedule := "@hourly"
-	dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
-	taskBuilder := NewScheduledTaskBuilder().
-		Identifier("scheduled").
-		ConfigurableFunc(dummyTaskConfig, func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error) {
-			return nil, nil
-		})
-	(*stashedScheduledTaskBuilders)[botType] = []*ScheduledTaskBuilder{taskBuilder}
-
 	// Prepare Bot to be run
 	passedCommand := make(chan Command, 1)
 	bot := &DummyBot{
@@ -239,10 +283,45 @@ func TestRunner_Run(t *testing.T) {
 		},
 	}
 
+	// Prepare command to be configured on the fly
+	commandProps := &CommandProps{
+		botType:      botType,
+		identifier:   "dummy",
+		matchPattern: regexp.MustCompile(`^\.echo`),
+		commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
+			return nil, nil
+		},
+		example: ".echo foo",
+	}
+
+	// Prepare scheduled task to be configured on the fly
+	dummySchedule := "@hourly"
+	dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
+	scheduledTaskProps := &ScheduledTaskProps{
+		botType:    botType,
+		identifier: "dummyTask",
+		taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
+			return nil, nil
+		},
+		schedule:           dummySchedule,
+		config:             dummyTaskConfig,
+		defaultDestination: "",
+	}
+
 	// Configure Runner
 	runner := &Runner{
 		config: NewConfig(),
 		bots:   []Bot{bot},
+		commandProps: map[BotType][]*CommandProps{
+			bot.BotType(): {
+				commandProps,
+			},
+		},
+		scheduledTaskPrps: map[BotType][]*ScheduledTaskProps{
+			bot.BotType(): {
+				scheduledTaskProps,
+			},
+		},
 		scheduledTasks: map[BotType][]ScheduledTask{
 			bot.BotType(): {
 				&DummyScheduledTask{},
@@ -265,7 +344,7 @@ func TestRunner_Run(t *testing.T) {
 
 	select {
 	case cmd := <-passedCommand:
-		if cmd == nil || cmd.Identifier() != commandBuilder.identifier {
+		if cmd == nil || cmd.Identifier() != commandProps.identifier {
 			t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
 		}
 	case <-time.NewTimer(10 * time.Second).C:
@@ -277,6 +356,33 @@ func TestRunner_Run(t *testing.T) {
 		// O.K.
 	case <-time.NewTimer(10 * time.Second).C:
 		t.Error("Runner is not finished.")
+	}
+}
+
+func Test_runBot(t *testing.T) {
+	var givenErr error
+	bot := &DummyBot{
+		RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {
+			panic("panic!!!")
+		},
+	}
+	runBot(
+		context.TODO(),
+		bot,
+		func(_ Input) error {
+			return nil
+		},
+		func(err error) {
+			givenErr = err
+		},
+	)
+
+	if givenErr == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if _, ok := givenErr.(*BotNonContinuableError); !ok {
+		t.Errorf("Expected error type is not given: %#v.", givenErr)
 	}
 }
 

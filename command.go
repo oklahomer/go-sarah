@@ -14,9 +14,9 @@ import (
 )
 
 var (
-	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to CommandBuilder.
-	// This is returned on CommandBuilder.build() inside of Runner.Run()
-	ErrCommandInsufficientArgument = errors.New("Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
+	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to CommandProps.
+	// This is returned on CommandProps.Build() inside of Runner.Run()
+	ErrCommandInsufficientArgument = errors.New("BotType, Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
 )
 
 // CommandResponse is returned by Command or Task when the execution is finished.
@@ -67,6 +67,33 @@ func (command *simpleCommand) Match(input string) bool {
 
 func (command *simpleCommand) Execute(ctx context.Context, input Input) (*CommandResponse, error) {
 	return command.commandFunc(ctx, input, command.config)
+}
+
+func newCommand(props *CommandProps, configDir string) (Command, error) {
+	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
+	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
+	commandConfig := props.config
+	if configDir != "" && commandConfig != nil {
+		fileName := props.identifier + ".yaml"
+		configPath := path.Join(configDir, fileName)
+		err := readConfig(configPath, commandConfig)
+		if err != nil && os.IsNotExist(err) {
+			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
+				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
+				configPath, props.identifier)
+		} else if err != nil {
+			// File was there, but could not read.
+			return nil, err
+		}
+	}
+
+	return &simpleCommand{
+		identifier:   props.identifier,
+		example:      props.example,
+		matchPattern: props.matchPattern,
+		commandFunc:  props.commandFunc,
+		config:       commandConfig,
+	}, nil
 }
 
 // StripMessage is a utility function that strips string from given message based on given regular expression.
@@ -154,16 +181,15 @@ type CommandConfig interface{}
 
 type commandFunc func(context.Context, Input, ...CommandConfig) (*CommandResponse, error)
 
-// CommandBuilder is a helper to create instance that implements Command.
-// While any struct that satisfies Command interface can be treated as so, this builder helps developers implement Command interface.
-// By calling CommandBuilder.Build when proper setting is done, an instance of simpleCommand is created with provided parameters.
-// This, of course, satisfies Command interface so can be passed to Bot.AppendCommand directly.
-//
-// When this is passed to Runner.StashCommandBuilder before Runner.Run, the Command is instanciated on Runner.Run.
-// One benefit of using Runner.StashCommandBuilder is that, if CommandConfig is set with CommandBuilder.ConfigurableFunc,
-// the CommandConfig is updated on-the-fly if corresponding configuration file is updated.
-// The search for configuration file is only available if Config.PluginConfigRoot is set.
-type CommandBuilder struct {
+// NewCommandPropsBuilder returns new CommandPropsBuilder instance.
+func NewCommandPropsBuilder() *CommandPropsBuilder {
+	return &CommandPropsBuilder{}
+}
+
+// CommandProps is a designated non-serializable configuration struct to be used in Command construction.
+// This holds relatively complex set of Command construction arguments that should be treated as one in logical term.
+type CommandProps struct {
+	botType      BotType
 	identifier   string
 	matchPattern *regexp.Regexp
 	config       CommandConfig
@@ -171,28 +197,40 @@ type CommandBuilder struct {
 	example      string
 }
 
-// NewCommandBuilder returns new CommandBuilder instance.
-// This can be used to setup your desired bot Command. Pass this instance to sarah.AppendCommandBuilder, and the Command will be configured when Bot runs.
-func NewCommandBuilder() *CommandBuilder {
-	return &CommandBuilder{}
+// CommandPropsBuilder helps to construct CommandProps.
+// Developer may set desired property as she goes and call CommandPropsBuilder.Build or CommandPropsBuilder.MustBuild to construct CommandProps at the end.
+// A validation logic runs on build, so the returning CommandProps instant is safe to be passed to Runner.
+type CommandPropsBuilder struct {
+	botType      BotType
+	identifier   string
+	matchPattern *regexp.Regexp
+	config       CommandConfig
+	commandFunc  commandFunc
+	example      string
+}
+
+// BotType is a setter to provide belonging BotType.
+func (builder *CommandPropsBuilder) BotType(botType BotType) *CommandPropsBuilder {
+	builder.botType = botType
+	return builder
 }
 
 // Identifier is a setter for Command identifier.
-func (builder *CommandBuilder) Identifier(id string) *CommandBuilder {
+func (builder *CommandPropsBuilder) Identifier(id string) *CommandPropsBuilder {
 	builder.identifier = id
 	return builder
 }
 
 // MatchPattern is a setter to provide command match pattern.
 // This regular expression is used to find matching command with given Input.
-func (builder *CommandBuilder) MatchPattern(pattern *regexp.Regexp) *CommandBuilder {
+func (builder *CommandPropsBuilder) MatchPattern(pattern *regexp.Regexp) *CommandPropsBuilder {
 	builder.matchPattern = pattern
 	return builder
 }
 
 // Func is a setter to provide command function that requires no configuration.
 // If ConfigurableFunc and Func are both called, later call overrides the previous one.
-func (builder *CommandBuilder) Func(fn func(context.Context, Input) (*CommandResponse, error)) *CommandBuilder {
+func (builder *CommandPropsBuilder) Func(fn func(context.Context, Input) (*CommandResponse, error)) *CommandPropsBuilder {
 	builder.config = nil
 	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 		return fn(ctx, input)
@@ -203,8 +241,9 @@ func (builder *CommandBuilder) Func(fn func(context.Context, Input) (*CommandRes
 // ConfigurableFunc is a setter to provide command function.
 // While Func let developers set simple function, this allows them to provide function that requires some sort of configuration struct.
 // On Runner.Run configuration is read from YAML file located at /path/to/config/dir/{commandIdentifier}.yaml and mapped to given CommandConfig struct.
-// The configuration is passed to command function as its third argument.
-func (builder *CommandBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*CommandResponse, error)) *CommandBuilder {
+// If no YAML file is found, Runner considers the given CommandConfig is fully configured and ready to use.
+// This configuration struct is passed to command function as its third argument.
+func (builder *CommandPropsBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*CommandResponse, error)) *CommandPropsBuilder {
 	builder.config = config
 	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 		return fn(ctx, input, cfg[0])
@@ -213,14 +252,15 @@ func (builder *CommandBuilder) ConfigurableFunc(config CommandConfig, fn func(co
 }
 
 // InputExample is a setter to provide example of command execution. This should be used to provide command usage for end users.
-func (builder *CommandBuilder) InputExample(example string) *CommandBuilder {
+func (builder *CommandPropsBuilder) InputExample(example string) *CommandPropsBuilder {
 	builder.example = example
 	return builder
 }
 
-// Build builds new Command instance with provided values.
-func (builder *CommandBuilder) Build(configDir string) (Command, error) {
-	if builder.identifier == "" ||
+// Build builds new CommandProps instance with provided values.
+func (builder *CommandPropsBuilder) Build() (*CommandProps, error) {
+	if builder.botType == "" ||
+		builder.identifier == "" ||
 		builder.example == "" ||
 		builder.matchPattern == nil ||
 		builder.commandFunc == nil {
@@ -228,41 +268,25 @@ func (builder *CommandBuilder) Build(configDir string) (Command, error) {
 		return nil, ErrCommandInsufficientArgument
 	}
 
-	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
-	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
-	commandConfig := builder.config
-	if configDir != "" && commandConfig != nil {
-		fileName := builder.identifier + ".yaml"
-		configPath := path.Join(configDir, fileName)
-		err := readConfig(configPath, commandConfig)
-		if err != nil && os.IsNotExist(err) {
-			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
-				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
-				configPath, builder.identifier)
-		} else if err != nil {
-			// File was there, but could not read.
-			return nil, err
-		}
-	}
-
-	return &simpleCommand{
+	return &CommandProps{
+		botType:      builder.botType,
 		identifier:   builder.identifier,
-		example:      builder.example,
 		matchPattern: builder.matchPattern,
+		config:       builder.config,
 		commandFunc:  builder.commandFunc,
-		config:       commandConfig,
+		example:      builder.example,
 	}, nil
 }
 
 // MustBuild is like Build but panics if any error occurs on Build.
-// It simplifies safe initialization of global variables holding built Command instances.
-func (builder *CommandBuilder) MustBuild() Command {
-	command, err := builder.Build("")
+// It simplifies safe initialization of global variables holding built CommandProps instances.
+func (builder *CommandPropsBuilder) MustBuild() *CommandProps {
+	props, err := builder.Build()
 	if err != nil {
-		panic(fmt.Sprintf("Error on building command: %s", err.Error()))
+		panic(fmt.Sprintf("Error on building CommandProps: %s", err.Error()))
 	}
 
-	return command
+	return props
 }
 
 func readConfig(configPath string, config CommandConfig) error {

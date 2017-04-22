@@ -79,8 +79,11 @@ import (
 
 var matchPattern = regexp.MustCompile(`^\.echo`)
 
-// This can be fed to bot via Bot.AppendCommand
-var SlackCommand = sarah.NewCommandBuilder().
+// CommandProps is a set of configuration options that can be and should be treated as one in logical perspective.
+// This can be fed to Runner to build Command on the fly.
+// CommandProps is re-used when command is re-built due to configuration file update.
+var SlackProps = sarah.NewCommandPropsBuilder().
+        BotType(slack.SLACK).
         Identifier("echo").
         MatchPattern(matchPattern).
         Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
@@ -111,11 +114,16 @@ package foo
 
 import (
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/golack/rtmapi"
 	"golang.org/x/net/context"
 )
 
-var Task = sarah.NewScheduledTaskBuilder().
+// TaskProps is a set of configuration options that can be and should be treated as one in logical perspective.
+// This can be fed to Runner to build ScheduledTask on the fly.
+// ScheduledTaskProps is re-used when command is re-built due to configuration file update.
+var TaskProps = sarah.NewScheduledTaskPropsBuilder().
+        BotType(slack.SLACK).
         Identifier("greeting").
         Func(func(_ context.Context) ([]*sarah.ScheduledTaskResult, error) {
                 return []*sarah.ScheduledTaskResult{
@@ -201,22 +209,26 @@ import	(
 )
 
 func main() {
-        // Setup slack bot and register desired Command(s).
-        // Any Bot implementation can be fed to Runner.RegisterBot(), but for convenience slack and gitter adapters are predefined.
+        // Stash Runner configuration option to RunnerOptions
+        options := sarah.NewRunnerOptions()
+
+        // Setup slack bot.
+        // Any Bot implementation can be fed to Runner, but for convenience slack and gitter adapters are predefined.
         // sarah.NewBot takes adapter and returns defaultBot instance, which satisfies Bot interface.
         configBuf, _ := ioutil.ReadFile("/path/to/adapter/config.yaml")
         slackConfig := slack.NewConfig()
         yaml.Unmarshal(configBuf, slackConfig)
         storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
         slackBot, _ := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.BotWithStorage(storage))
+        options.Append(sarah.WithBot(slackBot))
 
-        // Register desired command(s)
-        slackBot.AppendCommand(hello.SlackCommand)
+        // Add option to utilize hello command.
+        options.Append(sarah.WithCommandProps(hello.SlackProps))
 
         // Initialize Runner
         config := sarah.NewConfig()
         config.PluginConfigRoot = "path/to/plugin/configuration" // can be set manually or with (json|yaml).Unmarshal
-        runner, _ := sarah.NewRunner(config, sarah.WithBot(slackBot))
+        runner, _ := sarah.NewRunner(config, options.Arg())
 
         // Start interaction
         rootCtx := context.Background()
