@@ -37,23 +37,23 @@ func NewConfig() *Config {
 //
 // Developers can register desired number of Bot and Commands to create own bot experience.
 type Runner struct {
-	config         *Config
-	bots           []Bot
-	cmdProps       map[BotType][]*CommandProps
-	taskProps      map[BotType][]*ScheduledTaskProps
-	scheduledTasks map[BotType][]ScheduledTask
-	alerters       *alerters
+	config            *Config
+	bots              []Bot
+	commandProps      map[BotType][]*CommandProps
+	scheduledTaskPrps map[BotType][]*ScheduledTaskProps
+	scheduledTasks    map[BotType][]ScheduledTask
+	alerters          *alerters
 }
 
 // NewRunner creates and return new Runner instance.
 func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
 	runner := &Runner{
-		config:         config,
-		bots:           []Bot{},
-		cmdProps:       make(map[BotType][]*CommandProps),
-		taskProps:      make(map[BotType][]*ScheduledTaskProps),
-		scheduledTasks: make(map[BotType][]ScheduledTask),
-		alerters:       &alerters{},
+		config:            config,
+		bots:              []Bot{},
+		commandProps:      make(map[BotType][]*CommandProps),
+		scheduledTaskPrps: make(map[BotType][]*ScheduledTaskProps),
+		scheduledTasks:    make(map[BotType][]ScheduledTask),
+		alerters:          &alerters{},
 	}
 
 	for _, opt := range options {
@@ -83,6 +83,7 @@ type RunnerOption func(runner *Runner) error
 //
 //  // Here comes other 5-10 codes to configure another bot
 //  myBot, _ := NewMyBot(...)
+//  optionsAppend(sarah.WithBot(myBot))
 //
 //  // Some more codes to register Commands / ScheduledTasks
 //  myTask := customizedTask()
@@ -130,11 +131,11 @@ func WithBot(bot Bot) RunnerOption {
 // This props is re-used when configuration file is updated and Command needs to be re-built.
 func WithCommandProps(props *CommandProps) RunnerOption {
 	return func(runner *Runner) error {
-		stashed, ok := runner.cmdProps[props.botType]
+		stashed, ok := runner.commandProps[props.botType]
 		if !ok {
 			stashed = []*CommandProps{}
 		}
-		runner.cmdProps[props.botType] = append(stashed, props)
+		runner.commandProps[props.botType] = append(stashed, props)
 		return nil
 	}
 }
@@ -144,11 +145,11 @@ func WithCommandProps(props *CommandProps) RunnerOption {
 // This props is re-used when configuration file is updated and ScheduledTask needs to be re-built.
 func WithScheduledTaskProps(props *ScheduledTaskProps) RunnerOption {
 	return func(runner *Runner) error {
-		stashed, ok := runner.taskProps[props.botType]
+		stashed, ok := runner.scheduledTaskPrps[props.botType]
 		if !ok {
 			stashed = []*ScheduledTaskProps{}
 		}
-		runner.taskProps[props.botType] = append(stashed, props)
+		runner.scheduledTaskPrps[props.botType] = append(stashed, props)
 		return nil
 	}
 }
@@ -173,19 +174,27 @@ func WithAlerter(alerter Alerter) RunnerOption {
 	}
 }
 
-func (runner *Runner) commandProps(botType BotType) []*CommandProps {
-	if commandProps, ok := runner.cmdProps[botType]; ok {
-		return commandProps
+func (runner *Runner) botCommandProps(botType BotType) []*CommandProps {
+	if props, ok := runner.commandProps[botType]; ok {
+		return props
 	} else {
 		return []*CommandProps{}
 	}
 }
 
-func (runner *Runner) scheduledTaskProps(botType BotType) []*ScheduledTaskProps {
-	if props, ok := runner.taskProps[botType]; ok {
+func (runner *Runner) botScheduledTaskProps(botType BotType) []*ScheduledTaskProps {
+	if props, ok := runner.scheduledTaskPrps[botType]; ok {
 		return props
 	} else {
 		return []*ScheduledTaskProps{}
+	}
+}
+
+func (runner *Runner) botScheduledTasks(botType BotType) []ScheduledTask {
+	if tasks, ok := runner.scheduledTasks[botType]; ok {
+		return tasks
+	} else {
+		return []ScheduledTask{}
 	}
 }
 
@@ -228,7 +237,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		}
 
 		// Build commands with stashed CommandProps
-		commandProps := runner.commandProps(botType)
+		commandProps := runner.botCommandProps(botType)
 		for _, props := range commandProps {
 			command, err := newCommand(props, configDir)
 			if err != nil {
@@ -249,10 +258,10 @@ func (runner *Runner) Run(ctx context.Context) {
 		}(botCtx, bot) // Beware of closure...
 
 		// Set pre-setup tasks to tasks variable.
-		tasks := runner.scheduledTasks[botType]
+		tasks := runner.botScheduledTasks(botType)
 
 		// Build tasks with stashed ScheduledTaskProps and append to tasks
-		taskProps := runner.scheduledTaskProps(botType)
+		taskProps := runner.botScheduledTaskProps(botType)
 		for _, props := range taskProps {
 			task, err := newScheduledTask(props, configDir)
 			if err != nil {
@@ -262,7 +271,7 @@ func (runner *Runner) Run(ctx context.Context) {
 			tasks = append(tasks, task)
 		}
 
-		// Schedule tasks
+		// Register scheduled tasks.
 		for _, task := range tasks {
 			// Make sure schedule is given. Especially those pre-registered tasks.
 			if task.Schedule() == "" {
@@ -277,7 +286,8 @@ func (runner *Runner) Run(ctx context.Context) {
 
 		// supervise configuration files' directory
 		if configDir != "" {
-			err := watcher.watch(botCtx, botType, configDir, pluginUpdaterFunc(botCtx, bot, commandProps, taskProps, taskScheduler))
+			callback := pluginUpdaterFunc(botCtx, bot, commandProps, taskProps, taskScheduler)
+			err := watcher.watch(botCtx, botType, configDir, callback)
 			if err != nil {
 				log.Errorf("failed to watch %s: %s", configDir, err.Error())
 			}
