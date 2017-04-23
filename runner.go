@@ -235,55 +235,25 @@ func (runner *Runner) Run(ctx context.Context) {
 
 		// Build commands with stashed CommandProps
 		commandProps := runner.botCommandProps(botType)
-		for _, props := range commandProps {
-			command, err := newCommand(props, configDir)
+		registerCommands(bot, commandProps, configDir)
+
+		// supervise configuration files' directory for commands
+		if configDir != "" {
+			callback := commandUpdaterFunc(bot, commandProps)
+			err := watcher.watch(botCtx, botType, configDir, callback)
 			if err != nil {
-				log.Errorf("can't configure command. %s. %#v", err.Error(), props)
-				continue
+				log.Errorf("failed to watch %s: %s", configDir, err.Error())
 			}
-			bot.AppendCommand(command)
-		}
-
-		// Setup schedule registration function that is tied to this particular bot type.
-		updateSchedule := func(c context.Context, b Bot) func(ScheduledTask) error {
-			return func(t ScheduledTask) error {
-				log.Infof("registering task for %s: %s", b.BotType().String(), t.Identifier())
-				return taskScheduler.update(b.BotType(), t, func() {
-					executeScheduledTask(c, b, t)
-				})
-			}
-		}(botCtx, bot) // Beware of closure...
-
-		// Set pre-setup tasks to tasks variable.
-		tasks := runner.botScheduledTasks(botType)
-
-		// Build tasks with stashed ScheduledTaskProps and append to tasks
-		taskProps := runner.botScheduledTaskProps(botType)
-		for _, props := range taskProps {
-			task, err := newScheduledTask(props, configDir)
-			if err != nil {
-				log.Errorf("can't configure scheduled task: %s. %#v.", err.Error(), props)
-				continue
-			}
-			tasks = append(tasks, task)
 		}
 
 		// Register scheduled tasks.
-		for _, task := range tasks {
-			// Make sure schedule is given. Especially those pre-registered tasks.
-			if task.Schedule() == "" {
-				log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), "No schedule given.")
-				continue
-			}
+		tasks := runner.botScheduledTasks(botType)
+		taskProps := runner.botScheduledTaskProps(botType)
+		registerScheduledTasks(botCtx, bot, tasks, taskProps, taskScheduler, configDir)
 
-			if err := updateSchedule(task); err != nil {
-				log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
-			}
-		}
-
-		// supervise configuration files' directory
+		// supervise configuration files' directory for scheduled tasks
 		if configDir != "" {
-			callback := pluginUpdaterFunc(botCtx, bot, commandProps, taskProps, taskScheduler)
+			callback := scheduledTaskUpdaterFunc(botCtx, bot, taskProps, taskScheduler)
 			err := watcher.watch(botCtx, botType, configDir, callback)
 			if err != nil {
 				log.Errorf("failed to watch %s: %s", configDir, err.Error())
@@ -324,41 +294,93 @@ func runBot(ctx context.Context, bot Bot, receiveInput func(Input) error, errNot
 	bot.Run(ctx, receiveInput, errNotifier)
 }
 
-func pluginUpdaterFunc(botCtx context.Context, bot Bot, commandProps []*CommandProps, taskProps []*ScheduledTaskProps, taskScheduler scheduler) func(string) {
+func registerCommand(bot Bot, command Command) {
+	bot.AppendCommand(command)
+}
+
+func registerScheduledTask(botCtx context.Context, bot Bot, task ScheduledTask, taskScheduler scheduler) {
+	err := taskScheduler.update(bot.BotType(), task, func() {
+		executeScheduledTask(botCtx, bot, task)
+	})
+	if err != nil {
+		log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
+	}
+}
+
+func registerCommands(bot Bot, props []*CommandProps, configDir string) {
+	for _, props := range props {
+		command, err := newCommand(props, configDir)
+		if err != nil {
+			log.Errorf("can't configure command. %s. %#v", err.Error(), props)
+			continue
+		}
+
+		registerCommand(bot, command)
+	}
+}
+
+func registerScheduledTasks(botCtx context.Context, bot Bot, tasks []ScheduledTask, props []*ScheduledTaskProps, taskScheduler scheduler, configDir string) {
+	for _, props := range props {
+		task, err := newScheduledTask(props, configDir)
+		if err != nil {
+			log.Errorf("can't configure scheduled task: %s. %#v.", err.Error(), props)
+			continue
+		}
+		tasks = append(tasks, task)
+	}
+
+	for _, task := range tasks {
+		// Make sure schedule is given. Especially those pre-registered tasks.
+		if task.Schedule() == "" {
+			log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), "No schedule given.")
+			continue
+		}
+
+		registerScheduledTask(botCtx, bot, task, taskScheduler)
+	}
+}
+
+func commandUpdaterFunc(bot Bot, props []*CommandProps) func(string) {
 	return func(path string) {
 		dir, filename := filepath.Split(path)
 		id := strings.TrimSuffix(filename, filepath.Ext(filename)) // buzz.yaml to buzz
 
-		for _, p := range commandProps {
+		for _, p := range props {
 			if p.identifier != id {
 				continue
 			}
 			log.Infof("start rebuilding command due to config file change: %s.", id)
 			command, err := newCommand(p, dir)
-			if err == nil {
-				bot.AppendCommand(command) // replaces the old one.
-			} else {
-				log.Errorf("can't configure command. id: %s. error: %s.", p.identifier, err.Error())
+			if err != nil {
+				log.Errorf("can't configure command. id: %s. %s", p.identifier, err.Error())
+				return
 			}
+
+			registerCommand(bot, command) // replaces the old one.
+			return
 		}
+	}
+}
+
+func scheduledTaskUpdaterFunc(botCtx context.Context, bot Bot, taskProps []*ScheduledTaskProps, taskScheduler scheduler) func(string) {
+	return func(path string) {
+		dir, filename := filepath.Split(path)
+		id := strings.TrimSuffix(filename, filepath.Ext(filename)) // buzz.yaml to buzz
 
 		for _, p := range taskProps {
 			if p.identifier != id {
 				continue
 			}
+
 			log.Infof("start rebuilding scheduled task due to config file change: %s.", id)
 			task, err := newScheduledTask(p, dir)
 			if err != nil {
 				log.Errorf("can't configure scheduled task. id: %s. %s", p.identifier, err.Error())
-			} else {
-				err := taskScheduler.update(bot.BotType(), task, func() {
-					executeScheduledTask(botCtx, bot, task)
-				})
-
-				if err != nil {
-					log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
-				}
+				return
 			}
+
+			registerScheduledTask(botCtx, bot, task, taskScheduler)
+			return
 		}
 	}
 }

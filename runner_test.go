@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
@@ -385,6 +386,181 @@ func Test_runBot(t *testing.T) {
 
 	if _, ok := givenErr.(*BotNonContinuableError); !ok {
 		t.Errorf("Expected error type is not given: %#v.", givenErr)
+	}
+}
+
+func Test_registerCommand(t *testing.T) {
+	command := &DummyCommand{}
+	var appendedCommand Command
+	bot := &DummyBot{AppendCommandFunc: func(cmd Command) { appendedCommand = cmd }}
+
+	bot.AppendCommand(command)
+
+	if appendedCommand != command {
+		t.Error("Given Command is not appended.")
+	}
+}
+
+func Test_registerScheduledTask(t *testing.T) {
+	called := false
+	callbackCalled := false
+	bot := &DummyBot{}
+	task := &DummyScheduledTask{
+		ExecuteFunc: func(_ context.Context) ([]*ScheduledTaskResult, error) {
+			callbackCalled = true
+			return nil, nil
+		},
+	}
+	scheduler := &DummyScheduler{
+		UpdateFunc: func(_ BotType, _ ScheduledTask, callback func()) error {
+			called = true
+			callback()
+			return nil
+		},
+	}
+
+	registerScheduledTask(context.TODO(), bot, task, scheduler)
+
+	if called == false {
+		t.Error("Scheduler's update func is not called.")
+	}
+
+	if callbackCalled == false {
+		t.Error("Callback function is not called.")
+	}
+}
+
+func Test_commandUpdaterFunc(t *testing.T) {
+	var botType BotType = "dummy"
+	registeredCommand := 0
+	bot := &DummyBot{
+		BotTypeValue: botType,
+		AppendCommandFunc: func(_ Command) {
+			registeredCommand++
+		},
+	}
+	props := []*CommandProps{
+		{
+			identifier:  "irrelevant",
+			botType:     botType,
+			commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
+			matchFunc:   func(_ Input) bool { return true },
+			config:      nil,
+			example:     "exampleInput",
+		},
+		{
+			identifier:  "matching",
+			botType:     botType,
+			commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
+			matchFunc:   func(_ Input) bool { return true },
+			config:      struct{ foo string }{foo: "broken"},
+			example:     "exampleInput",
+		},
+	}
+
+	updater := commandUpdaterFunc(bot, props)
+	updater(filepath.Join("testdata", "command", "matching.yaml"))
+
+	if registeredCommand != 1 {
+		t.Errorf("Only one comamnd is expected to be registered: %d.", registeredCommand)
+	}
+}
+
+func Test_commandUpdaterFunc_WithBrokenYaml(t *testing.T) {
+	var botType BotType = "dummy"
+	registeredCommand := 0
+	bot := &DummyBot{
+		BotTypeValue: botType,
+		AppendCommandFunc: func(_ Command) {
+			registeredCommand++
+		},
+	}
+	props := []*CommandProps{
+		{
+			identifier:  "broken",
+			botType:     botType,
+			commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
+			matchFunc:   func(_ Input) bool { return true },
+			config:      struct{ foo string }{foo: "broken"},
+			example:     "exampleInput",
+		},
+	}
+
+	updater := commandUpdaterFunc(bot, props)
+	updater(filepath.Join("testdata", "command", "broken.yaml"))
+
+	if registeredCommand != 0 {
+		t.Errorf("No comamnd is expected to be registered: %d.", registeredCommand)
+	}
+}
+
+func Test_scheduledTaskUpdaterFunc(t *testing.T) {
+	var botType BotType = "dummy"
+	registeredCommand := 0
+	bot := &DummyBot{
+		BotTypeValue: botType,
+	}
+	props := []*ScheduledTaskProps{
+		{
+			botType:            botType,
+			identifier:         "irrelevant",
+			taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+			schedule:           "@every 1m",
+			defaultDestination: "boo",
+			config:             nil,
+		},
+		{
+			botType:            botType,
+			identifier:         "dummy",
+			taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+			schedule:           "@every 1m",
+			defaultDestination: "dummy",
+			config:             nil,
+		},
+	}
+	scheduler := &DummyScheduler{
+		UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
+			registeredCommand++
+			return nil
+		},
+	}
+
+	updater := scheduledTaskUpdaterFunc(context.TODO(), bot, props, scheduler)
+	updater(filepath.Join("testdata", "command", "dummy.yaml"))
+
+	if registeredCommand != 1 {
+		t.Errorf("Only one comamnd is expected to be registered: %d.", registeredCommand)
+	}
+}
+
+func Test_scheduledTaskUpdaterFunc_WithBrokenYaml(t *testing.T) {
+	var botType BotType = "dummy"
+	registeredCommand := 0
+	bot := &DummyBot{
+		BotTypeValue: botType,
+	}
+	props := []*ScheduledTaskProps{
+		{
+			botType:            botType,
+			identifier:         "broken",
+			taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+			schedule:           "@every 1m",
+			defaultDestination: "boo",
+			config:             &struct{ token string }{},
+		},
+	}
+	scheduler := &DummyScheduler{
+		UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
+			registeredCommand++
+			return nil
+		},
+	}
+
+	updater := scheduledTaskUpdaterFunc(context.TODO(), bot, props, scheduler)
+	updater(filepath.Join("testdata", "command", "broken.yaml"))
+
+	if registeredCommand != 0 {
+		t.Errorf("No comamnd is expected to be registered: %d.", registeredCommand)
 	}
 }
 
