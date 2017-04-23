@@ -51,20 +51,20 @@ func TestNewScheduledTaskPropsBuilder(t *testing.T) {
 
 func TestScheduledTaskPropsBuilder_BotType(t *testing.T) {
 	var botType BotType = "dummy"
-	builder := &ScheduledTaskPropsBuilder{}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.BotType(botType)
 
-	if builder.botType != botType {
+	if builder.props.botType != botType {
 		t.Error("Provided BotType was not set.")
 	}
 }
 
 func TestScheduledTaskPropsBuilder_Identifier(t *testing.T) {
 	id := "overWhelmedWithTasks"
-	builder := &ScheduledTaskPropsBuilder{}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.Identifier(id)
 
-	if builder.identifier != id {
+	if builder.props.identifier != id {
 		t.Fatal("Supplied id is not set.")
 	}
 }
@@ -74,10 +74,10 @@ func TestScheduledTaskPropsBuilder_Func(t *testing.T) {
 	taskFunc := func(_ context.Context) ([]*ScheduledTaskResult, error) {
 		return []*ScheduledTaskResult{{Content: res}}, nil
 	}
-	builder := &ScheduledTaskPropsBuilder{}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.Func(taskFunc)
 
-	actualRes, err := builder.taskFunc(context.TODO())
+	actualRes, err := builder.props.taskFunc(context.TODO())
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
@@ -89,20 +89,20 @@ func TestScheduledTaskPropsBuilder_Func(t *testing.T) {
 
 func TestScheduledTaskPropsBuilder_Schedule(t *testing.T) {
 	schedule := "@daily"
-	builder := &ScheduledTaskPropsBuilder{}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.Schedule(schedule)
 
-	if builder.schedule != schedule {
+	if builder.props.schedule != schedule {
 		t.Fatal("Supplied schedule is not set.")
 	}
 }
 
 func TestScheduledTaskPropsBuilder_DefaultDestination(t *testing.T) {
 	destination := "dest"
-	builder := &ScheduledTaskPropsBuilder{}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.DefaultDestination(destination)
 
-	if builder.defaultDestination != destination {
+	if builder.props.defaultDestination != destination {
 		t.Fatal("Supplied destination is not set.")
 	}
 }
@@ -119,24 +119,24 @@ func TestScheduledTaskPropsBuilder_ConfigurableFunc(t *testing.T) {
 			},
 		}, nil
 	}
-	builder := &ScheduledTaskPropsBuilder{}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.ConfigurableFunc(config, taskFunc)
 
-	if builder.config != config {
+	if builder.props.config != config {
 		t.Fatal("Supplied config is not set.")
 	}
-	if builder.taskFunc == nil {
+	if builder.props.taskFunc == nil {
 		t.Fatal("Supplied function is not set.")
 	}
 
-	_, err := builder.taskFunc(context.TODO(), config)
+	_, err := builder.props.taskFunc(context.TODO(), config)
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
 }
 
 func TestScheduledTaskPropsBuilder_Build(t *testing.T) {
-	builder := &ScheduledTaskPropsBuilder{}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	_, err := builder.Build()
 	if err != ErrTaskInsufficientArgument {
 		t.Fatalf("Expected error is not returned: %#v.", err)
@@ -171,7 +171,7 @@ func TestScheduledTaskPropsBuilder_Build(t *testing.T) {
 }
 
 func TestScheduledTaskPropsBuilder_MustBuild(t *testing.T) {
-	builder := &ScheduledTaskPropsBuilder{}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.BotType("dummyBot").
 		Identifier("dummy").
 		Func(func(_ context.Context) ([]*ScheduledTaskResult, error) {
@@ -189,7 +189,7 @@ func TestScheduledTaskPropsBuilder_MustBuild(t *testing.T) {
 
 	builder.Schedule("@daily")
 	props := builder.MustBuild()
-	if props.identifier != builder.identifier {
+	if props.identifier != builder.props.identifier {
 		t.Error("Provided identifier is not set.")
 	}
 }

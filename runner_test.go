@@ -285,9 +285,11 @@ func TestRunner_Run(t *testing.T) {
 
 	// Prepare command to be configured on the fly
 	commandProps := &CommandProps{
-		botType:      botType,
-		identifier:   "dummy",
-		matchPattern: regexp.MustCompile(`^\.echo`),
+		botType:    botType,
+		identifier: "dummy",
+		matchFunc: func(input Input) bool {
+			return regexp.MustCompile(`^\.echo`).MatchString(input.Message())
+		},
 		commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
 			return nil, nil
 		},

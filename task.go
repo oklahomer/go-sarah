@@ -151,37 +151,34 @@ type ScheduledTaskProps struct {
 // Developer may set desired property as she goes and call ScheduledTaskPropsBuilder.Build or ScheduledTaskPropsBuilder.MustBuild to construct ScheduledTaskProps at the end.
 // A validation logic runs on build, so the returning ScheduledTaskProps instant is safe to be passed to Runner.
 type ScheduledTaskPropsBuilder struct {
-	botType            BotType
-	identifier         string
-	taskFunc           taskFunc
-	schedule           string
-	defaultDestination OutputDestination
-	config             TaskConfig
+	props *ScheduledTaskProps
 }
 
 // NewScheduledTaskPropsBuilder creates and returns ScheduledTaskBuilder instance.
 func NewScheduledTaskPropsBuilder() *ScheduledTaskPropsBuilder {
-	return &ScheduledTaskPropsBuilder{}
+	return &ScheduledTaskPropsBuilder{
+		props: &ScheduledTaskProps{},
+	}
 }
 
 // BotType is a setter to provide belonging BotType.
 func (builder *ScheduledTaskPropsBuilder) BotType(botType BotType) *ScheduledTaskPropsBuilder {
-	builder.botType = botType
+	builder.props.botType = botType
 	return builder
 }
 
 // Identifier sets unique ID of this task.
 // This is used to identify re-configure tasks and replace old ones.
 func (builder *ScheduledTaskPropsBuilder) Identifier(id string) *ScheduledTaskPropsBuilder {
-	builder.identifier = id
+	builder.props.identifier = id
 	return builder
 }
 
 // Func sets function to be called on task execution.
 // To set function that requires some sort of configuration struct, use ConfigurableFunc.
 func (builder *ScheduledTaskPropsBuilder) Func(fn func(context.Context) ([]*ScheduledTaskResult, error)) *ScheduledTaskPropsBuilder {
-	builder.config = nil
-	builder.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
+	builder.props.config = nil
+	builder.props.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
 		return fn(ctx)
 	}
 	return builder
@@ -190,14 +187,14 @@ func (builder *ScheduledTaskPropsBuilder) Func(fn func(context.Context) ([]*Sche
 // Schedule sets execution schedule.
 // Representation spec. is identical to that of github.com/robfig/cron.
 func (builder *ScheduledTaskPropsBuilder) Schedule(schedule string) *ScheduledTaskPropsBuilder {
-	builder.schedule = schedule
+	builder.props.schedule = schedule
 	return builder
 }
 
 // DefaultDestination sets default output destination of this task.
 // OutputDestination returned by task execution has higher priority.
 func (builder *ScheduledTaskPropsBuilder) DefaultDestination(dest OutputDestination) *ScheduledTaskPropsBuilder {
-	builder.defaultDestination = dest
+	builder.props.defaultDestination = dest
 	return builder
 }
 
@@ -207,8 +204,8 @@ func (builder *ScheduledTaskPropsBuilder) DefaultDestination(dest OutputDestinat
 // When this builder is stashed via StashScheduledTaskBuilder and Runner runs with Config.PluginConfigRoot,
 // configuration struct gets updated automatically when corresponding configuration file is modified.
 func (builder *ScheduledTaskPropsBuilder) ConfigurableFunc(config TaskConfig, fn func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error)) *ScheduledTaskPropsBuilder {
-	builder.config = config
-	builder.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
+	builder.props.config = config
+	builder.props.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
 		return fn(ctx, cfg[0])
 	}
 	return builder
@@ -216,34 +213,27 @@ func (builder *ScheduledTaskPropsBuilder) ConfigurableFunc(config TaskConfig, fn
 
 // Build builds new ScheduledProps instance with provided values.
 func (builder *ScheduledTaskPropsBuilder) Build() (*ScheduledTaskProps, error) {
-	if builder.botType == "" ||
-		builder.identifier == "" ||
-		builder.taskFunc == nil {
+	if builder.props.botType == "" ||
+		builder.props.identifier == "" ||
+		builder.props.taskFunc == nil {
 
 		return nil, ErrTaskInsufficientArgument
 	}
 
-	taskConfig := builder.config
-	if taskConfig == nil && builder.schedule == "" {
+	taskConfig := builder.props.config
+	if taskConfig == nil && builder.props.schedule == "" {
 		// Task Schedule can never be specified.
 		return nil, ErrTaskScheduleNotGiven
 	}
 
 	if taskConfig != nil {
-		if _, ok := (taskConfig).(ScheduledConfig); !ok && builder.schedule == "" {
+		if _, ok := (taskConfig).(ScheduledConfig); !ok && builder.props.schedule == "" {
 			// Task Schedule can never be specified.
 			return nil, ErrTaskScheduleNotGiven
 		}
 	}
 
-	return &ScheduledTaskProps{
-		botType:            builder.botType,
-		identifier:         builder.identifier,
-		taskFunc:           builder.taskFunc,
-		schedule:           builder.schedule,
-		defaultDestination: builder.defaultDestination,
-		config:             builder.config,
-	}, nil
+	return builder.props, nil
 }
 
 // MustBuild is like Build, but panics if any error occurs on Build.

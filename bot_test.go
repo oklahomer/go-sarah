@@ -173,7 +173,7 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 		return nil, nil
 	}
 	command := &DummyCommand{
-		MatchFunc: func(_ string) bool {
+		MatchFunc: func(_ Input) bool {
 			return true
 		},
 		ExecuteFunc: func(_ context.Context, _ Input) (*CommandResponse, error) {

@@ -68,6 +68,8 @@ Any struct that satisfies ```Command``` interface can be fed to ```Bot.AppendCom
 ### Simple Command
 
 ```go
+// In separate plugin file such as echo/command.go
+// Export some pre-build command props
 package echo
 
 import (
@@ -77,11 +79,10 @@ import (
 	"regexp"
 )
 
-var matchPattern = regexp.MustCompile(`^\.echo`)
-
 // CommandProps is a set of configuration options that can be and should be treated as one in logical perspective.
 // This can be fed to Runner to build Command on the fly.
 // CommandProps is re-used when command is re-built due to configuration file update.
+var matchPattern = regexp.MustCompile(`^\.echo`)
 var SlackProps = sarah.NewCommandPropsBuilder().
         BotType(slack.SLACK).
         Identifier("echo").
@@ -92,6 +93,27 @@ var SlackProps = sarah.NewCommandPropsBuilder().
         }).
         InputExample(".echo knock knock").
         MustBuild()
+
+// To have complex checking logic, MatchFunc can be used instead of MatchPattern.
+var CustomizedProps = sarah.NewCommandPropsBuilder().
+        MatchFunc(func(input sarah.Input) bool {
+                // Check against input.Message(), input.SenderKey(), and input.SentAt()
+                // to see if particular user is sending particular message in particular time range
+                return false
+        }).
+        // Call some other setter methods to do the rest.
+        MustBuild()
+
+// Configurable is a helper function that returns CommandProps built with given CommandConfig.
+// CommandConfig can be first configured manually or from YAML file, and then fed to this function.
+// Returned CommandProps can be fed to Runner and when configuration file is updated,
+// Runner detects the change and re-build the Command with updated configuration struct.
+func Configurable(config sarah.CommandConfig) *sarah.CommandProps {
+        return sarah.NewCommandPropsBuilder().
+                ConfigurableFunc(config, func(_ context, input sarah.Input, conf sarah.CommandConfig)).
+                // Call some other setter methods to do the rest.
+                MustBuild()
+}
 ```
 
 ### Reconfigurable Command
