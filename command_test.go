@@ -106,6 +106,26 @@ func TestCommandPropsBuilder_InputExample(t *testing.T) {
 	}
 }
 
+func TestCommandPropsBuilder_MatchPattern(t *testing.T) {
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
+	builder.MatchPattern(regexp.MustCompile(`^\.echo`))
+
+	if !builder.props.matchFunc(&DummyInput{MessageValue: ".echo"}) {
+		t.Error("Expected true to return, but did not.")
+	}
+}
+
+func TestCommandPropsBuilder_MatchFunc(t *testing.T) {
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
+	builder.MatchFunc(func(input Input) bool {
+		return regexp.MustCompile(`^\.echo`).MatchString(input.Message())
+	})
+
+	if !builder.props.matchFunc(&DummyInput{MessageValue: ".echo"}) {
+		t.Error("Expected true to return, but did not.")
+	}
+}
+
 func TestCommandPropsBuilder_Build(t *testing.T) {
 	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	if _, err := builder.Build(); err == nil {
