@@ -16,7 +16,7 @@ import (
 var (
 	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to CommandProps.
 	// This is returned on CommandProps.Build() inside of Runner.Run()
-	ErrCommandInsufficientArgument = errors.New("BotType, Identifier, InputExample, MatchPattern, and (Configurable)Func must be set.")
+	ErrCommandInsufficientArgument = errors.New("BotType, Identifier, InputExample, MatchFunc, and (Configurable)Func must be set.")
 )
 
 // CommandResponse is returned by Command or Task when the execution is finished.
@@ -38,19 +38,15 @@ type Command interface {
 
 	// Match is used to judge if this command corresponds to given user input.
 	// If this returns true, Bot implementation should proceed to Execute with current user input.
-	Match(string) bool
+	Match(Input) bool
 }
 
 type simpleCommand struct {
-	identifier string
-
-	example string
-
-	matchPattern *regexp.Regexp
-
+	identifier  string
+	example     string
+	matchFunc   func(Input) bool
 	commandFunc commandFunc
-
-	config CommandConfig
+	config      CommandConfig
 }
 
 func (command *simpleCommand) Identifier() string {
@@ -61,8 +57,8 @@ func (command *simpleCommand) InputExample() string {
 	return command.example
 }
 
-func (command *simpleCommand) Match(input string) bool {
-	return command.matchPattern.MatchString(input)
+func (command *simpleCommand) Match(input Input) bool {
+	return command.matchFunc(input)
 }
 
 func (command *simpleCommand) Execute(ctx context.Context, input Input) (*CommandResponse, error) {
@@ -88,11 +84,11 @@ func newCommand(props *CommandProps, configDir string) (Command, error) {
 	}
 
 	return &simpleCommand{
-		identifier:   props.identifier,
-		example:      props.example,
-		matchPattern: props.matchPattern,
-		commandFunc:  props.commandFunc,
-		config:       commandConfig,
+		identifier:  props.identifier,
+		example:     props.example,
+		matchFunc:   props.matchFunc,
+		commandFunc: props.commandFunc,
+		config:      commandConfig,
 	}, nil
 }
 
@@ -133,9 +129,9 @@ func (commands *Commands) Append(command Command) {
 //
 // This check is run in the order of Command registration: Earlier the Commands.Append is called, the command is checked
 // earlier. So register important Command first.
-func (commands *Commands) FindFirstMatched(text string) Command {
+func (commands *Commands) FindFirstMatched(input Input) Command {
 	for _, command := range *commands {
-		if command.Match(text) {
+		if command.Match(input) {
 			return command
 		}
 	}
@@ -145,8 +141,7 @@ func (commands *Commands) FindFirstMatched(text string) Command {
 
 // ExecuteFirstMatched tries find matching command with the given input, and execute it if one is available.
 func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) (*CommandResponse, error) {
-	inputMessage := input.Message()
-	command := commands.FindFirstMatched(inputMessage)
+	command := commands.FindFirstMatched(input)
 	if command == nil {
 		return nil, nil
 	}
@@ -183,56 +178,67 @@ type commandFunc func(context.Context, Input, ...CommandConfig) (*CommandRespons
 
 // NewCommandPropsBuilder returns new CommandPropsBuilder instance.
 func NewCommandPropsBuilder() *CommandPropsBuilder {
-	return &CommandPropsBuilder{}
+	return &CommandPropsBuilder{
+		props: &CommandProps{},
+	}
 }
 
 // CommandProps is a designated non-serializable configuration struct to be used in Command construction.
 // This holds relatively complex set of Command construction arguments that should be treated as one in logical term.
 type CommandProps struct {
-	botType      BotType
-	identifier   string
-	matchPattern *regexp.Regexp
-	config       CommandConfig
-	commandFunc  commandFunc
-	example      string
+	botType     BotType
+	identifier  string
+	config      CommandConfig
+	commandFunc commandFunc
+	matchFunc   func(Input) bool
+	example     string
 }
 
 // CommandPropsBuilder helps to construct CommandProps.
 // Developer may set desired property as she goes and call CommandPropsBuilder.Build or CommandPropsBuilder.MustBuild to construct CommandProps at the end.
 // A validation logic runs on build, so the returning CommandProps instant is safe to be passed to Runner.
 type CommandPropsBuilder struct {
-	botType      BotType
-	identifier   string
-	matchPattern *regexp.Regexp
-	config       CommandConfig
-	commandFunc  commandFunc
-	example      string
+	props *CommandProps // This props instance is not fully constructed til Build() is called.
 }
 
 // BotType is a setter to provide belonging BotType.
 func (builder *CommandPropsBuilder) BotType(botType BotType) *CommandPropsBuilder {
-	builder.botType = botType
+	builder.props.botType = botType
 	return builder
 }
 
 // Identifier is a setter for Command identifier.
 func (builder *CommandPropsBuilder) Identifier(id string) *CommandPropsBuilder {
-	builder.identifier = id
+	builder.props.identifier = id
 	return builder
 }
 
 // MatchPattern is a setter to provide command match pattern.
 // This regular expression is used to find matching command with given Input.
+//
+// Use MatchFunc to set more customizable matching logic.
 func (builder *CommandPropsBuilder) MatchPattern(pattern *regexp.Regexp) *CommandPropsBuilder {
-	builder.matchPattern = pattern
+	builder.props.matchFunc = func(input Input) bool {
+		return pattern.MatchString(input.Message())
+	}
+	return builder
+}
+
+// MatchFunc is a setter to provide a function that judges if an incoming input "matches" to this Command.
+// When this returns true, this Command is considered as "corresponding to user input" and becomes Command execution candidate.
+//
+// MatchPattern may be used to specify a regular expression that is checked against user input, Input.Message();
+// MatchFunc can specify more customizable matching logic. e.g. only return true on specific sender's specific message on specific time range.
+func (builder *CommandPropsBuilder) MatchFunc(matchFunc func(Input) bool) *CommandPropsBuilder {
+	builder.props.matchFunc = matchFunc
 	return builder
 }
 
 // Func is a setter to provide command function that requires no configuration.
 // If ConfigurableFunc and Func are both called, later call overrides the previous one.
 func (builder *CommandPropsBuilder) Func(fn func(context.Context, Input) (*CommandResponse, error)) *CommandPropsBuilder {
-	builder.config = nil
-	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
+	builder.props.config = nil
+	builder.props.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 		return fn(ctx, input)
 	}
 	return builder
@@ -244,8 +250,8 @@ func (builder *CommandPropsBuilder) Func(fn func(context.Context, Input) (*Comma
 // If no YAML file is found, Runner considers the given CommandConfig is fully configured and ready to use.
 // This configuration struct is passed to command function as its third argument.
 func (builder *CommandPropsBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*CommandResponse, error)) *CommandPropsBuilder {
-	builder.config = config
-	builder.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
+	builder.props.config = config
+	builder.props.commandFunc = func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 		return fn(ctx, input, cfg[0])
 	}
 	return builder
@@ -253,29 +259,22 @@ func (builder *CommandPropsBuilder) ConfigurableFunc(config CommandConfig, fn fu
 
 // InputExample is a setter to provide example of command execution. This should be used to provide command usage for end users.
 func (builder *CommandPropsBuilder) InputExample(example string) *CommandPropsBuilder {
-	builder.example = example
+	builder.props.example = example
 	return builder
 }
 
 // Build builds new CommandProps instance with provided values.
 func (builder *CommandPropsBuilder) Build() (*CommandProps, error) {
-	if builder.botType == "" ||
-		builder.identifier == "" ||
-		builder.example == "" ||
-		builder.matchPattern == nil ||
-		builder.commandFunc == nil {
+	if builder.props.botType == "" ||
+		builder.props.identifier == "" ||
+		builder.props.example == "" ||
+		builder.props.matchFunc == nil ||
+		builder.props.commandFunc == nil {
 
 		return nil, ErrCommandInsufficientArgument
 	}
 
-	return &CommandProps{
-		botType:      builder.botType,
-		identifier:   builder.identifier,
-		matchPattern: builder.matchPattern,
-		config:       builder.config,
-		commandFunc:  builder.commandFunc,
-		example:      builder.example,
-	}, nil
+	return builder.props, nil
 }
 
 // MustBuild is like Build but panics if any error occurs on Build.

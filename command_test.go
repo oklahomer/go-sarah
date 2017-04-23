@@ -12,7 +12,7 @@ type DummyCommand struct {
 	IdentifierValue  string
 	ExecuteFunc      func(context.Context, Input) (*CommandResponse, error)
 	InputExampleFunc func() string
-	MatchFunc        func(string) bool
+	MatchFunc        func(Input) bool
 }
 
 func (command *DummyCommand) Identifier() string {
@@ -27,8 +27,8 @@ func (command *DummyCommand) InputExample() string {
 	return command.InputExampleFunc()
 }
 
-func (command *DummyCommand) Match(str string) bool {
-	return command.MatchFunc(str)
+func (command *DummyCommand) Match(input Input) bool {
+	return command.MatchFunc(input)
 }
 
 func TestNewCommandPropsBuilder(t *testing.T) {
@@ -49,13 +49,13 @@ func TestCommandPropsBuilder_ConfigurableFunc(t *testing.T) {
 		return nil, nil
 	}
 
-	builder := &CommandPropsBuilder{}
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	builder.ConfigurableFunc(config, fnc)
-	if builder.config != config {
+	if builder.props.config != config {
 		t.Error("Passed config struct is not set.")
 	}
 
-	builder.commandFunc(context.TODO(), &DummyInput{}, config)
+	builder.props.commandFunc(context.TODO(), &DummyInput{}, config)
 	if wrappedFncCalled == false {
 		t.Error("Provided func was not properlly wrapped in builder.")
 	}
@@ -63,51 +63,51 @@ func TestCommandPropsBuilder_ConfigurableFunc(t *testing.T) {
 
 func TestCommandPropsBuilder_BotType(t *testing.T) {
 	var botType BotType = "dummy"
-	builder := &CommandPropsBuilder{}
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
 
 	builder.BotType(botType)
-	if builder.botType != botType {
+	if builder.props.botType != botType {
 		t.Error("Provided BotType was not set.")
 	}
 }
 
 func TestCommandPropsBuilder_Func(t *testing.T) {
 	wrappedFncCalled := false
-	builder := &CommandPropsBuilder{}
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	fnc := func(_ context.Context, _ Input) (*CommandResponse, error) {
 		wrappedFncCalled = true
 		return nil, nil
 	}
 
 	builder.Func(fnc)
-	builder.commandFunc(context.TODO(), &DummyInput{})
+	builder.props.commandFunc(context.TODO(), &DummyInput{})
 	if wrappedFncCalled == false {
 		t.Error("Provided func was not properlly wrapped in builder.")
 	}
 }
 
 func TestCommandPropsBuilder_Identifier(t *testing.T) {
-	builder := &CommandPropsBuilder{}
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	id := "FOO"
 	builder.Identifier(id)
 
-	if builder.identifier != id {
+	if builder.props.identifier != id {
 		t.Error("Provided identifier is not set.")
 	}
 }
 
 func TestCommandPropsBuilder_InputExample(t *testing.T) {
-	builder := &CommandPropsBuilder{}
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	example := ".echo foo"
 	builder.InputExample(example)
 
-	if builder.example != example {
+	if builder.props.example != example {
 		t.Error("Provided example is not set.")
 	}
 }
 
 func TestCommandPropsBuilder_Build(t *testing.T) {
-	builder := &CommandPropsBuilder{}
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	if _, err := builder.Build(); err == nil {
 		t.Error("expected error not given.")
 	} else if err != ErrCommandInsufficientArgument {
@@ -149,8 +149,8 @@ func TestCommandPropsBuilder_Build(t *testing.T) {
 		t.Errorf("Expected identifier is not set: %s.", props.identifier)
 	}
 
-	if props.matchPattern != matchPattern {
-		t.Errorf("Expected matchPattern is not set: %#v.", props.matchPattern)
+	if !props.matchFunc(&DummyInput{MessageValue: ".echo foo"}) {
+		t.Error("Expected match result is not given.")
 	}
 
 	if props.example != example {
@@ -163,7 +163,7 @@ func TestCommandPropsBuilder_Build(t *testing.T) {
 }
 
 func TestCommandPropsBuilder_MustBuild(t *testing.T) {
-	builder := &CommandPropsBuilder{}
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	builder.BotType("dummyBot").
 		Identifier("dummy").
 		MatchPattern(regexp.MustCompile(`^\.echo`)).
@@ -182,7 +182,7 @@ func TestCommandPropsBuilder_MustBuild(t *testing.T) {
 		return nil, nil
 	})
 	props := builder.MustBuild()
-	if props.identifier != builder.identifier {
+	if props.identifier != builder.props.identifier {
 		t.Error("Provided identifier is not set.")
 	}
 }
@@ -235,29 +235,29 @@ func TestNewCommands(t *testing.T) {
 
 func TestCommands_FindFirstMatched(t *testing.T) {
 	commands := &Commands{}
-	matchedCommand := commands.FindFirstMatched("echo")
+	matchedCommand := commands.FindFirstMatched(&DummyInput{MessageValue: "echo"})
 	if matchedCommand != nil {
 		t.Fatalf("Something is returned while nothing other than nil may returned: %#v.", matchedCommand)
 	}
 
 	irrelevantCommand := &DummyCommand{}
-	irrelevantCommand.MatchFunc = func(msg string) bool {
+	irrelevantCommand.MatchFunc = func(_ Input) bool {
 		return false
 	}
 	echoCommand := &DummyCommand{}
-	echoCommand.MatchFunc = func(msg string) bool {
-		return strings.HasPrefix(msg, "echo")
+	echoCommand.MatchFunc = func(input Input) bool {
+		return strings.HasPrefix(input.Message(), "echo")
 	}
 	echoCommand.ExecuteFunc = func(_ context.Context, _ Input) (*CommandResponse, error) {
 		return &CommandResponse{Content: ""}, nil
 	}
 	irrelevantCommand2 := &DummyCommand{}
-	irrelevantCommand2.MatchFunc = func(msg string) bool {
+	irrelevantCommand2.MatchFunc = func(_ Input) bool {
 		return false
 	}
 	commands = &Commands{irrelevantCommand, echoCommand, irrelevantCommand2}
 
-	matchedCommand = commands.FindFirstMatched("echo")
+	matchedCommand = commands.FindFirstMatched(&DummyInput{MessageValue: "echo"})
 	if matchedCommand == nil {
 		t.Fatal("Expected command is not found.")
 	}
@@ -281,8 +281,8 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 	}
 
 	echoCommand := &DummyCommand{}
-	echoCommand.MatchFunc = func(msg string) bool {
-		return strings.HasPrefix(msg, "echo")
+	echoCommand.MatchFunc = func(input Input) bool {
+		return strings.HasPrefix(input.Message(), "echo")
 	}
 	echoCommand.ExecuteFunc = func(_ context.Context, _ Input) (*CommandResponse, error) {
 		return &CommandResponse{Content: ""}, nil
@@ -380,10 +380,11 @@ func TestSimpleCommand_InputExample(t *testing.T) {
 }
 
 func TestSimpleCommand_Match(t *testing.T) {
-	pattern := regexp.MustCompile(`^\.echo`)
-	command := simpleCommand{matchPattern: pattern}
+	command := simpleCommand{matchFunc: func(input Input) bool {
+		return regexp.MustCompile(`^\.echo`).MatchString(input.Message())
+	}}
 
-	if command.Match(".echo foo") == false {
+	if command.Match(&DummyInput{MessageValue: ".echo foo"}) == false {
 		t.Error("Expected match result is not returned.")
 	}
 }
