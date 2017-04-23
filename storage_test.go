@@ -45,7 +45,7 @@ func TestDefaultUserContextStorage_Set_WithEmptyNext(t *testing.T) {
 	err := storage.Set("key", &UserContext{})
 
 	if err == nil {
-		t.Error("Expected error is not returnd.")
+		t.Error("Expected error is not returned.")
 	}
 }
 
