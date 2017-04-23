@@ -105,6 +105,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 		case add := <-s.updatingTask:
 			if add.task.Schedule() == "" {
 				add.err <- fmt.Errorf("empty schedule is given for %s", add.task.Identifier())
+				continue
 			}
 
 			removeFunc(add.botType, add.task.Identifier())

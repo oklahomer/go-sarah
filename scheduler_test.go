@@ -87,3 +87,16 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 		t.Fatalf("0 job is expected: %d.", jobCnt)
 	}
 }
+
+func TestTaskScheduler_updateWithEmptySchedule(t *testing.T) {
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+	defer cancel()
+	scheduler := runScheduler(ctx, time.Local)
+
+	err := scheduler.update("dummy", &DummyScheduledTask{}, func() { return })
+
+	if err == nil {
+		t.Error("Expected error is not returned.")
+	}
+}
