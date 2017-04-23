@@ -246,6 +246,31 @@ func Test_newCommand_BrokenYaml(t *testing.T) {
 	}
 }
 
+func Test_newCommand_WithOutConfigFile(t *testing.T) {
+	config := &struct {
+		Token string
+	}{
+		Token: "presetToken",
+	}
+	props := &CommandProps{
+		identifier:  "fileNotFound",
+		example:     "example",
+		matchFunc:   func(_ Input) bool { return true },
+		commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
+		config:      config,
+	}
+
+	command, err := newCommand(props, filepath.Join("testdata", "command"))
+
+	if err != nil {
+		t.Fatalf("Error should not be returned just because configuration file is not found: %s.", err.Error())
+	}
+
+	if command == nil {
+		t.Fatal("Built Command is not returned.")
+	}
+}
+
 func TestNewCommands(t *testing.T) {
 	commands := NewCommands()
 	if commands == nil {
