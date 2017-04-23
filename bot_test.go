@@ -134,6 +134,32 @@ func TestDefaultBot_Respond_StorageAcquisitionError(t *testing.T) {
 	}
 }
 
+func TestDefaultBot_Respond_WithCommandError(t *testing.T) {
+	expectedErr := errors.New("expected")
+	myBot := &defaultBot{
+		commands: &Commands{
+			&DummyCommand{
+				MatchFunc: func(_ Input) bool {
+					return true
+				},
+				ExecuteFunc: func(_ context.Context, input Input) (*CommandResponse, error) {
+					return nil, expectedErr
+				},
+			},
+		},
+	}
+
+	err := myBot.Respond(context.TODO(), &DummyInput{})
+
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if err != expectedErr {
+		t.Fatalf("Expected error is not returned: %#v.", err)
+	}
+}
+
 func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 	dummyStorage := &DummyUserContextStorage{
 		GetFunc: func(_ string) (ContextualFunc, error) {
