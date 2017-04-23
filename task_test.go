@@ -2,6 +2,7 @@ package sarah
 
 import (
 	"golang.org/x/net/context"
+	"path/filepath"
 	"testing"
 )
 
@@ -170,6 +171,34 @@ func TestScheduledTaskPropsBuilder_Build(t *testing.T) {
 	}
 }
 
+func TestScheduledTaskPropsBuilder_Build_WithUnconfigurableSchedule(t *testing.T) {
+	nonScheduledConfig := &struct {
+		Token string `yaml:"token"`
+	}{
+		Token: "",
+	}
+	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
+	builder.BotType("dummyBot").
+		Identifier("dummyId").
+		ConfigurableFunc(nonScheduledConfig, func(_ context.Context, _ TaskConfig) ([]*ScheduledTaskResult, error) {
+			return nil, nil
+		})
+
+	props, err := builder.Build()
+
+	if props != nil {
+		t.Error("Built ScheduledTaskProps should not be returned.")
+	}
+
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if err != ErrTaskScheduleNotGiven {
+		t.Fatalf("Exected error is not returned: %s.", err.Error())
+	}
+}
+
 func TestScheduledTaskPropsBuilder_MustBuild(t *testing.T) {
 	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.BotType("dummyBot").
@@ -241,5 +270,98 @@ func TestScheduledTask_Schedule(t *testing.T) {
 
 	if task.Schedule() != schedule {
 		t.Fatalf("Returned schedule differs: %s.", task.Schedule())
+	}
+}
+
+func Test_newScheduledTask_WithOutConfigFile(t *testing.T) {
+	config := &struct {
+		Token string
+	}{
+		Token: "presetToken",
+	}
+
+	props := &ScheduledTaskProps{
+		botType:            "botType",
+		identifier:         "fileNotFound",
+		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+		schedule:           "@every 1m",
+		defaultDestination: "dummy",
+		config:             config,
+	}
+
+	task, err := newScheduledTask(props, filepath.Join("testdata", "command"))
+
+	if err != nil {
+		t.Fatalf("Error should not be returned just because configuration file is not found: %s.", err.Error())
+	}
+
+	if task == nil {
+		t.Fatal("Built ScheduledTask is not returned.")
+	}
+}
+
+func Test_newScheduledTask_WithBrokenYaml(t *testing.T) {
+	config := &struct {
+		Token string `yaml:"token"`
+	}{
+		Token: "",
+	}
+
+	props := &ScheduledTaskProps{
+		identifier:         "broken",
+		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+		schedule:           "@every 1m",
+		defaultDestination: "dummy",
+		config:             config,
+	}
+
+	_, err := newScheduledTask(props, filepath.Join("testdata", "command"))
+
+	if err == nil {
+		t.Fatal("Error must be returned.")
+	}
+}
+
+func Test_newScheduledTask_WithOutSchedule(t *testing.T) {
+	emptyScheduleConfig := &DummyScheduledTaskConfig{}
+	emptyScheduleProps := &ScheduledTaskProps{
+		identifier:         "fileNotFound",
+		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+		defaultDestination: "dummy",
+		config:             emptyScheduleConfig,
+	}
+
+	_, err := newScheduledTask(emptyScheduleProps, filepath.Join("testdata", "command"))
+
+	if err == nil {
+		t.Fatal("Epected error is not returned.")
+	}
+
+	if err != ErrTaskScheduleNotGiven {
+		t.Fatalf("Expected error is not returned: %#v.", err.Error())
+	}
+}
+
+func Test_newScheduledTask_WithDefaultDestinationConfig(t *testing.T) {
+	config := &DummyScheduledTaskConfig{
+		ScheduleValue:    "@every 1m",
+		DestinationValue: "dummy",
+	}
+	props := &ScheduledTaskProps{
+		identifier:         "fileNotFound",
+		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+		schedule:           "",
+		defaultDestination: "",
+		config:             config,
+	}
+
+	task, err := newScheduledTask(props, filepath.Join("testdata", "command"))
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if task.DefaultDestination() != config.DestinationValue {
+		t.Fatalf("Expected default destination is returned: %s.", task.DefaultDestination())
 	}
 }
