@@ -66,6 +66,12 @@ Any struct that satisfies ```Command``` interface can be fed to ```Bot.AppendCom
 ```CommandBuilder``` is provided to easily implement ```Command``` interface on the fly:
 
 ### Simple Command
+There are several ways to setup ```Command```s.
+- Define a struct that implements ```Command``` interface. Pass its instance to ```Bot.ApendCommand```.
+- Use ```CommandPropsBuilder``` to construct a non-contradicting set of arguments, and pass this to ```Runner```.<br />
+```Runner``` internally builds a command, and re-built it when configuration struct is present and corresponding configuration file is updated.
+
+Below are some different ways to setup ```CommandProps``` with ```CommandPropsBuilder``` for different customization.
 
 ```go
 // In separate plugin file such as echo/command.go
@@ -110,7 +116,9 @@ var CustomizedProps = sarah.NewCommandPropsBuilder().
 // Runner detects the change and re-build the Command with updated configuration struct.
 func Configurable(config sarah.CommandConfig) *sarah.CommandProps {
         return sarah.NewCommandPropsBuilder().
-                ConfigurableFunc(config, func(_ context, input sarah.Input, conf sarah.CommandConfig)).
+                ConfigurableFunc(config, func(_ context, input sarah.Input, conf sarah.CommandConfig) (*sarah.CommandResponse, error) {
+                        return nil, nil
+                }).
                 // Call some other setter methods to do the rest.
                 MustBuild()
 }
