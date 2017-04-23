@@ -37,6 +37,18 @@ func TestNewUserContextStorage(t *testing.T) {
 	}
 }
 
+func TestDefaultUserContextStorage_Set_WithEmptyNext(t *testing.T) {
+	storage := &defaultUserContextStorage{
+		cache: cache.New(3*time.Minute, 10*time.Minute),
+	}
+
+	err := storage.Set("key", &UserContext{})
+
+	if err == nil {
+		t.Error("Expected error is not returnd.")
+	}
+}
+
 func TestDefaultUserContextStorage_CRUD(t *testing.T) {
 	storage := &defaultUserContextStorage{
 		cache: cache.New(3*time.Minute, 10*time.Minute),
