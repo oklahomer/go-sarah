@@ -14,6 +14,10 @@ func TestNewStringResponse(t *testing.T) {
 	if res.Content != str {
 		t.Errorf("expected content is not returned: %s.", res.Content)
 	}
+
+	if res.UserContext != nil {
+		t.Errorf("UserContext should not be returned: %#v.", res.UserContext)
+	}
 }
 
 func TestNewStringResponseWithNext(t *testing.T) {

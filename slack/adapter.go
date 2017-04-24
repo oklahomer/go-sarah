@@ -328,7 +328,10 @@ func (message *MessageInput) ReplyTo() sarah.OutputDestination {
 
 // NewStringResponse creates new sarah.CommandResponse instance with given string.
 func NewStringResponse(responseContent string) *sarah.CommandResponse {
-	return NewStringResponseWithNext(responseContent, nil)
+	return &sarah.CommandResponse{
+		Content:     responseContent,
+		UserContext: nil,
+	}
 }
 
 // NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
@@ -345,7 +348,11 @@ func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc
 // NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
 // Use NewStringResponse for simple text response.
 func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.CommandResponse {
-	return NewPostMessageResponseWithNext(input, message, attachments, nil)
+	inputMessage, _ := input.(*MessageInput)
+	return &sarah.CommandResponse{
+		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID.String(), message, attachments),
+		UserContext: nil,
+	}
 }
 
 // NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.

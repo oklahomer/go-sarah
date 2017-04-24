@@ -12,7 +12,11 @@ func TestNewStringResponse(t *testing.T) {
 	res := NewStringResponse(str)
 
 	if res.Content != str {
-		t.Errorf("expected content is not returned: %s.", res.Content)
+		t.Errorf("Expected content is not returned: %s.", res.Content)
+	}
+
+	if res.UserContext != nil {
+		t.Errorf("UserContext should not be returned: %#v.", res.UserContext)
 	}
 }
 
@@ -24,7 +28,7 @@ func TestNewStringResponseWithNext(t *testing.T) {
 	res := NewStringResponseWithNext(str, next)
 
 	if res.Content != str {
-		t.Errorf("expected content is not returned: %s.", res.Content)
+		t.Errorf("Expected content is not returned: %s.", res.Content)
 	}
 
 	if res.UserContext == nil {
@@ -32,6 +36,6 @@ func TestNewStringResponseWithNext(t *testing.T) {
 	}
 
 	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
-		t.Fatalf("expected next step is not returned: %#v.", res.UserContext.Next)
+		t.Fatalf("Expected next step is not returned: %#v.", res.UserContext.Next)
 	}
 }

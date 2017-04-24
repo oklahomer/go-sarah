@@ -1,6 +1,7 @@
 package sarah
 
 import (
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 )
 
@@ -145,7 +146,9 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	// Bot may return no message to client and still keep the client in the middle of conversational context.
 	// This may damage user experience since user is left in conversational context set by CommandResponse without any sort of notification.
 	if res.UserContext != nil {
-		bot.userContextStorage.Set(senderKey, res.UserContext)
+		if err := bot.userContextStorage.Set(senderKey, res.UserContext); err != nil {
+			log.Errorf("Failed to store UserContext. BotType: %s. SenderKey: %s. UserContext: %#v.", bot.BotType(), senderKey, res.UserContext)
+		}
 	}
 	if res.Content != nil {
 		message := NewOutputMessage(input.ReplyTo(), res.Content)
