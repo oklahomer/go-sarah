@@ -29,7 +29,7 @@ var pingSignalChannelID = "ping"
 //  runner.Run()
 type Adapter struct {
 	config       *Config
-	client       *golack.Golack
+	client       SlackClient
 	messageQueue chan *textMessage
 }
 
@@ -269,11 +269,6 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	}
 }
 
-// RTMSessionStarter is an interface that is used to ease web API tests with retrials.
-type RTMSessionStarter interface {
-	StartRTMSession(context.Context) (*webapi.RTMStart, error)
-}
-
 // startRTMSession starts Real Time Messaging session and returns initial state.
 func startRTMSession(ctx context.Context, starter RTMSessionStarter, retrial uint, interval time.Duration) (*webapi.RTMStart, error) {
 	var rtmStart *webapi.RTMStart
@@ -283,11 +278,6 @@ func startRTMSession(ctx context.Context, starter RTMSessionStarter, retrial uin
 	}, interval)
 
 	return rtmStart, err
-}
-
-// RTMConnector is an interface that is used to ease connection tests with retrials
-type RTMConnector interface {
-	ConnectRTM(context.Context, string) (rtmapi.Connection, error)
 }
 
 // connectRTM establishes WebSocket connection with retries.
@@ -366,4 +356,26 @@ func NewPostMessageResponseWithNext(input sarah.Input, message string, attachmen
 		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID.String(), message, attachments),
 		UserContext: sarah.NewUserContext(next),
 	}
+}
+
+// SlackClient is an interface that covers golack's public methods.
+type SlackClient interface {
+	RTMSessionStarter
+	RTMConnector
+	MessagePoster
+}
+
+// RTMSessionStarter is an interface that is used to ease web API tests with retrials.
+type RTMSessionStarter interface {
+	StartRTMSession(context.Context) (*webapi.RTMStart, error)
+}
+
+// RTMConnector is an interface that is used to ease connection tests with retrials
+type RTMConnector interface {
+	ConnectRTM(context.Context, string) (rtmapi.Connection, error)
+}
+
+// MessagePoster is an interface that is used to ease API posting tests
+type MessagePoster interface {
+	PostMessage(context.Context, *webapi.PostMessage) (*webapi.APIResponse, error)
 }
