@@ -54,8 +54,15 @@ func (conn *DummyConnection) Close() error {
 }
 
 func TestNewAdapter(t *testing.T) {
-	config := &Config{}
-	adapter := NewAdapter(config)
+	config := &Config{
+		Token:          "dummy",
+		RequestTimeout: time.Duration(10),
+	}
+	adapter, err := NewAdapter(config)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
 
 	if adapter.config != config {
 		t.Errorf("Expected config struct is not set: %#v.", adapter.config)
@@ -67,6 +74,60 @@ func TestNewAdapter(t *testing.T) {
 
 	if adapter.messageQueue == nil {
 		t.Error("Message queue channel is nil.")
+	}
+}
+
+func TestNewAdapter_WithUnConfigurableClient(t *testing.T) {
+	config := &Config{}
+	adapter, err := NewAdapter(config)
+
+	if err == nil {
+		t.Error("Expected error is not returned")
+	}
+
+	if adapter != nil {
+		t.Fatal("Adapter should not be returned.")
+	}
+}
+
+func TestNewAdapter_WithSlackClient(t *testing.T) {
+	config := &Config{}
+	client := &DummyClient{}
+	opt := WithSlackClient(client)
+
+	adapter, err := NewAdapter(config, opt)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if adapter == nil {
+		t.Fatal("Adapter should be returned.")
+	}
+
+	if adapter.client != client {
+		t.Error("Provided SlackClient is not set.")
+	}
+}
+
+func TestNewAdapter_WithOptionError(t *testing.T) {
+	config := &Config{}
+	expectedErr := errors.New("dummy")
+
+	adapter, err := NewAdapter(config, func(_ *Adapter) error {
+		return expectedErr
+	})
+
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if err != expectedErr {
+		t.Errorf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if adapter != nil {
+		t.Error("Adapter should not be returned.")
 	}
 }
 

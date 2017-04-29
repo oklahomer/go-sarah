@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
@@ -20,30 +21,69 @@ const (
 
 var pingSignalChannelID = "ping"
 
-// Adapter internally calls Slack Rest API and Real Time Messaging API to offer clients easy way to communicate with Slack.
+// AdapterOption defines function signature that Adapter's functional option must satisfy.
+type AdapterOption func(adapter *Adapter) error
+
+// WithSlackClient creates AdapterOption with given SlackClient implementation.
+// If this option is not given, NewAdapter() tries to create golack instance with given Config.
+func WithSlackClient(client SlackClient) AdapterOption {
+	return func(adapter *Adapter) error {
+		adapter.client = client
+		return nil
+	}
+}
+
+// Adapter internally calls Slack Rest API and Real Time Messaging API to offer Bot developers easy way to communicate with Slack.
 //
 // This implements sarah.Adapter interface, so this instance can be fed to sarah.Runner instance as below.
 //
-//  runner := sarah.NewRunner(sarah.NewConfig())
-//  runner.RegisterAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
-//  runner.Run()
+//  runnerOptions := sarah.NewRunnerOptions()
+//
+//  slackConfig := slack.NewConfig()
+//  slackConfig.Token = "XXXXXXXXXXXX" // Set token manually or feed slackConfig to json.Unmarshal or yaml.Unmarshal
+//  slackAdapter, _ := slack.NewAdapter(slackConfig)
+//  slackBot, _ := sarah.NewBot(slackAdapter)
+//  runnerOptions.Append(sarah.WithBot(slackBot))
+//
+//  runner := sarah.NewRunner(sarah.NewConfig(), runnerOptions.Arg())
+//  runner.Run(context.TODO())
 type Adapter struct {
 	config       *Config
 	client       SlackClient
 	messageQueue chan *textMessage
 }
 
-// NewAdapter creates new Adapter with given *Config, and returns it.
-func NewAdapter(config *Config) *Adapter {
-	golackConfig := golack.NewConfig()
-	golackConfig.Token = config.Token
-	golackConfig.RequestTimeout = config.RequestTimeout
-
-	return &Adapter{
+// NewAdapter creates new Adapter with given *Config and zero or more AdapterOption.
+func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
+	adapter := &Adapter{
 		config:       config,
-		client:       golack.New(golackConfig),
 		messageQueue: make(chan *textMessage, config.SendingQueueSize),
 	}
+
+	for _, opt := range options {
+		err := opt(adapter)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// See if client is set by WithSlackClient option.
+	// If not, use golack with given configuration.
+	if adapter.client == nil {
+		if config.Token == "" {
+			return nil, errors.New("Slack client must be provided with WithSlackClient option or must be configurable with given *Config.")
+		}
+
+		golackConfig := golack.NewConfig()
+		golackConfig.Token = config.Token
+		if config.RequestTimeout != 0 {
+			golackConfig.RequestTimeout = config.RequestTimeout
+		}
+
+		adapter.client = golack.New(golackConfig)
+	}
+
+	return adapter, nil
 }
 
 // BotType returns BotType of this particular instance.
