@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
@@ -20,30 +21,124 @@ const (
 
 var pingSignalChannelID = "ping"
 
-// Adapter internally calls Slack Rest API and Real Time Messaging API to offer clients easy way to communicate with Slack.
+// AdapterOption defines function signature that Adapter's functional option must satisfy.
+type AdapterOption func(adapter *Adapter) error
+
+// WithSlackClient creates AdapterOption with given SlackClient implementation.
+// If this option is not given, NewAdapter() tries to create golack instance with given Config.
+func WithSlackClient(client SlackClient) AdapterOption {
+	return func(adapter *Adapter) error {
+		adapter.client = client
+		return nil
+	}
+}
+
+// WithPayloadHandler creates AdapterOption with given function that is called when payload is sent from Slack via WebSocket connection.
+//
+// Slack's RTM API defines relatively large amount of payload types.
+// To have better user experience, developers may provide customized callback function to handle received payload.
+//
+// Developer may wish to have direct access to SlackClient to post some sort of message to Slack via Web API.
+// In that case, wrap this function like below so the SlackClient can be accessed within its scope.
+//
+//  // Setup golack instance, which implements SlackClient interface.
+//  golackConfig := golack.NewConfig()
+//  golackConfig.Token = "XXXXXXX"
+//  slackClient := golack.New(golackConfig)
+//
+//  slackConfig := slack.NewConfig()
+//  payloadHandler := func(connCtx context.Context, config *Config, paylad rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
+//    switch p := payload.(type) {
+//    case *rtmapi.PinAdded:
+//      // Do something with pre-defined SlackClient
+//      // slackClient.PostMessage(connCtx, ...)
+//
+//    case *rtmapi.Message:
+//      // Convert RTM specific message to one that satisfies sarah.Input interface.
+//      input := &MessageInput{event: p}
+//
+//      trimmed := strings.TrimSpace(input.Message())
+//      if config.HelpCommand != "" && trimmed == config.HelpCommand {
+//        // Help command
+//        help := sarah.NewHelpInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
+//        enqueueInput(help)
+//      } else if config.AbortCommand != "" && trimmed == config.AbortCommand {
+//        // Abort command
+//        abort := sarah.NewAbortInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
+//        enqueueInput(abort)
+//      } else {
+//        // Regular input
+//        enqueueInput(input)
+//      }
+//
+//    default:
+//      log.Debugf("payload given, but no corresponding action is defined. %#v", p)
+//
+//    }
+//  }
+//
+//  slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithSlackClient(slackClient), slack.WithPayloadHandler(payloadHandler))
+//  slackBot, _ := sarah.NewBot(slackAdapter)
+func WithPayloadHandler(fnc func(context.Context, *Config, rtmapi.DecodedPayload, func(sarah.Input) error)) AdapterOption {
+	return func(adapter *Adapter) error {
+		adapter.payloadHandler = fnc
+		return nil
+	}
+}
+
+// Adapter internally calls Slack Rest API and Real Time Messaging API to offer Bot developers easy way to communicate with Slack.
 //
 // This implements sarah.Adapter interface, so this instance can be fed to sarah.Runner instance as below.
 //
-//  runner := sarah.NewRunner(sarah.NewConfig())
-//  runner.RegisterAdapter(slack.NewAdapter(slack.NewConfig(token)), "/path/to/plugin/config.yml")
-//  runner.Run()
+//  runnerOptions := sarah.NewRunnerOptions()
+//
+//  slackConfig := slack.NewConfig()
+//  slackConfig.Token = "XXXXXXXXXXXX" // Set token manually or feed slackConfig to json.Unmarshal or yaml.Unmarshal
+//  slackAdapter, _ := slack.NewAdapter(slackConfig)
+//  slackBot, _ := sarah.NewBot(slackAdapter)
+//  runnerOptions.Append(sarah.WithBot(slackBot))
+//
+//  runner := sarah.NewRunner(sarah.NewConfig(), runnerOptions.Arg())
+//  runner.Run(context.TODO())
 type Adapter struct {
-	config       *Config
-	client       SlackClient
-	messageQueue chan *textMessage
+	config         *Config
+	client         SlackClient
+	messageQueue   chan *textMessage
+	payloadHandler func(context.Context, *Config, rtmapi.DecodedPayload, func(sarah.Input) error)
 }
 
-// NewAdapter creates new Adapter with given *Config, and returns it.
-func NewAdapter(config *Config) *Adapter {
-	golackConfig := golack.NewConfig()
-	golackConfig.Token = config.Token
-	golackConfig.RequestTimeout = config.RequestTimeout
-
-	return &Adapter{
-		config:       config,
-		client:       golack.New(golackConfig),
-		messageQueue: make(chan *textMessage, config.SendingQueueSize),
+// NewAdapter creates new Adapter with given *Config and zero or more AdapterOption.
+func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
+	adapter := &Adapter{
+		config:         config,
+		messageQueue:   make(chan *textMessage, config.SendingQueueSize),
+		payloadHandler: handlePayload, // may be replaced with WithPayloadHandler option.
 	}
+
+	for _, opt := range options {
+		err := opt(adapter)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// See if client is set by WithSlackClient option.
+	// If not, use golack with given configuration.
+	if adapter.client == nil {
+		if config.Token == "" {
+			return nil, errors.New("Slack client must be provided with WithSlackClient option or must be configurable with given *Config.")
+		}
+
+		golackConfig := golack.NewConfig()
+		golackConfig.Token = config.Token
+		if config.RequestTimeout != 0 {
+			golackConfig.RequestTimeout = config.RequestTimeout
+		}
+
+		adapter.client = golack.New(golackConfig)
+	}
+
+	return adapter, nil
 }
 
 // BotType returns BotType of this particular instance.
@@ -143,6 +238,7 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 		case <-connCtx.Done():
 			log.Info("stop receiving payload due to context cancel")
 			return
+
 		default:
 			payload, err := payloadReceiver.Receive()
 			// TODO should io.EOF and io.ErrUnexpectedEOF treated differently than other errors?
@@ -159,36 +255,43 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 				continue
 			}
 
-			switch p := payload.(type) {
-			case *rtmapi.WebSocketReply:
-				if !p.OK {
-					log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
-				}
-			case *rtmapi.Message:
-				// Convert RTM specific message to one that satisfies sarah.Input interface.
-				input := &MessageInput{event: p}
-
-				trimmed := strings.TrimSpace(input.Message())
-				if adapter.config.HelpCommand != "" && trimmed == adapter.config.HelpCommand {
-					// Help command
-					help := sarah.NewHelpInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
-					enqueueInput(help)
-				} else if adapter.config.AbortCommand != "" && trimmed == adapter.config.AbortCommand {
-					// Abort command
-					abort := sarah.NewAbortInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
-					enqueueInput(abort)
-				} else {
-					// Regular input
-					enqueueInput(input)
-				}
-			case *rtmapi.Pong:
+			if payload == nil {
 				continue
-			case nil:
-				continue
-			default:
-				log.Debugf("payload given, but no corresponding action is defined. %#v", p)
 			}
+
+			adapter.payloadHandler(connCtx, adapter.config, payload, enqueueInput)
 		}
+	}
+}
+
+func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
+	switch p := payload.(type) {
+	case *rtmapi.WebSocketReply:
+		if !p.OK {
+			log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
+		}
+
+	case *rtmapi.Message:
+		// Convert RTM specific message to one that satisfies sarah.Input interface.
+		input := &MessageInput{event: p}
+
+		trimmed := strings.TrimSpace(input.Message())
+		if config.HelpCommand != "" && trimmed == config.HelpCommand {
+			// Help command
+			help := sarah.NewHelpInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
+			enqueueInput(help)
+		} else if config.AbortCommand != "" && trimmed == config.AbortCommand {
+			// Abort command
+			abort := sarah.NewAbortInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
+			enqueueInput(abort)
+		} else {
+			// Regular input
+			enqueueInput(input)
+		}
+
+	default:
+		log.Debugf("payload given, but no corresponding action is defined. %#v", p)
+
 	}
 }
 

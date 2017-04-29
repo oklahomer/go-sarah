@@ -54,7 +54,8 @@ func main() {
         configBuf, _ := ioutil.ReadFile("/path/to/adapter/config.yaml")
         slackConfig := slack.NewConfig() // config struct is returned with default settings.
         yaml.Unmarshal(configBuf, slackConfig)
-        sarah.NewBot(slack.NewAdapter(slackConfig))
+        slackAdapter, _ := slack.NewAdapter(slackConfig)
+        sarah.NewBot(slackAdapter)
 }
 ```
 
@@ -249,7 +250,8 @@ func main() {
         slackConfig := slack.NewConfig()
         yaml.Unmarshal(configBuf, slackConfig)
         storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
-        slackBot, _ := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.BotWithStorage(storage))
+        slackAdapter, _ := slack.NewAdapter(slackConfig)
+        slackBot, _ := sarah.NewBot(slackAdapter, sarah.BotWithStorage(storage))
         options.Append(sarah.WithBot(slackBot))
 
         // Add option to utilize hello command.

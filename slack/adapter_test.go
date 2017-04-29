@@ -54,8 +54,15 @@ func (conn *DummyConnection) Close() error {
 }
 
 func TestNewAdapter(t *testing.T) {
-	config := &Config{}
-	adapter := NewAdapter(config)
+	config := &Config{
+		Token:          "dummy",
+		RequestTimeout: time.Duration(10),
+	}
+	adapter, err := NewAdapter(config)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
 
 	if adapter.config != config {
 		t.Errorf("Expected config struct is not set: %#v.", adapter.config)
@@ -67,6 +74,76 @@ func TestNewAdapter(t *testing.T) {
 
 	if adapter.messageQueue == nil {
 		t.Error("Message queue channel is nil.")
+	}
+}
+
+func TestNewAdapter_WithUnConfigurableClient(t *testing.T) {
+	config := &Config{}
+	adapter, err := NewAdapter(config)
+
+	if err == nil {
+		t.Error("Expected error is not returned")
+	}
+
+	if adapter != nil {
+		t.Fatal("Adapter should not be returned.")
+	}
+}
+
+func TestNewAdapter_WithSlackClient(t *testing.T) {
+	config := &Config{}
+	client := &DummyClient{}
+	opt := WithSlackClient(client)
+
+	adapter, err := NewAdapter(config, opt)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if adapter == nil {
+		t.Fatal("Adapter should be returned.")
+	}
+
+	if adapter.client != client {
+		t.Error("Provided SlackClient is not set.")
+	}
+}
+
+func TestNewAdapter_WithPayloadHandler(t *testing.T) {
+	fnc := func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {}
+	opt := WithPayloadHandler(fnc)
+	adapter := &Adapter{}
+
+	opt(adapter)
+
+	if adapter.payloadHandler == nil {
+		t.Fatal("PayloadHandler is not set.")
+	}
+
+	if reflect.ValueOf(adapter.payloadHandler).Pointer() != reflect.ValueOf(fnc).Pointer() {
+		t.Fatal("Provided function is not set.")
+	}
+}
+
+func TestNewAdapter_WithOptionError(t *testing.T) {
+	config := &Config{}
+	expectedErr := errors.New("dummy")
+
+	adapter, err := NewAdapter(config, func(_ *Adapter) error {
+		return expectedErr
+	})
+
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if err != expectedErr {
+		t.Errorf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if adapter != nil {
+		t.Error("Adapter should not be returned.")
 	}
 }
 
@@ -340,5 +417,85 @@ func TestNewPostMessageResponseWithNext(t *testing.T) {
 
 	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
 		t.Fatalf("expected next step is not returned: %#v.", res.UserContext.Next)
+	}
+}
+
+func Test_handlePayload(t *testing.T) {
+	helpCommand := ".help"
+	abortCommand := ".abort"
+	config := &Config{
+		HelpCommand:  helpCommand,
+		AbortCommand: ".abort",
+	}
+	inputs := []struct {
+		payload   rtmapi.DecodedPayload
+		inputType reflect.Type
+	}{
+		{
+			payload: &rtmapi.WebSocketReply{
+				OK:   false,
+				Text: "no good",
+			},
+			inputType: nil,
+		},
+		{
+			payload: &rtmapi.Message{
+				ChannelID: rtmapi.ChannelID("abc"),
+				Sender:    rtmapi.UserID("cde"),
+				Text:      helpCommand,
+				TimeStamp: &rtmapi.TimeStamp{
+					Time: time.Now(),
+				},
+			},
+			inputType: reflect.ValueOf(&sarah.HelpInput{}).Type(),
+		},
+		{
+			payload: &rtmapi.Message{
+				ChannelID: rtmapi.ChannelID("abc"),
+				Sender:    rtmapi.UserID("cde"),
+				Text:      abortCommand,
+				TimeStamp: &rtmapi.TimeStamp{
+					Time: time.Now(),
+				},
+			},
+			inputType: reflect.ValueOf(&sarah.AbortInput{}).Type(),
+		},
+		{
+			payload: &rtmapi.Message{
+				ChannelID: rtmapi.ChannelID("abc"),
+				Sender:    rtmapi.UserID("cde"),
+				Text:      "foo",
+				TimeStamp: &rtmapi.TimeStamp{
+					Time: time.Now(),
+				},
+			},
+			inputType: reflect.ValueOf(&MessageInput{}).Type(),
+		},
+		{
+			payload:   &rtmapi.PinAdded{},
+			inputType: nil,
+		},
+	}
+
+	for i, input := range inputs {
+		var receivedType reflect.Type
+		fnc := func(i sarah.Input) error {
+			receivedType = reflect.ValueOf(i).Type()
+			return nil
+		}
+		handlePayload(context.TODO(), config, input.payload, fnc)
+
+		if input.inputType == nil && receivedType != nil {
+			t.Errorf("Input shuold not be passed this time: %s.", receivedType.String())
+		} else if input.inputType == nil {
+			// No test
+			continue
+		}
+
+		if receivedType == nil {
+			t.Error("No payload is received")
+		} else if receivedType != input.inputType {
+			t.Errorf("Unexpected input type is given on %d test: %s.", i, receivedType.String())
+		}
 	}
 }
