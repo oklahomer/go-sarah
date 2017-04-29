@@ -13,6 +13,9 @@ const (
 	GITTER sarah.BotType = "gitter"
 )
 
+// AdapterOption defines function signature that Adapter's functional option must satisfy.
+type AdapterOption func(adapter *Adapter) error
+
 // Adapter stores REST/Streaming API clients' instances to let users interact with gitter.
 type Adapter struct {
 	config             *Config
@@ -21,12 +24,21 @@ type Adapter struct {
 }
 
 // NewAdapter creates and returns new Adapter instance.
-func NewAdapter(config *Config) *Adapter {
-	return &Adapter{
+func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
+	adapter := &Adapter{
 		config:             config,
 		restAPIClient:      NewRestAPIClient(config.Token),
 		streamingAPIClient: NewStreamingAPIClient(config.Token),
 	}
+
+	for _, opt := range options {
+		err := opt(adapter)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return adapter, nil
 }
 
 // BotType returns gitter designated BotType.
