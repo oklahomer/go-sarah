@@ -1,5 +1,10 @@
 package worldweather
 
+import (
+	"fmt"
+	"strconv"
+)
+
 // ErrorDescription represents error that returned by World Weather API.
 // `{ "data": { "error": [ {"msg": "Unable to find any matching weather location to the query submitted!" } ] }}`
 type ErrorDescription struct {
@@ -32,25 +37,26 @@ type WeatherData struct {
 
 // Request represents clients request.
 type Request struct {
-	Type  string
-	Query string
+	Type  string `json:"type"`
+	Query string `json:"query"`
 }
 
 // CurrentCondition represents current weather condition returned by API.
 type CurrentCondition struct {
-	ObservationTime    string                `json:"observation_time"`
-	Temperature        string                `json:"temp_C"`
-	FeelingTemperature string                `json:"FeelsLikeC"`
-	WindSpeed          string                `json:"windspeedKmph"`
-	WindDirection      string                `json:"winddirDegree"`
-	WeatherCode        string                `json:"weatherCode"`
-	WeatherIcon        []*WeatherIcon        `json:"weatherIconUrl"`
-	Description        []*WeatherDescription `json:"weatherDesc"`
-	Precipitation      string                `json:"precpMM"`
-	Humidity           string                `json:"humidity"`
-	Visibility         string                `json:"visibility"`
-	Pressure           string                `json:"pressure"`
-	CloudCover         string                `json:"cloudcocver"`
+	ObservationTime       string                `json:"observation_time"`
+	Temperature           int                   `json:"temp_C,string"`
+	FeelingTemperature    int                   `json:"FeelsLikeC,string"`
+	WindSpeed             int                   `json:"windspeedKmph,string"`
+	WindDirection         int                   `json:"winddirDegree,string"`
+	WindDirectionCardinal string                `json:"winddir16Point"`
+	WeatherCode           string                `json:"weatherCode"`
+	WeatherIcon           []*WeatherIcon        `json:"weatherIconUrl"`
+	Description           []*WeatherDescription `json:"weatherDesc"`
+	Precipitation         float32               `json:"precpMM,string"`     // Precipitation in mm
+	Humidity              int                   `json:"humidity,string"`    // Humidity in percentage
+	Visibility            int                   `json:"visibility,string"`  // Visibility in kilometres
+	Pressure              int                   `json:"pressure,string"`    // Atmospheric pressure in millibars
+	CloudCover            int                   `json:"cloudcocver,string"` // Cloud cover amount in percentage (%)
 }
 
 // WeatherIcon is an icon url that represents corresponding weather.
@@ -67,29 +73,53 @@ type WeatherDescription struct {
 type Weather struct {
 	Astronomy []*Astronomy     `json:"astronomy"`
 	Date      string           `json:"date"` // 2016-09-04
-	MaxTempC  string           `json:"maxTempC"`
-	MaxTempF  string           `json:"maxTempF"`
-	MinTempC  string           `json:"minTempC"`
-	MinTempF  string           `json:"minTempF"`
-	UV        string           `json:"uvindex"`
+	MaxTempC  int              `json:"maxTempC,string"`
+	MaxTempF  int              `json:"maxTempF,string"`
+	MinTempC  int              `json:"minTempC,string"`
+	MinTempF  int              `json:"minTempF,string"`
+	UV        int              `json:"uvindex,string"`
 	Hourly    []*HourlyWeather `json:"hourly"`
 }
 
 // HourlyWeather represents hourly weather information.
 type HourlyWeather struct {
-	Time               string                `json:"time"`
-	Temperature        string                `json:"tempC"` // not temp_C
-	FeelingTemperature string                `json:"FeelsLikeC"`
-	WindSpeed          string                `json:"windspeedKmph"`
-	WindDirection      string                `json:"winddirDegree"`
-	WeatherCode        string                `json:"weatherCode"`
-	WeatherIcon        []*WeatherIcon        `json:"weatherIconUrl"`
-	Description        []*WeatherDescription `json:"weatherDesc"`
-	Precipitation      string                `json:"precpMM"`
-	Humidity           string                `json:"humidity"`
-	Visibility         string                `json:"visibility"`
-	Pressure           string                `json:"pressure"`
-	CloudCover         string                `json:"cloudcocver"`
+	Time                  HourlyForecastTime    `json:"time"`         // hhmm format
+	Temperature           int                   `json:"tempC,string"` // not temp_C
+	FeelingTemperature    int                   `json:"FeelsLikeC,string"`
+	WindSpeed             int                   `json:"windspeedKmph,string"`
+	WindDirection         int                   `json:"winddirDegree,string"`
+	WindDirectionCardinal string                `json:"winddir16Point"`
+	WeatherCode           string                `json:"weatherCode"`
+	WeatherIcon           []*WeatherIcon        `json:"weatherIconUrl"`
+	Description           []*WeatherDescription `json:"weatherDesc"`
+	Precipitation         float32               `json:"precpMM,string"`     // Precipitation in mm
+	Humidity              int                   `json:"humidity,string"`    // Humidity in percentage
+	Visibility            int                   `json:"visibility,string"`  // Visibility in kilometres
+	Pressure              int                   `json:"pressure,string"`    // Atmospheric pressure in millibars
+	CloudCover            int                   `json:"cloudcocver,string"` // Cloud cover amount in percentage (%)
+}
+
+// HourlyForecastTime is a time representation for hourly forecast.
+type HourlyForecastTime struct {
+	OriginalValue string
+	DisplayTime   string
+	Hour          int
+}
+
+// UnmarshalText converts time value returned by API to convenient form.
+func (t *HourlyForecastTime) UnmarshalText(b []byte) error {
+	str := string(b)
+	t.OriginalValue = str
+
+	hhmm, err := strconv.Atoi(str)
+	if err != nil {
+		return err
+	}
+	hhmmStr := fmt.Sprintf("%04d", hhmm)
+	t.DisplayTime = hhmmStr[:2] + ":" + hhmmStr[2:]
+	t.Hour, _ = strconv.Atoi(hhmmStr[:2])
+
+	return nil
 }
 
 // Astronomy represents astronomical information.

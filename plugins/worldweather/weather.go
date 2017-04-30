@@ -8,6 +8,7 @@ import (
 	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
 	"regexp"
+	"time"
 )
 
 // MatchPattern defines regular expression pattern that is checked against user input
@@ -71,6 +72,7 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 	currentDesc := fmt.Sprintf("Current weather at %s is... %s.", request.Query, currentCondition.Description[0].Content)
 	primaryLabelColor := "#32CD32"   // lime green
 	secondaryLabelColor := "#006400" // dark green
+	miscLabelColor := "#808080"
 
 	attachments := []*webapi.MessageAttachment{
 		// Current condition and overall description
@@ -84,13 +86,12 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 
 		// Temperature
 		{
-			Fallback: fmt.Sprintf("Temperature: %s degrees Celsius.", currentCondition.Temperature),
+			Fallback: fmt.Sprintf("Temperature: %d degrees Celsius.", currentCondition.Temperature),
 			Title:    "Temperature",
 			Color:    primaryLabelColor,
 			Fields: []*webapi.AttachmentField{
 				{
-					Title: "Celsius",
-					Value: string(currentCondition.Temperature),
+					Value: fmt.Sprintf("%d ℃", currentCondition.Temperature),
 					Short: true,
 				},
 			},
@@ -98,13 +99,18 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 
 		// Wind speed
 		{
-			Fallback: fmt.Sprintf("Wind speed: %s Km/h", currentCondition.WindSpeed),
-			Title:    "Wind Speed",
+			Fallback: fmt.Sprintf("Wind speed: %d Km/h. Direction: %s.", currentCondition.WindSpeed, currentCondition.WindDirectionCardinal),
+			Title:    "Wind",
 			Color:    primaryLabelColor,
 			Fields: []*webapi.AttachmentField{
 				{
-					Title: "kn/h",
-					Value: string(currentCondition.WindSpeed),
+					Title: "Speed",
+					Value: fmt.Sprintf("%d km/h", currentCondition.WindSpeed),
+					Short: true,
+				},
+				{
+					Title: "Direction",
+					Value: currentCondition.WindDirectionCardinal,
 					Short: true,
 				},
 			},
@@ -139,6 +145,43 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 				},
 			},
 		},
+	}
+
+	now := time.Now()
+	for _, hourly := range forecast.Hourly {
+		if now.Hour() > hourly.Time.Hour {
+			continue
+		}
+
+		attachments = append(attachments, &webapi.MessageAttachment{
+			Fallback: "Hourly Forecast",
+			Pretext:  "Hourly Forecast for " + hourly.Time.DisplayTime,
+			Title:    hourly.Description[0].Content,
+			Color:    miscLabelColor,
+			Fields: []*webapi.AttachmentField{
+				{
+					Title: "Temperature",
+					Value: fmt.Sprintf("%d ℃", hourly.Temperature),
+					Short: true,
+				},
+				{
+					Title: "Precipitation",
+					Value: fmt.Sprintf("%6.2f mm", hourly.Precipitation),
+					Short: true,
+				},
+				{
+					Title: "Wind Speed",
+					Value: fmt.Sprintf("%d km/h", hourly.WindSpeed),
+					Short: true,
+				},
+				{
+					Title: "Wind Direction",
+					Value: hourly.WindDirectionCardinal,
+					Short: true,
+				},
+			},
+			ImageURL: hourly.WeatherIcon[0].URL,
+		})
 	}
 
 	return slack.NewPostMessageResponse(input, "", attachments), nil
