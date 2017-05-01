@@ -1,0 +1,2 @@
+schedule: "@every 3m"
+channel_id: "CHANNEL_ID"

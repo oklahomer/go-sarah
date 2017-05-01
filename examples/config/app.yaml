@@ -1,0 +1,11 @@
+slack:
+  token: "REPLACE_THIS"
+  help_command: ".help"
+  abort_command: ".abort"
+  sending_queue_size: 100
+  retry_limit: 3
+runner:
+  worker:
+    worker_num: 10
+    queue_size: 100
+  plugin_config_root: "/path/to/config/"
