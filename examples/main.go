@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/alerter/line"
 	"github.com/oklahomer/go-sarah/examples/plugins/count"
 	"github.com/oklahomer/go-sarah/examples/plugins/echo"
 	"github.com/oklahomer/go-sarah/examples/plugins/fixedtimer"
@@ -24,6 +25,7 @@ type myConfig struct {
 	CacheConfig *sarah.CacheConfig `yaml:"cache"`
 	Slack       *slack.Config      `yaml:"slack"`
 	Runner      *sarah.Config      `yaml:"runner"`
+	LineAlerter *line.Config       `yaml:"line_alerter"`
 }
 
 func newMyConfig() *myConfig {
@@ -32,53 +34,59 @@ func newMyConfig() *myConfig {
 		CacheConfig: sarah.NewCacheConfig(),
 		Slack:       slack.NewConfig(),
 		Runner:      sarah.NewConfig(),
+		LineAlerter: line.NewConfig(),
 	}
 }
 
 func main() {
-	// A handy helper that holds arbitrary amount of RunnerOptions
+	// A handy helper that holds arbitrary amount of RunnerOptions.
 	runnerOptions := sarah.NewRunnerOptions()
 
-	// Read configuration file
+	// Read configuration file.
 	config, err := readConfig()
 	if err != nil {
 		panic(fmt.Errorf("Error on config construction: %s.", err.Error()))
 	}
 
-	// Setup storage that can be shared among different Bot implementation
+	// When Bot encounters critical states, send alert to LINE.
+	// Any number of Alerter implementation can be registered.
+	alerter := line.New(config.LineAlerter)
+	runnerOptions.Append(sarah.WithAlerter(alerter))
+
+	// Setup storage that can be shared among different Bot implementation.
 	storage := sarah.NewUserContextStorage(config.CacheConfig)
 
-	// Setup Slack Bot
+	// Setup Slack Bot.
 	slackBot, err := setupSlack(config.Slack, storage)
 	if err != nil {
 		panic(fmt.Errorf("Error on Slack Bot construction: %s.", err.Error()))
 	}
 	runnerOptions.Append(sarah.WithBot(slackBot))
 
-	// Setup some plugins
+	// Setup some plugins.
 	// Each configuration file, if exists, is subject to supervise.
 	// If updated, Command is re-built with new configuration.
 	runnerOptions.Append(sarah.WithCommandProps(hello.SlackProps))
 	runnerOptions.Append(sarah.WithCommandProps(morning.SlackProps))
 	runnerOptions.Append(sarah.WithCommandProps(count.SlackProps))
 
-	// Setup scheduled tasks
-	// Each configuration file, if exists, is subject to supervise
+	// Setup scheduled tasks.
+	// Each configuration file, if exists, is subject to supervise.
 	// If updated, Command is re-built with new configuration.
 	runnerOptions.Append(sarah.WithScheduledTaskProps(timer.SlackProps))
 	runnerOptions.Append(sarah.WithScheduledTaskProps(fixedtimer.SlackProps))
 
-	// Directly add Command to Bot
-	// This Command is not subject to config file supervision
+	// Directly add Command to Bot.
+	// This Command is not subject to config file supervision.
 	slackBot.AppendCommand(echo.Command)
 
-	// Setup Runner
+	// Setup Runner.
 	runner, err := sarah.NewRunner(config.Runner, runnerOptions.Arg())
 	if err != nil {
 		panic(fmt.Errorf("Error on Runner construction: %s.", err.Error()))
 	}
 
-	// Run Runner
+	// Run Runner.
 	run(runner)
 }
 

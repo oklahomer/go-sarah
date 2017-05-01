@@ -9,3 +9,5 @@ runner:
     worker_num: 10
     queue_size: 100
   plugin_config_root: "/path/to/config/"
+line_alerter:
+  token: "REPLACE_THIS"
