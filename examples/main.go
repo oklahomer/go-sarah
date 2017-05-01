@@ -94,7 +94,7 @@ func run(runner *sarah.Runner) {
 	ctx, cancel := context.WithCancel(context.Background())
 	runnerStop := make(chan struct{})
 	go func() {
-		// Blocks til all belonging Bot stops, or context is canceled.
+		// Blocks til all belonging Bots stop, or context is canceled.
 		runner.Run(ctx)
 		runnerStop <- struct{}{}
 	}()
