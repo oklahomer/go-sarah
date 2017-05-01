@@ -9,6 +9,9 @@ Sarah is currently at her Pre-Alpha stage, and is under active development. Inte
 
 Author plans to release 1.0 by actual Sarah's birthday, but does not disclose what year it will be.
 
+# Example codes
+Some example codes are located under [./examples](https://github.com/oklahomer/go-sarah/tree/master/examples).
+
 # Components
 
 ## Runner
