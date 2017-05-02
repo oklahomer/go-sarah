@@ -67,7 +67,7 @@ func main() {
 ```Command.Match``` is called against user input in ```Bot.Respond```. If it returns *true*, the command is considered *"corresponds to user input,"* and hence its ```Execute``` method is called.
 
 Any struct that satisfies ```Command``` interface can be fed to ```Bot.AppendCommand``` as a command.
-```CommandBuilder``` is provided to easily implement ```Command``` interface on the fly:
+```CommandPropsBuilder``` is provided to easily implement ```Command``` interface on the fly:
 
 ### Simple Command
 There are several ways to setup ```Command```s.
@@ -129,9 +129,14 @@ func Configurable(config sarah.CommandConfig) *sarah.CommandProps {
 ```
 
 ### Reconfigurable Command
-With ```CommandBuilder.ConfigurableFunc```, a desired configuration struct may be added.
+With ```CommandPropsBuilder.ConfigurableFunc```, a desired configuration struct may be added.
 This configuration struct is passed on command execution as 3rd argument.
 ```Runner``` is watching the changes on configuration files' directory and if configuration file is updated, then the corresponding command is built, again.
+
+To let Runner supervise file change event, set sarah.Config.PluginConfigRoot.
+Internal directory watcher supervises ```sarah.Config.PluginConfigRoot + "/" + BotType + "/"``` as ```Bot```'s configuration directory.
+When any file under that directory is updated, ```Runner``` searches for corresponding ```CommandProps``` based on the assumption that the file name is equivalent to ```CommandProps.identifier + ".yaml""```.
+If a corresponding ```CommandProps``` exists, ```Runner``` rebuild ```Command``` with latest configuration values and replaces with the old one.
 
 ## Scheduled Task
 While commands are set of functions that respond to user input, scheduled tasks are those that run in scheduled manner.
@@ -172,9 +177,14 @@ var TaskProps = sarah.NewScheduledTaskPropsBuilder().
 ```
 
 ### Reconfigurable Scheduled Task
-With ```ScheduledTaskBuilder.ConfigurableFunc```, a desired configuration struct may be added.
+With ```ScheduledTaskPropsBuilder.ConfigurableFunc```, a desired configuration struct may be added.
 This configuration struct is passed on task execution as 2nd argument.
 ```Runner``` is watching the changes on configuration files' directory and if configuration file is updated, then the corresponding task is built/scheduled, again.
+
+To let Runner supervise file change event, set sarah.Config.PluginConfigRoot.
+Internal directory watcher supervises ```sarah.Config.PluginConfigRoot + "/" + BotType + "/"``` as ```Bot```'s configuration directory.
+When any file under that directory is updated, ```Runner``` searches for corresponding ```ScheduledTaskProps``` based on the assumption that the file name is equivalent to ```ScheduledTaskProps.identifier + ".yaml""```.
+If a corresponding ```ScheduledTaskProps``` exists, ```Runner``` rebuild ```ScheduledTask``` with latest configuration values and replaces with the old one.
 
 ## Alerter
 When registered Bot encounters critical situation and requires administrator's direct attention, ```Runner``` sends alert message as configured with ```Alerter```.
@@ -218,7 +228,7 @@ e.g. Chat platform such as LINE sends HTTP requests to Bot on every user input, 
 ## Live Configuration Update
 Every once in a while administrators desire to change configuration for registered command.
 As already introduced, with ```dirWatcher```'s supervision, Sarah supports live configuration updates.
-To enable this, use ```CommandBuilder``` and ```ScheduledTaskBuilder``` to register ```Command``` and ```ScheduledTask``` so that ```Runner``` can rebuild corresponding ```Command``` and ```ScheduledTask```.
+To enable this, use ```CommandPropsBuilder``` and ```ScheduledTaskPropsBuilder``` to register ```Command``` and ```ScheduledTask``` so that ```Runner``` can rebuild corresponding ```Command``` and ```ScheduledTask```.
 
 # Getting Started
 
