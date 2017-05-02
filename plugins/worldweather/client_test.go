@@ -1,6 +1,7 @@
 package worldweather
 
 import (
+	"errors"
 	"fmt"
 	"github.com/jarcoal/httpmock"
 	"golang.org/x/net/context"
@@ -28,6 +29,32 @@ func TestNewClient(t *testing.T) {
 
 	if client == nil {
 		t.Fatal("Expected Client instance is not returned.")
+	}
+}
+
+func TestClient_buildEndPoint(t *testing.T) {
+	apiKey := "key"
+	client := &Client{
+		config: &Config{
+			apiKey: apiKey,
+		},
+	}
+
+	apiType := "weather"
+	uri := client.buildEndpoint(apiType, nil)
+
+	if uri == nil {
+		t.Fatal("Expected *url.URL is not returned.")
+	}
+
+	keyQuery := uri.Query().Get("key")
+	if keyQuery != apiKey {
+		t.Errorf("Appended key paramter differs: %s.", keyQuery)
+	}
+
+	formatQuery := uri.Query().Get("format")
+	if formatQuery != "json" {
+		t.Errorf("Appended format query differs: %s.", formatQuery)
 	}
 }
 
@@ -109,6 +136,43 @@ func TestClient_Get(t *testing.T) {
 				t.Errorf("Expected error is not returned on test No. %d.", testNo)
 			}
 		}
+	}
+}
+
+func TestClient_GetRequestError(t *testing.T) {
+	client := &Client{
+		config: &Config{
+			apiKey: "dummyAPIKey",
+		},
+	}
+
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	expectedErr := &url.Error{
+		Op:  "dummy",
+		URL: "http://sample.com/",
+		Err: errors.New("dummy error"),
+	}
+
+	apiType := "weather"
+	requestURL := fmt.Sprintf(weatherAPIEndpointFormat, apiType)
+	httpmock.RegisterResponder("GET", requestURL, func(_ *http.Request) (*http.Response, error) {
+		return nil, expectedErr
+	})
+	response := &CommonData{}
+	err := client.Get(context.TODO(), apiType, nil, response)
+
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if urlErr, ok := err.(*url.Error); ok {
+		if urlErr.Err != expectedErr {
+			t.Errorf("Returned error differs from expectation: %#v, %#v.", err, expectedErr)
+		}
+	} else {
+		t.Errorf("Unexpected error is returned: %#v.", err)
 	}
 }
 

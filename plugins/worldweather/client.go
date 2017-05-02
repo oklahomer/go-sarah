@@ -59,13 +59,7 @@ func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.
 	endpoint := client.buildEndpoint(apiType, queryParams)
 	resp, err := ctxhttp.Get(ctx, http.DefaultClient, endpoint.String())
 	if err != nil {
-		switch e := err.(type) {
-		case *url.Error:
-			return e
-		default:
-			// Comes here when request URL is nil, but that MUST NOT happen.
-			panic(fmt.Sprintf("error on HTTP GET request. %#v", e))
-		}
+		return err
 	}
 
 	defer resp.Body.Close()
