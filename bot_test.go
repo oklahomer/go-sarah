@@ -292,6 +292,69 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	}
 }
 
+func TestDefaultBot_Respond_WithContextStorageSetError(t *testing.T) {
+	nextFunc := func(_ context.Context, input Input) (*CommandResponse, error) {
+		return nil, nil
+	}
+	var givenNext ContextualFunc
+	dummyStorage := &DummyUserContextStorage{
+		DeleteFunc: func(_ string) error {
+			return nil
+		},
+		GetFunc: func(_ string) (ContextualFunc, error) {
+			return nil, nil
+		},
+		SetFunc: func(_ string, userContext *UserContext) error {
+			givenNext = userContext.Next
+			return errors.New("error")
+		},
+	}
+
+	cmd := &DummyCommand{
+		MatchFunc: func(_ Input) bool {
+			return true
+		},
+		ExecuteFunc: func(_ context.Context, _ Input) (*CommandResponse, error) {
+			return &CommandResponse{
+				Content: "This is content.",
+				UserContext: &UserContext{
+					Next: nextFunc,
+				},
+			}, nil
+		},
+	}
+
+	sendMessageCalled := false
+	myBot := &defaultBot{
+		sendMessageFunc: func(_ context.Context, output Output) {
+			sendMessageCalled = true
+		},
+		userContextStorage: dummyStorage,
+		commands:           &Commands{cmd},
+	}
+
+	dummyInput := &DummyInput{
+		SenderKeyValue: "senderKey",
+		MessageValue:   ".echo foo",
+		ReplyToValue:   "replyTo",
+	}
+
+	err := myBot.Respond(context.TODO(), dummyInput)
+
+	if err != nil {
+		t.Errorf("Unexpected error is returned: %#v.", err)
+	}
+
+	if reflect.ValueOf(givenNext).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
+		t.Errorf("Expected Next step is not passed: %#v.", givenNext)
+	}
+
+	if !sendMessageCalled {
+		t.Error("Bot.SendMessage must be called even when storage fails.")
+
+	}
+}
+
 func TestDefaultBot_Respond_Abort(t *testing.T) {
 	isStorageDeleted := false
 	dummyStorage := &DummyUserContextStorage{
