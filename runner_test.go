@@ -348,10 +348,10 @@ func TestRunner_Run(t *testing.T) {
 	select {
 	case cmd := <-passedCommand:
 		if cmd == nil || cmd.Identifier() != commandProps.identifier {
-			t.Errorf("Stashed CommandBuilder was not properly configured: %#v.", passedCommand)
+			t.Errorf("Stashed CommandPropsBuilder was not properly configured: %#v.", passedCommand)
 		}
 	case <-time.NewTimer(10 * time.Second).C:
-		t.Fatal("CommandBuilder was not properly built.")
+		t.Fatal("CommandPropsBuilder was not properly built.")
 	}
 
 	select {

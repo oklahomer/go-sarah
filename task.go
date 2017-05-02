@@ -13,7 +13,7 @@ var (
 	// ErrTaskInsufficientArgument is returned when required parameters are not set.
 	ErrTaskInsufficientArgument = errors.New("BotType, Identifier and Func must be set.")
 
-	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskBuilder's parameter nor config.
+	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskPropsBuilder's parameter nor config.
 	ErrTaskScheduleNotGiven = errors.New("Task schedule is not set or given from config struct.")
 )
 
@@ -30,13 +30,13 @@ type taskFunc func(context.Context, ...TaskConfig) ([]*ScheduledTaskResult, erro
 type TaskConfig interface{}
 
 // ScheduledConfig defines an interface that config with schedule MUST satisfy.
-// When no execution schedule is set with ScheduledTaskBuilder.Schedule, this value is taken as default on ScheduledTaskBuilder.Build.
+// When no execution schedule is set with ScheduledTaskPropsBuilder.Schedule, this value is taken as default on ScheduledTaskPropsBuilder.Build.
 type ScheduledConfig interface {
 	Schedule() string
 }
 
 // DestinatedConfig defines an interface that config with default destination MUST satisfy.
-// When no default output destination is set with ScheduledTaskBuilder.DefaultDestination, this value is taken as default on ScheduledTaskBuilder.Build.
+// When no default output destination is set with ScheduledTaskPropsBuilder.DefaultDestination, this value is taken as default on ScheduledTaskPropsBuilder.Build.
 type DestinatedConfig interface {
 	DefaultDestination() OutputDestination
 }
@@ -154,7 +154,7 @@ type ScheduledTaskPropsBuilder struct {
 	props *ScheduledTaskProps
 }
 
-// NewScheduledTaskPropsBuilder creates and returns ScheduledTaskBuilder instance.
+// NewScheduledTaskPropsBuilder creates and returns ScheduledTaskPropsBuilder instance.
 func NewScheduledTaskPropsBuilder() *ScheduledTaskPropsBuilder {
 	return &ScheduledTaskPropsBuilder{
 		props: &ScheduledTaskProps{},
@@ -201,8 +201,8 @@ func (builder *ScheduledTaskPropsBuilder) DefaultDestination(dest OutputDestinat
 // ConfigurableFunc sets function for ScheduledTask with configuration struct.
 // Passed configuration struct is passed to function as a third argument.
 //
-// When this builder is stashed via StashScheduledTaskBuilder and Runner runs with Config.PluginConfigRoot,
-// configuration struct gets updated automatically when corresponding configuration file is modified.
+// When resulting ScheduledTaskProps is passed Runner.New as part of sarah.WithScheduledTaskProps and Runner runs with Config.PluginConfigRoot,
+// configuration struct gets updated automatically when corresponding configuration file is updated.
 func (builder *ScheduledTaskPropsBuilder) ConfigurableFunc(config TaskConfig, fn func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error)) *ScheduledTaskPropsBuilder {
 	builder.props.config = config
 	builder.props.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {

@@ -39,7 +39,7 @@ func NewCommandConfig() *CommandConfig {
 }
 
 // SlackCommandFunc is a function that satisfies sarah.CommandConfig type.
-// This can be fed to CommandBuilder.ConfigurableFunc.
+// This can be fed to CommandPropsBuilder.ConfigurableFunc.
 func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.CommandResponse, error) {
 	strippedMessage := sarah.StripMessage(MatchPattern, input.Message())
 
