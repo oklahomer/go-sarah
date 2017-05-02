@@ -333,13 +333,7 @@ func TestDefaultBot_Respond_WithContextStorageSetError(t *testing.T) {
 		commands:           &Commands{cmd},
 	}
 
-	dummyInput := &DummyInput{
-		SenderKeyValue: "senderKey",
-		MessageValue:   ".echo foo",
-		ReplyToValue:   "replyTo",
-	}
-
-	err := myBot.Respond(context.TODO(), dummyInput)
+	err := myBot.Respond(context.TODO(), &DummyInput{})
 
 	if err != nil {
 		t.Errorf("Unexpected error is returned: %#v.", err)
@@ -351,6 +345,45 @@ func TestDefaultBot_Respond_WithContextStorageSetError(t *testing.T) {
 
 	if !sendMessageCalled {
 		t.Error("Bot.SendMessage must be called even when storage fails.")
+
+	}
+}
+
+func TestDefaultBot_Respond_UserContextWithoutStorage(t *testing.T) {
+	nextFunc := func(_ context.Context, input Input) (*CommandResponse, error) {
+		return nil, nil
+	}
+	cmd := &DummyCommand{
+		MatchFunc: func(_ Input) bool {
+			return true
+		},
+		ExecuteFunc: func(_ context.Context, _ Input) (*CommandResponse, error) {
+			return &CommandResponse{
+				Content: "This is content.",
+				UserContext: &UserContext{
+					Next: nextFunc,
+				},
+			}, nil
+		},
+	}
+
+	sendMessageCalled := false
+	myBot := &defaultBot{
+		sendMessageFunc: func(_ context.Context, output Output) {
+			sendMessageCalled = true
+		},
+		commands:           &Commands{cmd},
+		userContextStorage: nil,
+	}
+
+	err := myBot.Respond(context.TODO(), &DummyInput{})
+
+	if err != nil {
+		t.Errorf("Unexpected error is returned: %#v.", err)
+	}
+
+	if !sendMessageCalled {
+		t.Error("Bot.SendMessage must be called even when storage is not configured.")
 
 	}
 }

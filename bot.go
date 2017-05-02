@@ -47,8 +47,9 @@ type defaultBot struct {
 // While Adapter takes care of actual collaboration with each chat service provider,
 // defaultBot takes care of some common tasks including:
 //   - receive Input
-//   - find corresponding Command for Input
-//   - execute it
+//   - if sending user is in the middle of conversational context
+//     - if so, execute the next step with given Input
+//     - if not, find corresponding Command for given Input and execute it
 //   - call Adapter.SendMessage to send output
 // The aim of defaultBot is to lessen the tasks of Adapter developer by providing some common tasks' implementations, and achieve easier creation of Bot implementation.
 // Hence this method returns Bot interface instead of any concrete instance so this can be ONLY treated as Bot implementation to be fed to Runner.RegisterBot.
@@ -58,6 +59,9 @@ type defaultBot struct {
 //  // Use pre-defined storage.
 //  storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
 //  bot, err := sarah.NewBot(myAdapter, sarah.WithStorage(sarah.NewUserContextStorage(sarah.NewCacheConfig())))
+//
+// It is highly recommended to provide concrete implementation of sarah.UserContextStorage, so the users' conversational context can be stored and executed on next Input.
+// sarah.userContextStorage is provided by default to store user context in memory. This storage can be initialized by sarah.NewUserContextStorage like above example.
 func NewBot(adapter Adapter, options ...DefaultBotOption) (Bot, error) {
 	bot := &defaultBot{
 		botType:            adapter.BotType(),
@@ -145,7 +149,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	// https://github.com/oklahomer/go-sarah/issues/7
 	// Bot may return no message to client and still keep the client in the middle of conversational context.
 	// This may damage user experience since user is left in conversational context set by CommandResponse without any sort of notification.
-	if res.UserContext != nil {
+	if res.UserContext != nil && bot.userContextStorage != nil {
 		if err := bot.userContextStorage.Set(senderKey, res.UserContext); err != nil {
 			log.Errorf("Failed to store UserContext. BotType: %s. SenderKey: %s. UserContext: %#v.", bot.BotType(), senderKey, res.UserContext)
 		}
