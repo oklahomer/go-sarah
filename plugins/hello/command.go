@@ -7,13 +7,15 @@ import (
 	"regexp"
 )
 
+var slackFunc = func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
+	return slack.NewStringResponse("Hello!"), nil
+}
+
 // SlackProps provides default setup of hello command.
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("hello").
 	InputExample(".hello").
 	MatchPattern(regexp.MustCompile(`\.hello`)).
-	Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-		return slack.NewStringResponse("Hello!"), nil
-	}).
+	Func(slackFunc).
 	MustBuild()
