@@ -49,7 +49,7 @@ func TestClient_buildEndPoint(t *testing.T) {
 
 	keyQuery := uri.Query().Get("key")
 	if keyQuery != apiKey {
-		t.Errorf("Appended key paramter differs: %s.", keyQuery)
+		t.Errorf("Appended key parameter differs: %s.", keyQuery)
 	}
 
 	formatQuery := uri.Query().Get("format")

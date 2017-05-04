@@ -1,3 +1,15 @@
+/*
+Package echo is an reference implementation to provide the simplest form of sarah.CommandProps.
+
+In this package two sarah.CommandPros, SlackProps and GitterProps, are exported.
+Developer may import this package and refer to those sarah.CommandProps to build echo command.
+
+  runner, err := sarah.NewRunner(config, sarah.WithCommandProps(echo.SlackProps), ...)
+
+This example also shows the use of utility method called sarah.StripMessage,
+which strips string from given message based on given regular expression.
+e.g. ".echo Hey!" becomes "Hey!"
+*/
 package echo
 
 import (

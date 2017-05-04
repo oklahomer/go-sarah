@@ -1,3 +1,10 @@
+/*
+Package hello is an reference implementation to provide the simplest form of sarah.CommandProps.
+
+Developer may import this package and refer to hello.SlackProps to build hello command.
+
+  runner, err := sarah.NewRunner(config, sarah.WithCommandProps(hello.SlackProps), ...)
+*/
 package hello
 
 import (
