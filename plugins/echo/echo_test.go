@@ -3,7 +3,7 @@ package echo
 import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/gitter"
-	"github.com/oklahomer/golack/rtmapi"
+	"github.com/oklahomer/golack/slackobject"
 	"golang.org/x/net/context"
 	"testing"
 	"time"
@@ -37,7 +37,7 @@ func TestSlackCommandFunc(t *testing.T) {
 		SenderKeyValue: "userKey",
 		MessageValue:   ".echo foo",
 		SentAtValue:    time.Now(),
-		ReplyToValue:   rtmapi.ChannelID("channelId"),
+		ReplyToValue:   slackobject.ChannelID("channelId"),
 	}
 
 	response, err := SlackCommandFunc(context.TODO(), input)

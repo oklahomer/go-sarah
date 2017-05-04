@@ -8,6 +8,7 @@ import (
 	"github.com/oklahomer/go-sarah/retry"
 	"github.com/oklahomer/golack"
 	"github.com/oklahomer/golack/rtmapi"
+	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
 	"strings"
@@ -313,7 +314,7 @@ func nonBlockSignal(id string, target chan<- struct{}) {
 }
 
 type textMessage struct {
-	channel rtmapi.ChannelID
+	channel slackobject.ChannelID
 	text    string
 }
 
@@ -321,7 +322,7 @@ type textMessage struct {
 func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	switch content := output.Content().(type) {
 	case string:
-		channel, ok := output.Destination().(rtmapi.ChannelID)
+		channel, ok := output.Destination().(slackobject.ChannelID)
 		if !ok {
 			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
@@ -339,7 +340,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 		}
 
 	case *sarah.CommandHelps:
-		channelID, ok := output.Destination().(rtmapi.ChannelID)
+		channelID, ok := output.Destination().(slackobject.ChannelID)
 		if !ok {
 			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
@@ -361,7 +362,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 				Fields:   fields,
 			},
 		}
-		postMessage := webapi.NewPostMessageWithAttachments(channelID.String(), "", attachments)
+		postMessage := webapi.NewPostMessageWithAttachments(channelID, "", attachments)
 
 		if _, err := adapter.client.PostMessage(ctx, postMessage); err != nil {
 			log.Error("something went wrong with Web API posting", err)
@@ -401,7 +402,7 @@ type MessageInput struct {
 
 // SenderKey returns string representing message sender.
 func (message *MessageInput) SenderKey() string {
-	return fmt.Sprintf("%s|%s", message.event.ChannelID, message.event.Sender.String())
+	return fmt.Sprintf("%s|%s", message.event.ChannelID.String(), message.event.Sender.String())
 }
 
 // Message returns sent message.
@@ -450,7 +451,7 @@ func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc
 func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.CommandResponse {
 	inputMessage, _ := input.(*MessageInput)
 	return &sarah.CommandResponse{
-		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID.String(), message, attachments),
+		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID, message, attachments),
 		UserContext: nil,
 	}
 }
@@ -463,7 +464,7 @@ func NewPostMessageResponse(input sarah.Input, message string, attachments []*we
 func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
 	inputMessage, _ := input.(*MessageInput)
 	return &sarah.CommandResponse{
-		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID.String(), message, attachments),
+		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID, message, attachments),
 		UserContext: sarah.NewUserContext(next),
 	}
 }

@@ -9,13 +9,13 @@ package timer
 import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"github.com/oklahomer/golack/rtmapi"
+	"github.com/oklahomer/golack/slackobject"
 	"golang.org/x/net/context"
 )
 
 type timerConfig struct {
-	TaskSchedule string `yaml:"schedule"`
-	Channel      string `yaml:"channel_id"`
+	TaskSchedule string                `yaml:"schedule"`
+	ChannelID    slackobject.ChannelID `yaml:"channel_id"`
 }
 
 func (t *timerConfig) Schedule() string {
@@ -23,7 +23,7 @@ func (t *timerConfig) Schedule() string {
 }
 
 func (t *timerConfig) DefaultDestination() sarah.OutputDestination {
-	return rtmapi.ChannelID(t.Channel)
+	return t.ChannelID
 }
 
 // SlackProps is a pre-built timer task properties for Slack.

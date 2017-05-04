@@ -5,6 +5,7 @@ import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/retry"
 	"github.com/oklahomer/golack/rtmapi"
+	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
 	"reflect"
@@ -32,7 +33,7 @@ func (client *DummyClient) PostMessage(ctx context.Context, message *webapi.Post
 
 type DummyConnection struct {
 	ReceiveFunc func() (rtmapi.DecodedPayload, error)
-	SendFunc    func(rtmapi.ChannelID, string) error
+	SendFunc    func(slackobject.ChannelID, string) error
 	PingFunc    func() error
 	CloseFunc   func() error
 }
@@ -41,7 +42,7 @@ func (conn *DummyConnection) Receive() (rtmapi.DecodedPayload, error) {
 	return conn.ReceiveFunc()
 }
 
-func (conn *DummyConnection) Send(channel rtmapi.ChannelID, content string) error {
+func (conn *DummyConnection) Send(channel slackobject.ChannelID, content string) error {
 	return conn.SendFunc(channel, content)
 }
 
@@ -243,8 +244,8 @@ func TestMessageInput(t *testing.T) {
 		CommonEvent: rtmapi.CommonEvent{
 			Type: rtmapi.MessageEvent,
 		},
-		ChannelID: rtmapi.ChannelID(channelID),
-		Sender:    rtmapi.UserID(senderID),
+		ChannelID: slackobject.ChannelID(channelID),
+		Sender:    slackobject.UserID(senderID),
 		Text:      content,
 		TimeStamp: &rtmapi.TimeStamp{
 			Time:          timestamp,
@@ -266,7 +267,7 @@ func TestMessageInput(t *testing.T) {
 		t.Errorf("Unexpected Message is returned: %s.", input.Message())
 	}
 
-	if string(input.ReplyTo().(rtmapi.ChannelID)) != channelID {
+	if string(input.ReplyTo().(slackobject.ChannelID)) != channelID {
 		t.Errorf("Unexpected ReplyTo is returned: %s.", input.ReplyTo())
 	}
 
@@ -330,14 +331,14 @@ func TestNewStringResponseWithNext(t *testing.T) {
 }
 
 func TestNewPostMessageResponse(t *testing.T) {
-	channelID := "id"
+	channelID := slackobject.ChannelID("id")
 	input := NewMessageInput(
 		&rtmapi.Message{
 			CommonEvent: rtmapi.CommonEvent{
 				Type: rtmapi.MessageEvent,
 			},
-			ChannelID: rtmapi.ChannelID(channelID),
-			Sender:    rtmapi.UserID("who"),
+			ChannelID: channelID,
+			Sender:    slackobject.UserID("who"),
 			Text:      ".echo foo",
 			TimeStamp: &rtmapi.TimeStamp{
 				Time:          time.Now(),
@@ -357,8 +358,8 @@ func TestNewPostMessageResponse(t *testing.T) {
 			t.Errorf("One attachment should exists: %d.", len(postMessage.Attachments))
 		}
 
-		if postMessage.Channel != channelID {
-			t.Errorf("Unexpected Channel value is given: %s.", postMessage.Channel)
+		if postMessage.ChannelID != channelID {
+			t.Errorf("Unexpected Channel value is given: %s.", postMessage.ChannelID)
 		}
 
 	} else {
@@ -372,14 +373,14 @@ func TestNewPostMessageResponse(t *testing.T) {
 }
 
 func TestNewPostMessageResponseWithNext(t *testing.T) {
-	channelID := "id"
+	channelID := slackobject.ChannelID("id")
 	input := NewMessageInput(
 		&rtmapi.Message{
 			CommonEvent: rtmapi.CommonEvent{
 				Type: rtmapi.MessageEvent,
 			},
-			ChannelID: rtmapi.ChannelID(channelID),
-			Sender:    rtmapi.UserID("who"),
+			ChannelID: channelID,
+			Sender:    slackobject.UserID("who"),
 			Text:      ".echo foo",
 			TimeStamp: &rtmapi.TimeStamp{
 				Time:          time.Now(),
@@ -402,8 +403,8 @@ func TestNewPostMessageResponseWithNext(t *testing.T) {
 			t.Errorf("One attachment should exists: %d.", len(postMessage.Attachments))
 		}
 
-		if postMessage.Channel != channelID {
-			t.Errorf("Unexpected Channel value is given: %s.", postMessage.Channel)
+		if postMessage.ChannelID != channelID {
+			t.Errorf("Unexpected Channel value is given: %s.", postMessage.ChannelID)
 		}
 
 	} else {
@@ -440,8 +441,8 @@ func Test_handlePayload(t *testing.T) {
 		},
 		{
 			payload: &rtmapi.Message{
-				ChannelID: rtmapi.ChannelID("abc"),
-				Sender:    rtmapi.UserID("cde"),
+				ChannelID: slackobject.ChannelID("abc"),
+				Sender:    slackobject.UserID("cde"),
 				Text:      helpCommand,
 				TimeStamp: &rtmapi.TimeStamp{
 					Time: time.Now(),
@@ -451,8 +452,8 @@ func Test_handlePayload(t *testing.T) {
 		},
 		{
 			payload: &rtmapi.Message{
-				ChannelID: rtmapi.ChannelID("abc"),
-				Sender:    rtmapi.UserID("cde"),
+				ChannelID: slackobject.ChannelID("abc"),
+				Sender:    slackobject.UserID("cde"),
 				Text:      abortCommand,
 				TimeStamp: &rtmapi.TimeStamp{
 					Time: time.Now(),
@@ -462,8 +463,8 @@ func Test_handlePayload(t *testing.T) {
 		},
 		{
 			payload: &rtmapi.Message{
-				ChannelID: rtmapi.ChannelID("abc"),
-				Sender:    rtmapi.UserID("cde"),
+				ChannelID: slackobject.ChannelID("abc"),
+				Sender:    slackobject.UserID("cde"),
 				Text:      "foo",
 				TimeStamp: &rtmapi.TimeStamp{
 					Time: time.Now(),

@@ -10,16 +10,16 @@ package fixedtimer
 import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"github.com/oklahomer/golack/rtmapi"
+	"github.com/oklahomer/golack/slackobject"
 	"golang.org/x/net/context"
 )
 
 type timerConfig struct {
-	Channel string `yaml:"channel_id"`
+	ChannelID slackobject.ChannelID `yaml:"channel_id"`
 }
 
 func (t *timerConfig) DefaultDestination() sarah.OutputDestination {
-	return rtmapi.ChannelID(t.Channel)
+	return t.ChannelID
 }
 
 // SlackProps is a pre-built fixed_timer task properties for Slack.
