@@ -273,7 +273,7 @@ func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayl
 
 	case *rtmapi.Message:
 		// Convert RTM specific message to one that satisfies sarah.Input interface.
-		input := &MessageInput{event: p}
+		input := NewMessageInput(p)
 
 		trimmed := strings.TrimSpace(input.Message())
 		if config.HelpCommand != "" && trimmed == config.HelpCommand {
@@ -417,6 +417,13 @@ func (message *MessageInput) SentAt() time.Time {
 // ReplyTo returns slack channel to send reply to.
 func (message *MessageInput) ReplyTo() sarah.OutputDestination {
 	return message.event.ChannelID
+}
+
+// NewMessageInput creates and returns MessageInput instance.
+func NewMessageInput(message *rtmapi.Message) *MessageInput {
+	return &MessageInput{
+		event: message,
+	}
 }
 
 // NewStringResponse creates new sarah.CommandResponse instance with given string.

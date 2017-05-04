@@ -331,8 +331,8 @@ func TestNewStringResponseWithNext(t *testing.T) {
 
 func TestNewPostMessageResponse(t *testing.T) {
 	channelID := "id"
-	input := &MessageInput{
-		event: &rtmapi.Message{
+	input := NewMessageInput(
+		&rtmapi.Message{
 			CommonEvent: rtmapi.CommonEvent{
 				Type: rtmapi.MessageEvent,
 			},
@@ -344,7 +344,7 @@ func TestNewPostMessageResponse(t *testing.T) {
 				OriginalValue: time.Now().String() + ".99999",
 			},
 		},
-	}
+	)
 	message := "this  is my message."
 	attachments := []*webapi.MessageAttachment{
 		{},
@@ -373,8 +373,8 @@ func TestNewPostMessageResponse(t *testing.T) {
 
 func TestNewPostMessageResponseWithNext(t *testing.T) {
 	channelID := "id"
-	input := &MessageInput{
-		event: &rtmapi.Message{
+	input := NewMessageInput(
+		&rtmapi.Message{
 			CommonEvent: rtmapi.CommonEvent{
 				Type: rtmapi.MessageEvent,
 			},
@@ -386,7 +386,7 @@ func TestNewPostMessageResponseWithNext(t *testing.T) {
 				OriginalValue: time.Now().String() + ".99999",
 			},
 		},
-	}
+	)
 	message := "this  is my message."
 	attachments := []*webapi.MessageAttachment{
 		{},
