@@ -37,7 +37,10 @@ func (c *command) InputExample() string {
 
 // Match checks if user input matches to this Command.
 func (c *command) Match(input sarah.Input) bool {
-	return matchPattern.MatchString(input.Message())
+	// Once Runner receives input from Bot, it dispatches task to worker where multiple tasks may run in concurrent manner.
+	// Searching for corresponding Command is an important part of this task, which means Command.Match is called simultaneously from multiple goroutines.
+	// To avoid lock contention, Command developer should consider copying the *regexp.Regexp object.
+	return matchPattern.Copy().MatchString(input.Message())
 }
 
 // Command is a command instance that can directly fed to Bot.AppendCommand.

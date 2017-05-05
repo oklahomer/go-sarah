@@ -219,7 +219,8 @@ func (builder *CommandPropsBuilder) Identifier(id string) *CommandPropsBuilder {
 // Use MatchFunc to set more customizable matching logic.
 func (builder *CommandPropsBuilder) MatchPattern(pattern *regexp.Regexp) *CommandPropsBuilder {
 	builder.props.matchFunc = func(input Input) bool {
-		return pattern.MatchString(input.Message())
+		// https://golang.org/doc/go1.6#minor_library_changes
+		return pattern.Copy().MatchString(input.Message())
 	}
 	return builder
 }
