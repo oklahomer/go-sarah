@@ -1,0 +1,148 @@
+@startuml
+
+title **Components' Relationships and their Roles**
+
+' components
+
+actor User as user
+
+cloud "Chat Service" as chatService {
+    interface "user interface" as userInterface
+    interface "sending protocol" as botSendingProtocol
+}
+
+component "Bot\n(Original implementation or //defaultBot + Adapter//)" as bot {
+    database "UserContextStorage" as botStorage
+    note right of botStorage
+    Concrete implementation
+    of //UserContextStorage//.
+    Store users' conversational state.
+    end note
+
+    component "Commands" as botCommands {
+        interface "Commands.ExecuteFirstMatched" as executeFirstMatched
+        component "echo" as echo
+        component "weather" as weather
+    }
+
+    interface "Bot.Respond" as botRespond
+    note right of botRespond
+    Takes care of most important part of response operation.
+    - Receive //Input//.
+    - Fetch user's conversational context from storage.
+     - If found, execute the next step with given //Input//.
+     - If not, find corresponding Command for given //Input// and execute it.
+    - Call //Bot.SendMessage// to send output.
+    ===
+    This is called from Worker,
+    which means simultaneous calls may occur at any time.
+    end note
+    interface "Bot.SendMessage" as botSendMessage
+    interface "receiving\nprotocol" as receivingProtocol
+}
+note top of bot
+Concrete implementation of //Bot// interface.
+For easier implementation,
+use combination of //defaultBot// with //Adapter//.
+===
+Multiple Bot instances can be registered to Runner.
+end note
+
+component "Runner" as runner {
+
+    component "input receiver" as inputReceiver {
+        queue "chan //Input//" as inputCh
+    }
+
+    component "Worker" as worker {
+        queue "chan func()" as workerJobCh
+
+        [worker] as worker1
+        [worker] as worker2
+        component "Reporter" as workerReporter {
+        }
+        note bottom of workerReporter
+        Concrete implementation of //Reporter//.
+        Report statistical information.
+        end note
+    }
+    note top of worker
+    Group of worker goroutines.
+    When a given job panics,
+    recover and log stack trace.
+    ===
+    This is shared among multiple //Bot//s.
+    end note
+
+    component "dirWatcher" as dirWatcher {
+    }
+    note right of dirWatcher
+    Supervise configuration files.
+    When updated, re-build corresponding
+    //Command/////ScheduledTask//.
+    end note
+
+    component "Cron" as cron {
+    }
+    note top of cron
+    Execute //ScheduledTask//
+    periodically.
+    end note
+
+    package "map[BotType][]ScheduledTask" {
+        [alarmTask] as alarm
+    }
+
+    package "map[BotType][]*ScheduledTaskProps" {
+        [alarmScheduledTaskProps] as alarmTaskProps
+    }
+
+    package "map[BotType][]*CommandProps" as commandProps {
+        [echoProps] as echoProps
+        [weatherProps] as weatherProps
+    }
+
+    folder "./config/{BotType}/" as configDir {
+        file alarm.yaml
+        file weather.yaml
+    }
+}
+note top of runner
+Takes care of other components life cycles.
+To ease Bot development, this provides some mechanism such as
+//cron//, //directory watcher//, and //worker//.
+These resources are shared by more than one running //Bot//s.
+end note
+
+actor Administrator as admin
+
+' interaction
+
+user -[#blue]up-> userInterface : Send message
+userInterface -[#blue]up-> receivingProtocol : User\nmessage
+receivingProtocol -[#blue]> inputCh : //Input//
+inputReceiver -[#blue]> workerJobCh : Enqueue job
+workerJobCh -[#blue]down-> worker1 : Dispatch job
+workerJobCh -down-> worker2
+
+worker1 -[#blue]> botRespond : //Input//
+botRespond -[#blue]up-> executeFirstMatched
+executeFirstMatched -[#blue]right-> echo : Execute
+botRespond -[#blue]down-> botSendMessage : Send\nresponse
+botSendMessage -down-> botSendingProtocol : Send message
+botSendingProtocol -down-> user
+botRespond -[#blue]down-> botStorage : Fetch/store
+
+workerReporter -> workerJobCh : Supervise\nqueue length
+
+cron -[#orange]> alarm : Execute
+alarm -[#orange]> botSendMessage
+
+admin -[#green]down-> alarm.yaml : Update configuration file
+configDir -[#green]down-> dirWatcher : Notify update event
+dirWatcher -[#green]> alarmTaskProps : Re-build task\nID: alarm
+dirWatcher -[#green]up-> commandProps : Re-build command\nwhen required
+alarmTaskProps -[#green]down-> alarm : Replace old one
+'weatherProps -> weather : Replace\non re-build
+
+@enduml

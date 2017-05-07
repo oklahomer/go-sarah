@@ -47,7 +47,7 @@ type defaultBot struct {
 // While Adapter takes care of actual collaboration with each chat service provider,
 // defaultBot takes care of some common tasks including:
 //   - receive Input
-//   - if sending user is in the middle of conversational context
+//   - see if sending user is in the middle of conversational context
 //     - if so, execute the next step with given Input
 //     - if not, find corresponding Command for given Input and execute it
 //   - call Adapter.SendMessage to send output
