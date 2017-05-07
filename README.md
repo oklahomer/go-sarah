@@ -157,7 +157,7 @@ package foo
 import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"github.com/oklahomer/golack/rtmapi"
+	"github.com/oklahomer/golack/slackobject"
 	"golang.org/x/net/context"
 )
 
@@ -171,7 +171,7 @@ var TaskProps = sarah.NewScheduledTaskPropsBuilder().
                 return []*sarah.ScheduledTaskResult{
                         {
                                 Content:     "Howdy!!",
-                                Destination: rtmapi.ChannelID("XXX"),
+                                Destination: slackobject.ChannelID("XXX"),
                         },
                 }, nil
         }).
