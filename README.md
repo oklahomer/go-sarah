@@ -17,6 +17,8 @@ Some example codes are located under [./examples](https://github.com/oklahomer/g
 
 # Components
 
+![component diagram](/doc/uml/component.png)
+
 ## Runner
 ```Runner``` is the core of Sarah; It manages other components' lifecycle, handles concurrency with internal workers, watches configuration file changes, **re**-configures commands/tasks on file changes, executes scheduled tasks, and most importantly makes Sarah comes alive.
 
