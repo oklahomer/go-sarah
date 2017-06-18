@@ -506,11 +506,10 @@ func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) 
 			continuousEnqueueErrCnt = 0
 			return nil
 
-		} else {
-			continuousEnqueueErrCnt++
-			// Could not send because probably the workers are too busy or the runner context is already canceled.
-			return NewBlockedInputError(continuousEnqueueErrCnt)
-
 		}
+
+		continuousEnqueueErrCnt++
+		// Could not send because probably the workers are too busy or the runner context is already canceled.
+		return NewBlockedInputError(continuousEnqueueErrCnt)
 	}
 }

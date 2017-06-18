@@ -91,7 +91,7 @@ func TestWithReporter(t *testing.T) {
 	err := option(worker)
 
 	if err != nil {
-		t.Fatalf("Unexpected error occured: %s.", err.Error())
+		t.Fatalf("Unexpected error occurred: %s.", err.Error())
 	}
 
 	if worker.reporter == nil {
