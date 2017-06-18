@@ -3,7 +3,7 @@ package sarah
 import (
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
-	"github.com/oklahomer/go-sarah/worker"
+	"github.com/oklahomer/go-sarah/workers"
 	"golang.org/x/net/context"
 	"path/filepath"
 	"runtime"
@@ -37,7 +37,7 @@ func NewConfig() *Config {
 type Runner struct {
 	config            *Config
 	bots              []Bot
-	worker            worker.Worker
+	worker            workers.Worker
 	commandProps      map[BotType][]*CommandProps
 	scheduledTaskPrps map[BotType][]*ScheduledTaskProps
 	scheduledTasks    map[BotType][]ScheduledTask
@@ -176,7 +176,7 @@ func WithAlerter(alerter Alerter) RunnerOption {
 
 // WithWorker creates RunnerOperation with given Worker implementation.
 // If no WithWorker is supplied, Runner creates worker with default configuration on Runner.Run.
-func WithWorker(worker worker.Worker) RunnerOption {
+func WithWorker(worker workers.Worker) RunnerOption {
 	return func(runner *Runner) error {
 		runner.worker = worker
 		return nil
@@ -208,7 +208,7 @@ func (runner *Runner) botScheduledTasks(botType BotType) []ScheduledTask {
 // At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
 func (runner *Runner) Run(ctx context.Context) {
 	if runner.worker == nil {
-		w, e := worker.Run(ctx, worker.NewConfig())
+		w, e := workers.Run(ctx, workers.NewConfig())
 		if e != nil {
 			panic(fmt.Sprintf("worker could not run: %s", e.Error()))
 		}
@@ -492,10 +492,10 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters *alerter
 	return botCtx, errNotifier
 }
 
-func setupInputReceiver(botCtx context.Context, bot Bot, workr worker.Worker) func(Input) error {
+func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) func(Input) error {
 	continuousEnqueueErrCnt := 0
 	return func(input Input) error {
-		err := workr.Enqueue(func() {
+		err := worker.Enqueue(func() {
 			err := bot.Respond(botCtx, input)
 			if err != nil {
 				log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
