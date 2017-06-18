@@ -2,33 +2,25 @@ package sarah
 
 import (
 	"errors"
-	"fmt"
 	"golang.org/x/net/context"
-	"gopkg.in/yaml.v2"
 	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
 )
 
-func TestNewConfig_UnmarshalNestedYaml(t *testing.T) {
+type DummyWorker struct {
+	EnqueueFunc func(func()) error
+}
+
+func (w *DummyWorker) Enqueue(fnc func()) error {
+	return w.EnqueueFunc(fnc)
+}
+
+func TestNewConfig(t *testing.T) {
 	config := NewConfig()
-	oldQueueSize := config.Worker.QueueSize
-	oldWorkerNum := config.Worker.WorkerNum
-	newWorkerNum := oldWorkerNum + 100
-
-	yamlBytes := []byte(fmt.Sprintf("worker:\n  worker_num: %d", newWorkerNum))
-
-	if err := yaml.Unmarshal(yamlBytes, config); err != nil {
-		t.Fatalf("Error on parsing given YAML structure: %s. %s.", string(yamlBytes), err.Error())
-	}
-
-	if config.Worker.QueueSize != oldQueueSize {
-		t.Errorf("QueueSize should stay when YAML value is not given: %d.", config.Worker.QueueSize)
-	}
-
-	if config.Worker.WorkerNum != newWorkerNum {
-		t.Errorf("WorkerNum is not overridden with YAML value: %d.", config.Worker.WorkerNum)
+	if config == nil {
+		t.Fatal("Expected *Config is not returned.")
 	}
 }
 
@@ -95,7 +87,7 @@ func TestRunnerOptions_Arg_WithError(t *testing.T) {
 	}
 }
 
-func TestNewRunner_WithoutRunnerOption(t *testing.T) {
+func TestNewRunner(t *testing.T) {
 	config := NewConfig()
 	runner, err := NewRunner(config)
 
@@ -211,6 +203,16 @@ func TestWithCommandProps(t *testing.T) {
 	}
 	if len(botCmdProps) != 1 && botCmdProps[0] != props {
 		t.Error("Expected CommandProps is not stashed.")
+	}
+}
+
+func TestWithWorker(t *testing.T) {
+	worker := &DummyWorker{}
+	runner := &Runner{}
+	WithWorker(worker)(runner)
+
+	if runner.worker != worker {
+		t.Fatal("Given worker is not set.")
 	}
 }
 
@@ -672,11 +674,14 @@ func Test_botSupervisor(t *testing.T) {
 }
 
 func Test_setupInputReceiver(t *testing.T) {
-	rootCxt := context.Background()
-	botCtx, cancelBot := context.WithCancel(rootCxt)
-	workerJob := make(chan func(), 1) // Receive the first one and block following inputs.
-
 	responded := make(chan bool, 1)
+	worker := &DummyWorker{
+		EnqueueFunc: func(fnc func()) error {
+			fnc()
+			return nil
+		},
+	}
+
 	bot := &DummyBot{
 		BotTypeValue: "DUMMY",
 		RespondFunc: func(_ context.Context, input Input) error {
@@ -685,35 +690,34 @@ func Test_setupInputReceiver(t *testing.T) {
 		},
 	}
 
-	receiveInput := setupInputReceiver(botCtx, bot, workerJob)
-	time.Sleep(100 * time.Millisecond) // Why is this required...
+	receiveInput := setupInputReceiver(context.TODO(), bot, worker)
 	if err := receiveInput(&DummyInput{}); err != nil {
-		// Should be received
 		t.Errorf("Error should not be returned at this point: %s.", err.Error())
 	}
 
-	if err := receiveInput(&DummyInput{}); err == nil {
-		// Channel is blocked, but function does not block
-		t.Error("Error should be returned on this call.")
-	}
-
 	select {
-	case job := <-workerJob:
-		job()
-		select {
-		case <-responded:
-			// O.K.
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Received input was not processed.")
-		}
-
+	case <-responded:
+		// O.K.
 	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Job should be enqueued at this point.")
+		t.Error("Received input was not processed.")
+	}
+}
+
+func Test_setupInputReceiver_BlockedInputError(t *testing.T) {
+	bot := &DummyBot{}
+	worker := &DummyWorker{
+		EnqueueFunc: func(fnc func()) error {
+			return errors.New("any error should result in BlockedInputError")
+		},
 	}
 
-	cancelBot()
-	if err := receiveInput(&DummyInput{}); err == nil {
-		// Receiving goroutine is canceled, but does not block
-		t.Error("Error should be returned on this call.")
+	receiveInput := setupInputReceiver(context.TODO(), bot, worker)
+	err := receiveInput(&DummyInput{})
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if _, ok := err.(*BlockedInputError); !ok {
+		t.Fatalf("Expected error type is not returned: %T.", err)
 	}
 }

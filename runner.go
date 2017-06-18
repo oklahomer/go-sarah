@@ -14,16 +14,14 @@ import (
 
 // Config contains some configuration variables for Runner and its underlying structs.
 type Config struct {
-	Worker           *worker.Config `json:"worker" yaml:"worker"`
-	PluginConfigRoot string         `json:"plugin_config_root" yaml:"plugin_config_root"`
-	TimeZone         string         `json:"timezone" yaml:"timezone"`
+	PluginConfigRoot string `json:"plugin_config_root" yaml:"plugin_config_root"`
+	TimeZone         string `json:"timezone" yaml:"timezone"`
 }
 
 // NewConfig creates and returns new Config instance with default settings.
 // Use json.Unmarshal, yaml.Unmarshal, or manual manipulation to overload default values.
 func NewConfig() *Config {
 	return &Config{
-		Worker: worker.NewConfig(),
 		// PluginConfigRoot defines the root directory to be used when searching for plugins' configuration files.
 		PluginConfigRoot: "",
 		TimeZone:         time.Now().Location().String(),
@@ -39,6 +37,7 @@ func NewConfig() *Config {
 type Runner struct {
 	config            *Config
 	bots              []Bot
+	worker            worker.Worker
 	commandProps      map[BotType][]*CommandProps
 	scheduledTaskPrps map[BotType][]*ScheduledTaskProps
 	scheduledTasks    map[BotType][]ScheduledTask
@@ -50,6 +49,7 @@ func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
 	runner := &Runner{
 		config:            config,
 		bots:              []Bot{},
+		worker:            nil,
 		commandProps:      make(map[BotType][]*CommandProps),
 		scheduledTaskPrps: make(map[BotType][]*ScheduledTaskProps),
 		scheduledTasks:    make(map[BotType][]ScheduledTask),
@@ -67,7 +67,7 @@ func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
 }
 
 // RunnerOption defines function that Runner's functional option must satisfy.
-type RunnerOption func(runner *Runner) error
+type RunnerOption func(*Runner) error
 
 // RunnerOptions stashes RunnerOption for later use with NewRunner().
 //
@@ -174,6 +174,15 @@ func WithAlerter(alerter Alerter) RunnerOption {
 	}
 }
 
+// WithWorker creates RunnerOperation with given Worker implementation.
+// If no WithWorker is supplied, Runner creates worker with default configuration on Runner.Run.
+func WithWorker(worker worker.Worker) RunnerOption {
+	return func(runner *Runner) error {
+		runner.worker = worker
+		return nil
+	}
+}
+
 func (runner *Runner) botCommandProps(botType BotType) []*CommandProps {
 	if props, ok := runner.commandProps[botType]; ok {
 		return props
@@ -198,11 +207,18 @@ func (runner *Runner) botScheduledTasks(botType BotType) []ScheduledTask {
 // Run starts Bot interaction.
 // At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
 func (runner *Runner) Run(ctx context.Context) {
-	workerJob := worker.Run(ctx, runner.config.Worker)
+	if runner.worker == nil {
+		w, e := worker.Run(ctx, worker.NewConfig())
+		if e != nil {
+			panic(fmt.Sprintf("worker could not run: %s", e.Error()))
+		}
+
+		runner.worker = w
+	}
 
 	loc, locErr := time.LoadLocation(runner.config.TimeZone)
 	if locErr != nil {
-		panic(fmt.Sprintf("Given timezone can't be converted to time.Location: %s.", locErr.Error()))
+		panic(fmt.Sprintf("given timezone can't be converted to time.Location: %s", locErr.Error()))
 	}
 	taskScheduler := runScheduler(ctx, loc)
 
@@ -222,7 +238,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		botCtx, errNotifier := botSupervisor(ctx, botType, runner.alerters)
 
 		// Prepare function  that receives Input.
-		receiveInput := setupInputReceiver(ctx, bot, workerJob)
+		receiveInput := setupInputReceiver(ctx, bot, runner.worker)
 
 		// Run Bot
 		go runBot(botCtx, bot, receiveInput, errNotifier)
@@ -476,50 +492,25 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters *alerter
 	return botCtx, errNotifier
 }
 
-func setupInputReceiver(botCtx context.Context, bot Bot, workerJob chan<- func()) func(Input) error {
-	incomingInput := make(chan Input)
-
-	activated := make(chan struct{})
-	go func() {
-		signalVal := struct{}{} // avoid multiple construction
-		for {
-			select {
-			case activated <- signalVal:
-				// Send sentinel value to make sure this goroutine is all ready by the end of this method call.
-				// This blocks once the value is sent because of the nature of non-buffered channel and one-time subscription.
-
-			case input := <-incomingInput:
-				log.Debugf("responding to %#v", input)
-
-				workerJob <- func() {
-					err := bot.Respond(botCtx, input)
-					if err != nil {
-						log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
-					}
-				}
-				log.Debugf("enqueued %#v", input)
-
-			case <-botCtx.Done():
-				log.Infof("stop receiving bot input due to context cancelation: %s.", bot.BotType().String())
-				return
-			}
-		}
-	}()
-	// Wait til above goroutine is ready.
-	// Test shows there is a chance that goroutine is not fully activated right after this method call.
-	<-activated
-
+func setupInputReceiver(botCtx context.Context, bot Bot, workr worker.Worker) func(Input) error {
 	continuousEnqueueErrCnt := 0
 	return func(input Input) error {
-		select {
-		case incomingInput <- input:
+		err := workr.Enqueue(func() {
+			err := bot.Respond(botCtx, input)
+			if err != nil {
+				log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
+			}
+		})
+
+		if err == nil {
 			continuousEnqueueErrCnt = 0
-			// Successfully sent without blocking
 			return nil
-		default:
+
+		} else {
 			continuousEnqueueErrCnt++
-			// Could not send because probably the workers are too busy or the bot context is already cancecled.
+			// Could not send because probably the workers are too busy or the runner context is already canceled.
 			return NewBlockedInputError(continuousEnqueueErrCnt)
+
 		}
 	}
 }
