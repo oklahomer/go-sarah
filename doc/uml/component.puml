@@ -50,9 +50,7 @@ end note
 
 component "Runner" as runner {
 
-    component "input receiver" as inputReceiver {
-        queue "chan //Input//" as inputCh
-    }
+    interface "input receiver" as inputReceiver
 
     component "Worker" as worker {
         queue "chan func()" as workerJobCh
@@ -120,7 +118,7 @@ actor Administrator as admin
 
 user -[#blue]up-> userInterface : Send message
 userInterface -[#blue]up-> receivingProtocol : User\nmessage
-receivingProtocol -[#blue]> inputCh : //Input//
+receivingProtocol -[#blue]> inputReceiver : //Input//
 inputReceiver -[#blue]> workerJobCh : Enqueue job
 workerJobCh -[#blue]down-> worker1 : Dispatch job
 workerJobCh -down-> worker2
