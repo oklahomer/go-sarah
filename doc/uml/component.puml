@@ -6,46 +6,76 @@ title **Components' Relationships and their Roles**
 
 actor User as user
 
+cloud "Alerting Service" as alertingService {
+}
+note top of alertingService
+One or more alerting channels to notify critical state
+of //Bot//, //Runner// or other component
+end note
+
 cloud "Chat Service" as chatService {
     interface "user interface" as userInterface
     interface "sending protocol" as botSendingProtocol
 }
 
-component "Bot\n(Original implementation or //defaultBot + Adapter//)" as bot {
-    database "UserContextStorage" as botStorage
-    note right of botStorage
-    Concrete implementation
-    of //UserContextStorage//.
-    Store users' conversational state.
-    end note
+cloud "Bots" as bots {
+	component "Bot\n(Original implementation or //defaultBot// + //Adapter//)" as bot {
+	    database "UserContextStorage" as botStorage
+	    note right of botStorage
+	    Concrete implementation
+	    of //UserContextStorage//.
+	    Stores users' conversational states.
+	    end note
 
-    component "Commands" as botCommands {
-        interface "Commands.ExecuteFirstMatched" as executeFirstMatched
-        component "echo" as echo
-        component "weather" as weather
+	    component "Commands" as botCommands {
+	        interface "Commands.ExecuteFirstMatched" as executeFirstMatched
+	        component "echo" as echo
+	        component "weather" as weather
+	    }
+
+	    interface "Bot.Respond" as botRespond
+	    note right of botRespond
+	    Takes care of most important part of responding operation.
+	    - Receive //Input//.
+	    - Fetch user's conversational context from storage.
+	     - If found, execute the next step with given //Input//.
+	     - If not, find corresponding Command for given //Input// and execute it.
+	    - Call //Bot.SendMessage// to send output.
+	    ===
+	    This is called from Worker,
+	    which means simultaneous calls may occur at any time.
+	    end note
+
+	    interface "Bot.SendMessage" as botSendMessage
+	    interface "receiving\nprotocol" as receivingProtocol
+	}
+	note top of bot
+	For easier implementation,
+	use combination of //defaultBot// with //Adapter//.
+	end note
+
+	component "Another Bot implementation" as bot2 #eee {
+	    database "UserContextStorage" as bot2Storage #eee
+	    note bottom of bot2Storage
+	    Default storage uses process memory space,
+	    but other implementation
+	    such as go-sarah-rediscontext is available.
+	    end note
+
+	    component "Commands" as bot2Commands #eee {
+	        interface "Commands.ExecuteFirstMatched" as executeFirstMatched
+	        component "echo" as echo
+	        component "weather" as weather
+	    }
+	    note top of bot2Commands
+	    Group of //sarah.Command//
+	    implementations.
+	    end note
     }
-
-    interface "Bot.Respond" as botRespond
-    note right of botRespond
-    Takes care of most important part of response operation.
-    - Receive //Input//.
-    - Fetch user's conversational context from storage.
-     - If found, execute the next step with given //Input//.
-     - If not, find corresponding Command for given //Input// and execute it.
-    - Call //Bot.SendMessage// to send output.
-    ===
-    This is called from Worker,
-    which means simultaneous calls may occur at any time.
-    end note
-    interface "Bot.SendMessage" as botSendMessage
-    interface "receiving\nprotocol" as receivingProtocol
 }
-note top of bot
-Concrete implementation of //Bot// interface.
-For easier implementation,
-use combination of //defaultBot// with //Adapter//.
-===
-Multiple Bot instances can be registered to Runner.
+note top of bots
+Group of //Bot// implementations
+Multiple Bot instances can be registered to //Runner//.
 end note
 
 component "Runner" as runner {
@@ -80,6 +110,9 @@ component "Runner" as runner {
     //Command/////ScheduledTask//.
     end note
 
+    component "Alerters" as alerters {
+    }
+
     component "Cron" as cron {
     }
     note top of cron
@@ -106,7 +139,7 @@ component "Runner" as runner {
     }
 }
 note top of runner
-Takes care of other components life cycles.
+Takes care of other components' life cycles.
 To ease Bot development, this provides some mechanism such as
 //cron//, //directory watcher//, and //worker//.
 These resources are shared by more than one running //Bot//s.
@@ -125,7 +158,7 @@ workerJobCh -down-> worker2
 
 worker1 -[#blue]> botRespond : //Input//
 botRespond -[#blue]up-> executeFirstMatched
-executeFirstMatched -[#blue]right-> echo : Execute
+executeFirstMatched -[#blue]up-> echo : Execute
 botRespond -[#blue]down-> botSendMessage : Send\nresponse
 botSendMessage -down-> botSendingProtocol : Send message
 botSendingProtocol -down-> user
@@ -141,6 +174,8 @@ configDir -[#green]down-> dirWatcher : Notify update event
 dirWatcher -[#green]> alarmTaskProps : Re-build task\nID: alarm
 dirWatcher -[#green]up-> commandProps : Re-build command\nwhen required
 alarmTaskProps -[#green]down-> alarm : Replace old one
-'weatherProps -> weather : Replace\non re-build
+
+alerters ..down.> alertingService
+alertingService .> admin : Notify critical state
 
 @enduml
