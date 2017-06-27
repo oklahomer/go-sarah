@@ -237,8 +237,8 @@ func (runner *Runner) Run(ctx context.Context) {
 		// Each Bot has its own context propagating Runner's lifecycle.
 		botCtx, errNotifier := botSupervisor(ctx, botType, runner.alerters)
 
-		// Prepare function  that receives Input.
-		receiveInput := setupInputReceiver(ctx, bot, runner.worker)
+		// Prepare function that receives Input.
+		receiveInput := setupInputReceiver(botCtx, bot, runner.worker)
 
 		// Run Bot
 		go runBot(botCtx, bot, receiveInput, errNotifier)
