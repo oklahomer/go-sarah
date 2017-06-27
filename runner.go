@@ -12,17 +12,18 @@ import (
 	"time"
 )
 
-// Config contains some configuration variables for Runner and its underlying structs.
+// Config contains some configuration variables for Runner.
 type Config struct {
 	PluginConfigRoot string `json:"plugin_config_root" yaml:"plugin_config_root"`
 	TimeZone         string `json:"timezone" yaml:"timezone"`
 }
 
 // NewConfig creates and returns new Config instance with default settings.
-// Use json.Unmarshal, yaml.Unmarshal, or manual manipulation to overload default values.
+// Use json.Unmarshal, yaml.Unmarshal, or manual manipulation to override default values.
 func NewConfig() *Config {
 	return &Config{
-		// PluginConfigRoot defines the root directory to be used when searching for plugins' configuration files.
+		// PluginConfigRoot defines the root directory for each Command and ScheduledTask.
+		// File path for each plugin is defined as PluginConfigRoot + "/" + BotType + "/" + (Command|ScheduledTask).Identifier.
 		PluginConfigRoot: "",
 		TimeZone:         time.Now().Location().String(),
 	}
@@ -30,10 +31,10 @@ func NewConfig() *Config {
 
 // Runner is the core of sarah.
 //
-// This takes care of lifecycle of each Bot implementation and plugin execution;
+// This is responsible for each Bot implementation's lifecycle and plugin execution;
 // Bot is responsible for bot-specific implementation such as connection handling, message reception and sending.
 //
-// Developers can register desired number of Bot and Commands to create own bot experience.
+// Developers can register desired number of Bots and Commands to create own bot experience.
 type Runner struct {
 	config            *Config
 	bots              []Bot
@@ -66,13 +67,13 @@ func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
 	return runner, nil
 }
 
-// RunnerOption defines function that Runner's functional option must satisfy.
+// RunnerOption defines a function signature that Runner's functional option must satisfy.
 type RunnerOption func(*Runner) error
 
-// RunnerOptions stashes RunnerOption for later use with NewRunner().
+// RunnerOptions stashes group of RunnerOption for later use with NewRunner().
 //
 // On typical setup, especially when a process consists of multiple Bots and Commands, each construction step requires more lines of codes.
-// Each step ends with creating new RunnerOption instance to be fed to NewRunner(), but as code gets longer it gets hard to keep track of each RunnerOption.
+// Each step ends with creating new RunnerOption instance to be fed to NewRunner(), but as code gets longer it gets harder to keep track of each RunnerOption.
 // In that case RunnerOptions becomes a handy helper to temporary stash RunnerOption.
 //
 //  options := NewRunnerOptions()
@@ -81,11 +82,11 @@ type RunnerOption func(*Runner) error
 //  slackBot, _ := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.BotWithStorage(storage))
 //  options.Append(sarah.WithBot(slackBot))
 //
-//  // Here comes other 5-10 codes to configure another bot
+//  // Here comes other 5-10 codes to configure another bot.
 //  myBot, _ := NewMyBot(...)
 //  optionsAppend(sarah.WithBot(myBot))
 //
-//  // Some more codes to register Commands / ScheduledTasks
+//  // Some more codes to register Commands/ScheduledTasks.
 //  myTask := customizedTask()
 //  options.Append(sarah.WithScheduledTask(myTask))
 //
@@ -100,6 +101,7 @@ func NewRunnerOptions() *RunnerOptions {
 }
 
 // Append adds given RunnerOption to internal stash.
+// When more than two RunnerOption instances are stashed, they are executed in the order of addition.
 func (options *RunnerOptions) Append(opt RunnerOption) {
 	*options = append(*options, opt)
 }
@@ -118,7 +120,7 @@ func (options *RunnerOptions) Arg() RunnerOption {
 	}
 }
 
-// WithBot creates RunnerOption with given Bot implementation.
+// WithBot creates RunnerOption that feeds given Bot implementation to Runner.
 func WithBot(bot Bot) RunnerOption {
 	return func(runner *Runner) error {
 		runner.bots = append(runner.bots, bot)
@@ -126,7 +128,7 @@ func WithBot(bot Bot) RunnerOption {
 	}
 }
 
-// WithCommandProps creates RunnerOption with given CommandProps.
+// WithCommandProps creates RunnerOption that feeds given CommandProps to Runner.
 // Command is built on Runner.Run with given CommandProps.
 // This props is re-used when configuration file is updated and Command needs to be re-built.
 func WithCommandProps(props *CommandProps) RunnerOption {
@@ -140,7 +142,7 @@ func WithCommandProps(props *CommandProps) RunnerOption {
 	}
 }
 
-// WithScheduledTaskProps creates RunnerOption with given ScheduledTaskProps.
+// WithScheduledTaskProps creates RunnerOption that feeds given ScheduledTaskProps to Runner.
 // ScheduledTask is built on Runner.Run with given ScheduledTaskProps.
 // This props is re-used when configuration file is updated and ScheduledTask needs to be re-built.
 func WithScheduledTaskProps(props *ScheduledTaskProps) RunnerOption {
@@ -154,7 +156,7 @@ func WithScheduledTaskProps(props *ScheduledTaskProps) RunnerOption {
 	}
 }
 
-// WithScheduledTask creates RunnerOperation with given ScheduledTask.
+// WithScheduledTask creates RunnerOperation that feeds given ScheduledTask to Runner.
 func WithScheduledTask(botType BotType, task ScheduledTask) RunnerOption {
 	return func(runner *Runner) error {
 		tasks, ok := runner.scheduledTasks[botType]
@@ -166,7 +168,7 @@ func WithScheduledTask(botType BotType, task ScheduledTask) RunnerOption {
 	}
 }
 
-// WithAlerter creates RunnerOperation with given Alerter.
+// WithAlerter creates RunnerOperation that feeds given Alerter implementation to Runner.
 func WithAlerter(alerter Alerter) RunnerOption {
 	return func(runner *Runner) error {
 		runner.alerters.appendAlerter(alerter)
@@ -174,7 +176,7 @@ func WithAlerter(alerter Alerter) RunnerOption {
 	}
 }
 
-// WithWorker creates RunnerOperation with given Worker implementation.
+// WithWorker creates RunnerOperation that feeds given Worker implementation to Runner.
 // If no WithWorker is supplied, Runner creates worker with default configuration on Runner.Run.
 func WithWorker(worker workers.Worker) RunnerOption {
 	return func(runner *Runner) error {
@@ -249,11 +251,11 @@ func (runner *Runner) Run(ctx context.Context) {
 			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
 		}
 
-		// Build commands with stashed CommandProps
+		// Build commands with stashed CommandProps.
 		commandProps := runner.botCommandProps(botType)
 		registerCommands(bot, commandProps, configDir)
 
-		// supervise configuration files' directory for commands
+		// Supervise configuration files' directory for commands.
 		if configDir != "" {
 			callback := commandUpdaterFunc(bot, commandProps)
 			err := watcher.watch(botCtx, botType, configDir, callback)
@@ -267,7 +269,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		taskProps := runner.botScheduledTaskProps(botType)
 		registerScheduledTasks(botCtx, bot, tasks, taskProps, taskScheduler, configDir)
 
-		// supervise configuration files' directory for scheduled tasks
+		// Supervise configuration files' directory for scheduled tasks.
 		if configDir != "" {
 			callback := scheduledTaskUpdaterFunc(botCtx, bot, taskProps, taskScheduler)
 			err := watcher.watch(botCtx, botType, configDir, callback)
@@ -416,7 +418,7 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 		dest := res.Destination
 		if dest == nil {
 			// If no destination is given, see if default destination exists.
-			// Useful when destination can be determined prior.
+			// Useful when destination can be preset.
 			// e.g. Weather forecast task always sends weather information to #goodmorning room.
 			presetDest := task.DefaultDestination()
 			if presetDest == nil {
@@ -437,7 +439,7 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters *alerter
 
 	// Run a goroutine that supervises Bot's critical state.
 	// If critical error is sent from Bot, this cancels Bot context to finish its lifecycle.
-	// Bot itself MUST not kill itself, but the Runner does. Beware that Runner takes care of all related components' lifecycle.
+	// Bot itself MUST NOT kill itself, but the Runner does. Beware that Runner takes care of all related components' lifecycle.
 	activated := make(chan struct{})
 	go func() {
 		signalVal := struct{}{} // avoid multiple construction
@@ -458,14 +460,14 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters *alerter
 					}
 
 					// Doesn't require return statement at this point.
-					// Call to cancel() causes Bot context cancellation, and hence below botCtx.Done block works.
+					// Call to cancel() causes Bot context cancellation, and hence below botCtx.Done case works.
 					// Until then let this case statement listen to other errors during Bot stopping stage, so that desired logging may work.
 				}
 
 			case <-botCtx.Done():
-				// Since the cancel() is locally stored in this botSupervisor function and is completely handled inside of this function,
-				// but botCtx can also be cancelled by upper level context: runner context.
-				// So be sure to subscribe to botCtx.Done()
+				// The context.CancelFunc is locally stored in this goroutine and is completely under control,
+				// but botCtx can also be cancelled by upper level context, runner context.
+				// So be sure to subscribe to botCtx.Done().
 				log.Infof("stop supervising bot critical error due to context cancelation: %s.", botType.String())
 				return
 			}
@@ -479,7 +481,7 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters *alerter
 	// Instead of simply returning a channel to receive error, return a function that receive error.
 	// This function takes care of channel blocking, so the calling Bot implementation does not have to worry about it.
 	errNotifier := func(err error) {
-		// Try notifying critical error state to runner, gives up if the runner is already stopping the corresponding Bot.
+		// Try notifying critical error state, but give up if the corresponding Bot is already stopped or is being stopped.
 		// This may occur when multiple parts of Bot/Adapter are notifying critical state and the first one caused Bot stop.
 		select {
 		case errCh <- err:
