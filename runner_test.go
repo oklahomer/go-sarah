@@ -17,6 +17,19 @@ func (w *DummyWorker) Enqueue(fnc func()) error {
 	return w.EnqueueFunc(fnc)
 }
 
+type DummyWatcher struct {
+	SubscribeFunc   func(string, string, func(string)) error
+	UnsubscribeFunc func(string) error
+}
+
+func (w *DummyWatcher) Subscribe(group string, path string, callback func(string)) error {
+	return w.SubscribeFunc(group, path, callback)
+}
+
+func (w *DummyWatcher) Unsubscribe(group string) error {
+	return w.UnsubscribeFunc(group)
+}
+
 func TestNewConfig(t *testing.T) {
 	config := NewConfig()
 	if config == nil {
@@ -216,6 +229,16 @@ func TestWithWorker(t *testing.T) {
 	}
 }
 
+func TestWithWatcher(t *testing.T) {
+	watcher := &DummyWatcher{}
+	runner := &Runner{}
+	WithWatcher(watcher)(runner)
+
+	if runner.watcher != watcher {
+		t.Fatal("Given watcher is not set.")
+	}
+}
+
 func TestWithScheduledTaskProps(t *testing.T) {
 	var botType BotType = "dummy"
 	props := &ScheduledTaskProps{
@@ -333,6 +356,19 @@ func TestRunner_Run(t *testing.T) {
 				&DummyScheduledTask{ScheduleValue: "@every 1m"},
 			},
 		},
+		watcher: &DummyWatcher{
+			SubscribeFunc: func(_ string, _ string, _ func(string)) error {
+				return nil
+			},
+			UnsubscribeFunc: func(_ string) error {
+				return nil
+			},
+		},
+		worker: &DummyWorker{
+			EnqueueFunc: func(fnc func()) error {
+				return nil
+			},
+		},
 	}
 
 	// Let it run
@@ -361,6 +397,90 @@ func TestRunner_Run(t *testing.T) {
 		// O.K.
 	case <-time.NewTimer(10 * time.Second).C:
 		t.Error("Runner is not finished.")
+	}
+}
+
+func TestRunner_Run_WithPluginConfigRoot(t *testing.T) {
+	config := &Config{
+		PluginConfigRoot: "dummy/config",
+		TimeZone:         time.Now().Location().String(),
+	}
+
+	var botType BotType = "bot"
+	bot := &DummyBot{
+		BotTypeValue: botType,
+		RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {
+			return
+		},
+	}
+
+	subscribeCh := make(chan struct{}, 2)
+	runner := &Runner{
+		config:            config,
+		bots:              []Bot{bot},
+		commandProps:      map[BotType][]*CommandProps{},
+		scheduledTaskPrps: map[BotType][]*ScheduledTaskProps{},
+		scheduledTasks:    map[BotType][]ScheduledTask{},
+		watcher: &DummyWatcher{
+			SubscribeFunc: func(_ string, _ string, _ func(string)) error {
+				subscribeCh <- struct{}{}
+				return errors.New("this error should not cause fatal state")
+			},
+			UnsubscribeFunc: func(_ string) error {
+				return errors.New("this error also should not cause fatal state")
+			},
+		},
+		worker: &DummyWorker{},
+	}
+
+	// Let it run
+	rootCtx := context.Background()
+	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
+	go runner.Run(runnerCtx)
+
+	// Wait till all setup is done.
+	time.Sleep(1 * time.Second)
+	cancelRunner()
+
+	// Watcher.Subscribe should be called for both Command and ScheduledTask
+	for range make([]int, 2) {
+		select {
+		case <-subscribeCh:
+			// O.K.
+		case <-time.NewTimer(10 * time.Second).C:
+			t.Error("Watcher.Subscribe is not called.")
+		}
+	}
+}
+
+func TestRunner_Run_Minimal(t *testing.T) {
+	config := &Config{
+		PluginConfigRoot: "/",
+		TimeZone:         time.Now().Location().String(),
+	}
+	runner := &Runner{
+		config:            config,
+		bots:              []Bot{},
+		commandProps:      map[BotType][]*CommandProps{},
+		scheduledTaskPrps: map[BotType][]*ScheduledTaskProps{},
+		scheduledTasks:    map[BotType][]ScheduledTask{},
+		watcher:           nil,
+		worker:            nil,
+	}
+
+	// Let it run
+	rootCtx := context.Background()
+	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
+	defer cancelRunner()
+
+	runner.Run(runnerCtx)
+
+	if runner.watcher == nil {
+		t.Error("Default watcher is not set.")
+	}
+
+	if runner.worker == nil {
+		t.Error("Default worker is not set.")
 	}
 }
 

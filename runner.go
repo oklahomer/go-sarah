@@ -3,6 +3,7 @@ package sarah
 import (
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
+	"github.com/oklahomer/go-sarah/watchers"
 	"github.com/oklahomer/go-sarah/workers"
 	"golang.org/x/net/context"
 	"path/filepath"
@@ -39,6 +40,7 @@ type Runner struct {
 	config            *Config
 	bots              []Bot
 	worker            workers.Worker
+	watcher           watchers.Watcher
 	commandProps      map[BotType][]*CommandProps
 	scheduledTaskPrps map[BotType][]*ScheduledTaskProps
 	scheduledTasks    map[BotType][]ScheduledTask
@@ -185,6 +187,15 @@ func WithWorker(worker workers.Worker) RunnerOption {
 	}
 }
 
+// WithWatcher creates RunnerOption that feeds given Watcher implementation to Runner.
+// If Config.PluginConfigRoot is set without WithWatcher option, Runner creates Watcher with default configuration on Runner.Run.
+func WithWatcher(watcher watchers.Watcher) RunnerOption {
+	return func(runner *Runner) error {
+		runner.watcher = watcher
+		return nil
+	}
+}
+
 func (runner *Runner) botCommandProps(botType BotType) []*CommandProps {
 	if props, ok := runner.commandProps[botType]; ok {
 		return props
@@ -218,16 +229,20 @@ func (runner *Runner) Run(ctx context.Context) {
 		runner.worker = w
 	}
 
+	if runner.config.PluginConfigRoot != "" && runner.watcher == nil {
+		w, e := watchers.Run(ctx)
+		if e != nil {
+			panic(fmt.Sprintf("watcher could not run: %s", e.Error()))
+		}
+
+		runner.watcher = w
+	}
+
 	loc, locErr := time.LoadLocation(runner.config.TimeZone)
 	if locErr != nil {
 		panic(fmt.Sprintf("given timezone can't be converted to time.Location: %s", locErr.Error()))
 	}
 	taskScheduler := runScheduler(ctx, loc)
-
-	watcher, err := runConfigWatcher(ctx)
-	if err != nil {
-		panic(fmt.Sprintf("failed to run watcher: %s.", err.Error()))
-	}
 
 	var wg sync.WaitGroup
 	for _, bot := range runner.bots {
@@ -258,7 +273,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		// Supervise configuration files' directory for commands.
 		if configDir != "" {
 			callback := commandUpdaterFunc(bot, commandProps)
-			err := watcher.watch(botCtx, botType, configDir, callback)
+			err := runner.watcher.Subscribe(botType.String(), configDir, callback)
 			if err != nil {
 				log.Errorf("failed to watch %s: %s", configDir, err.Error())
 			}
@@ -272,7 +287,7 @@ func (runner *Runner) Run(ctx context.Context) {
 		// Supervise configuration files' directory for scheduled tasks.
 		if configDir != "" {
 			callback := scheduledTaskUpdaterFunc(botCtx, bot, taskProps, taskScheduler)
-			err := watcher.watch(botCtx, botType, configDir, callback)
+			err := runner.watcher.Subscribe(botType.String(), configDir, callback)
 			if err != nil {
 				log.Errorf("failed to watch %s: %s", configDir, err.Error())
 			}
@@ -282,6 +297,14 @@ func (runner *Runner) Run(ctx context.Context) {
 			select {
 			case <-c.Done():
 				wg.Done()
+
+				// When Bot stops, stop subscription for config file changes.
+				err := runner.watcher.Unsubscribe(bot.BotType().String())
+				if err != nil {
+					// Probably because Runner context is canceled, and its derived contexts are canceled simultaneously.
+					// In that case this warning is harmless since Watcher itself is canceled at this point.
+					log.Warnf("Failed to unsubscribe %s", err.Error())
+				}
 			}
 		}(botCtx)
 	}
