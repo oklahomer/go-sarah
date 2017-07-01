@@ -400,9 +400,64 @@ func TestRunner_Run(t *testing.T) {
 	}
 }
 
+func TestRunner_Run_WithPluginConfigRoot(t *testing.T) {
+	config := &Config{
+		PluginConfigRoot: "dummy/config",
+		TimeZone:         time.Now().Location().String(),
+	}
+
+	var botType BotType = "bot"
+	bot := &DummyBot{
+		BotTypeValue: botType,
+		RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {
+			return
+		},
+	}
+
+	subscribeCh := make(chan struct{}, 2)
+	runner := &Runner{
+		config:            config,
+		bots:              []Bot{bot},
+		commandProps:      map[BotType][]*CommandProps{},
+		scheduledTaskPrps: map[BotType][]*ScheduledTaskProps{},
+		scheduledTasks:    map[BotType][]ScheduledTask{},
+		watcher: &DummyWatcher{
+			SubscribeFunc: func(_ string, _ string, _ func(string)) error {
+				subscribeCh <- struct{}{}
+				return errors.New("this error should not cause fatal state")
+			},
+			UnsubscribeFunc: func(_ string) error {
+				return errors.New("this error also should not cause fatal state")
+			},
+		},
+		worker: &DummyWorker{},
+	}
+
+	// Let it run
+	rootCtx := context.Background()
+	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
+	go runner.Run(runnerCtx)
+
+	// Wait till all setup is done.
+	time.Sleep(1 * time.Second)
+	cancelRunner()
+
+	// Watcher.Subscribe should be called for both Command and ScheduledTask
+	for range make([]int, 2) {
+		select {
+		case <-subscribeCh:
+			// O.K.
+		case <-time.NewTimer(10 * time.Second).C:
+			t.Error("Watcher.Subscribe is not called.")
+		}
+	}
+}
+
 func TestRunner_Run_Minimal(t *testing.T) {
-	config := NewConfig()
-	config.PluginConfigRoot = "/"
+	config := &Config{
+		PluginConfigRoot: "/",
+		TimeZone:         time.Now().Location().String(),
+	}
 	runner := &Runner{
 		config:            config,
 		bots:              []Bot{},
