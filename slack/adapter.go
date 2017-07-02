@@ -189,9 +189,9 @@ func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) 
 			// No more interaction follows.
 			return
 		}
-		log.Error(connErr.Error())
-	}
 
+		log.Errorf("Will try re-connection due to previous connection's fatal state: %s.", connErr.Error())
+	}
 }
 
 func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSender rtmapi.PayloadSender, tryPing chan struct{}) error {
@@ -202,23 +202,26 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 		select {
 		case <-connCtx.Done():
 			return nil
+
 		case message := <-adapter.messageQueue:
 			if err := payloadSender.Send(message.channel, message.text); err != nil {
 				// Try ping right away when Send() returns error so that following messages stay in the queue
 				// while connection status is checked with ping message and optionally reconnect
 				if pingErr := payloadSender.Ping(); pingErr != nil {
 					// Reconnection requested.
-					return pingErr
+					return fmt.Errorf("error on ping: %s", pingErr.Error())
 				}
 			}
+
 		case <-ticker.C:
 			nonBlockSignal(pingSignalChannelID, tryPing)
+
 		case <-tryPing:
-			log.Debug("send ping")
+			log.Debug("Send ping")
 			if err := payloadSender.Ping(); err != nil {
-				log.Errorf("error on ping: %#v.", err.Error())
-				return err
+				return fmt.Errorf("error on ping: %s", err.Error())
 			}
+
 		}
 	}
 }
@@ -307,9 +310,12 @@ func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayl
 func nonBlockSignal(id string, target chan<- struct{}) {
 	select {
 	case target <- struct{}{}:
+		// O.K
+
 	default:
 		// couldn't send because no goroutine is receiving channel or is busy.
 		log.Infof("not sending signal to channel: %s", id)
+
 	}
 }
 
@@ -370,6 +376,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 
 	default:
 		log.Warnf("unexpected output %#v", output)
+
 	}
 }
 
