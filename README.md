@@ -125,7 +125,7 @@ var CustomizedProps = sarah.NewCommandPropsBuilder().
 // Runner detects the change and re-build the Command with updated configuration struct.
 func Configurable(config sarah.CommandConfig) *sarah.CommandProps {
         return sarah.NewCommandPropsBuilder().
-                ConfigurableFunc(config, func(_ context, input sarah.Input, conf sarah.CommandConfig) (*sarah.CommandResponse, error) {
+                ConfigurableFunc(config, func(_ context.Context, input sarah.Input, conf sarah.CommandConfig) (*sarah.CommandResponse, error) {
                         return nil, nil
                 }).
                 // Call some other setter methods to do the rest.
