@@ -3,7 +3,6 @@ package slack
 import (
 	"errors"
 	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/retry"
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
@@ -156,82 +155,459 @@ func TestAdapter_BotType(t *testing.T) {
 	}
 }
 
-func TestAdapter_startRTMSession_WithError(t *testing.T) {
-	client := &DummyClient{
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
-			return nil, errors.New("connection error")
+func TestAdapter_superviseConnection(t *testing.T) {
+	send := make(chan struct{}, 1)
+	ping := make(chan struct{}, 1)
+	conn := &DummyConnection{
+		SendFunc: func(_ slackobject.ChannelID, _ string) error {
+			send <- struct{}{}
+			return nil
+		},
+		PingFunc: func() error {
+			select {
+			case ping <- struct{}{}:
+			default:
+				// Duplicate entry. Just ignore.
+			}
+			return nil
 		},
 	}
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
 
-	retrialCnt := 3
-	rtmStart, err := startRTMSession(context.TODO(), client, uint(retrialCnt), time.Duration(0))
-
-	if err == nil {
-		t.Fatal("Expected error is not returned.")
+	pingInterval := 10 * time.Millisecond
+	adapter := &Adapter{
+		config: &Config{
+			PingInterval: pingInterval,
+		},
+		messageQueue: make(chan *textMessage, 1),
 	}
 
-	if e, ok := err.(*retry.Errors); ok {
-		if len(*e) != retrialCnt {
-			t.Errorf("# of error should be equal to that of retrial: %d.", len(*e))
+	conErr := make(chan error)
+	go func() {
+		err := adapter.superviseConnection(ctx, conn, make(chan struct{}, 1))
+		conErr <- err
+	}()
+
+	adapter.messageQueue <- &textMessage{
+		channel: "dummy",
+		text:    "Hello, 世界",
+	}
+
+	time.Sleep(pingInterval + 10*time.Millisecond) // Give long enough time to check ping.
+
+	cancel()
+	select {
+	case <-send:
+		// O.K.
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Connection.Send was not called.")
+	}
+
+	select {
+	case <-ping:
+		// O.K.
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Connection.Ping was not called.")
+	}
+
+	select {
+	case err := <-conErr:
+		if err != nil {
+			t.Errorf("Unexpected error was returned: %s.", err.Error())
 		}
 
-	} else {
-		t.Fatalf("Returned error is not instance of retry.Errors: %#v.", err)
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Context was canceled, but superviseConnection did not return.")
 
-	}
-
-	if rtmStart != nil {
-		t.Errorf("RTMStart instant should not be returned: %#v.", rtmStart)
 	}
 }
 
-func TestAdapter_startRTMSession(t *testing.T) {
-	client := &DummyClient{
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
-			return &webapi.RTMStart{}, nil
+func TestAdapter_superviseConnection_ConnectionPingError(t *testing.T) {
+	conn := &DummyConnection{
+		PingFunc: func() error {
+			return errors.New("ping error")
 		},
 	}
 
-	rtmStart, err := startRTMSession(context.TODO(), client, 3, time.Duration(0))
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	pingInterval := 10 * time.Millisecond
+	adapter := &Adapter{
+		config: &Config{
+			PingInterval: pingInterval,
+		},
 	}
 
-	if rtmStart == nil {
-		t.Fatal("RTMStart instance should be returned.")
+	conErr := make(chan error)
+	go func() {
+		err := adapter.superviseConnection(context.TODO(), conn, make(chan struct{}, 1))
+		conErr <- err
+	}()
+
+	time.Sleep(pingInterval + 10*time.Millisecond) // Give long enough time to check ping.
+
+	select {
+	case err := <-conErr:
+		if err == nil {
+			t.Error("Expected error is not returned.")
+		}
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Error is not returned.")
 	}
 }
 
-func TestAdapter_connectRTM_WithError(t *testing.T) {
+func TestAdapter_superviseConnection_ConnectionSendError(t *testing.T) {
+	conn := &DummyConnection{
+		SendFunc: func(_ slackobject.ChannelID, _ string) error {
+			return errors.New("send error")
+		},
+		PingFunc: func() error {
+			return errors.New("ping error")
+		},
+	}
+
+	adapter := &Adapter{
+		config: &Config{
+			PingInterval: 100 * time.Second, // not for scheduled ping test
+		},
+		messageQueue: make(chan *textMessage),
+	}
+
+	conErr := make(chan error)
+	go func() {
+		err := adapter.superviseConnection(context.TODO(), conn, make(chan struct{}, 1))
+		conErr <- err
+	}()
+
+	adapter.messageQueue <- &textMessage{
+		channel: "dummy",
+		text:    "Hello, 世界",
+	}
+
+	// Connection.Send error should trigger Connection.Ping, and Connection.Ping error triggers supervise failure.
+	select {
+	case err := <-conErr:
+		if err == nil {
+			t.Error("Expected error is not returned.")
+		}
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Error is not returned.")
+	}
+}
+
+func TestAdapter_receivePayload(t *testing.T) {
+	given := make(chan struct{})
+	adapter := &Adapter{
+		payloadHandler: func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {
+			given <- struct{}{}
+		},
+	}
+
+	conn := &DummyConnection{
+		ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
+			return struct{}{}, nil
+		},
+	}
+
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+	defer cancel()
+
+	go adapter.receivePayload(ctx, conn, make(chan struct{}), func(_ sarah.Input) error { return nil })
+
+	select {
+	case <-given:
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("PayloadHandler is not called.")
+	}
+}
+
+func TestAdapter_receivePayload_Error(t *testing.T) {
+	adapter := &Adapter{
+		payloadHandler: func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {
+			t.Fatal("PayloadHandler should not be called.")
+		},
+	}
+
+	i := 0
+	errs := []error{
+		rtmapi.ErrEmptyPayload,
+		rtmapi.NewMalformedPayloadError("dummy"),
+		errors.New("random error"),
+	}
+	conn := &DummyConnection{
+		ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
+			if i < len(errs) {
+				err := errs[i]
+				i++
+				return nil, err
+			}
+
+			i++
+			return nil, nil
+		},
+	}
+
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+	defer cancel()
+
+	go adapter.receivePayload(ctx, conn, make(chan struct{}), func(_ sarah.Input) error { return nil })
+
+	time.Sleep(100 * time.Millisecond) // Give long enough time to receive all errors.
+}
+
+func TestAdapter_Run(t *testing.T) {
+	closeCh := make(chan struct{})
+	conn := &DummyConnection{
+		ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
+			return nil, nil
+		},
+		CloseFunc: func() error {
+			closeCh <- struct{}{}
+			return nil
+		},
+	}
+
 	client := &DummyClient{
+		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
+			return &webapi.RTMStart{
+				URL: "ws://localhost/dummy",
+			}, nil
+		},
 		ConnectRTMFunc: func(_ context.Context, _ string) (rtmapi.Connection, error) {
-			return nil, errors.New("connection error.")
+			return conn, nil
 		},
 	}
-	rtmStart := &webapi.RTMStart{
-		URL: "http://localhsot/",
+
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+
+	adapter := &Adapter{
+		config: &Config{
+			PingInterval:  100 * time.Second,
+			RetryInterval: 1 * time.Millisecond,
+			RetryLimit:    1,
+		},
+		client: client,
 	}
 
-	retrialCnt := 3
-	conn, err := connectRTM(context.TODO(), client, rtmStart, uint(retrialCnt), time.Duration(0))
+	go adapter.Run(
+		ctx,
+		func(_ sarah.Input) error {
+			return nil
+		},
+		func(err error) {
+			t.Fatalf("Unexpected errr is returned: %s.", err.Error())
+		},
+	)
 
-	if err == nil {
-		t.Fatal("Expected error is not returned.")
+	time.Sleep(100 * time.Millisecond)
+
+	cancel()
+
+	select {
+	case <-closeCh:
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Adapter.Close was not called after Context cancellation.")
+	}
+}
+
+func TestAdapter_Run_ConnectionInitializationError(t *testing.T) {
+	client := &DummyClient{
+		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
+			return nil, errors.New("failed to fetch RTM information")
+		},
 	}
 
-	if e, ok := err.(*retry.Errors); ok {
-		if len(*e) != retrialCnt {
-			t.Errorf("# of error should be equal to that of retrial: %d.", len(*e))
-		}
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
 
-	} else {
-		t.Fatalf("Returned error is not instance of retry.Errors: %#v.", err)
-
+	adapter := &Adapter{
+		config: &Config{
+			RetryInterval: 1 * time.Millisecond,
+			RetryLimit:    1,
+		},
+		client: client,
 	}
 
-	if conn != nil {
-		t.Errorf("Connection instant should not be returned: %#v.", conn)
+	errCh := make(chan error)
+	go adapter.Run(
+		ctx,
+		func(_ sarah.Input) error {
+			return nil
+		},
+		func(err error) {
+			errCh <- err
+		},
+	)
+
+	time.Sleep(100 * time.Millisecond)
+
+	cancel()
+
+	select {
+	case <-errCh:
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Expected error did not occur.")
+	}
+}
+
+func TestAdapter_Run_ConnectionAbortionError(t *testing.T) {
+	closeCh := make(chan struct{})
+	conn := &DummyConnection{
+		PingFunc: func() error {
+			return errors.New("ping error")
+		},
+		ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
+			return nil, errors.New("message reception error")
+		},
+		CloseFunc: func() error {
+			closeCh <- struct{}{}
+			return nil
+		},
+	}
+
+	client := &DummyClient{
+		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
+			return &webapi.RTMStart{
+				URL: "ws://localhost/dummy",
+			}, nil
+		},
+		ConnectRTMFunc: func(_ context.Context, _ string) (rtmapi.Connection, error) {
+			return conn, nil
+		},
+	}
+
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+
+	adapter := &Adapter{
+		config: &Config{
+			PingInterval:  100 * time.Second,
+			RetryInterval: 1 * time.Millisecond,
+			RetryLimit:    1,
+		},
+		client: client,
+	}
+
+	go adapter.Run(
+		ctx,
+		func(_ sarah.Input) error {
+			return nil
+		},
+		func(err error) {
+			t.Fatalf("Unexpected errr is returned: %s.", err.Error())
+		},
+	)
+
+	time.Sleep(100 * time.Millisecond)
+
+	cancel()
+
+	select {
+	case <-closeCh:
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Adapter.Close was not called after Context cancellation.")
+	}
+}
+
+func TestAdapter_SendMessage_String(t *testing.T) {
+	adapter := &Adapter{
+		messageQueue: make(chan *textMessage, 1),
+	}
+
+	output := sarah.NewOutputMessage(slackobject.ChannelID("ch"), "test")
+	adapter.SendMessage(context.TODO(), output)
+	select {
+	case <-adapter.messageQueue:
+		// O.K.
+	default:
+		t.Fatalf("Valid output was not enqueued.")
+	}
+
+	invalid := sarah.NewOutputMessage("invalid", "test")
+	adapter.SendMessage(context.TODO(), invalid)
+	select {
+	case <-adapter.messageQueue:
+		t.Fatalf("Invalid output was enqueued.")
+	default:
+		// O.K.
+	}
+}
+
+func TestAdapter_SendMessage_PostMessage(t *testing.T) {
+	called := false
+	adapter := &Adapter{
+		client: &DummyClient{
+			PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
+				called = true
+				return nil, errors.New("post error") // Should not cause panic.
+			},
+		},
+	}
+
+	postMessage := webapi.NewPostMessage("channelID", "test")
+	output := sarah.NewOutputMessage(slackobject.ChannelID("ch"), postMessage)
+	adapter.SendMessage(context.TODO(), output)
+
+	if !called {
+		t.Fatal("Client.PostMessage is not called.")
+	}
+}
+
+func TestAdapter_SendMessage_CommandHelps(t *testing.T) {
+	called := false
+	adapter := &Adapter{
+		client: &DummyClient{
+			PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
+				called = true
+				return nil, errors.New("post error") // Should not cause panic.
+			},
+		},
+	}
+
+	helps := &sarah.CommandHelps{
+		&sarah.CommandHelp{
+			Identifier:   "id",
+			InputExample: ".help",
+		},
+	}
+
+	invalid := sarah.NewOutputMessage("invalidID", helps)
+	adapter.SendMessage(context.TODO(), invalid)
+	if called {
+		t.Fatal("Invalid output reached Client.PostMessage.")
+	}
+
+	adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(slackobject.ChannelID("test"), helps))
+	if !called {
+		t.Fatal("Client.PostMessage is not called.")
+	}
+}
+
+func TestAdapter_SendMessage_IrrelevantType(t *testing.T) {
+	postMessageCalled := false
+	adapter := &Adapter{
+		messageQueue: make(chan *textMessage, 1),
+		client: &DummyClient{
+			PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
+				postMessageCalled = true
+				return nil, errors.New("post error") // Should not cause panic.
+			},
+		},
+	}
+
+	adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(slackobject.ChannelID("validID"), struct{}{}))
+
+	if postMessageCalled {
+		t.Fatal("Invalid content reached Client.PostMessage")
+	}
+
+	select {
+	case <-adapter.messageQueue:
+		t.Fatal("Invalid content is sent as String.")
+	case <-time.NewTimer(100 * time.Millisecond).C:
+		// O.K.
 	}
 }
 
@@ -276,24 +652,57 @@ func TestMessageInput(t *testing.T) {
 	}
 }
 
-func TestAdapter_connectRTM(t *testing.T) {
+func TestAdapter_connect(t *testing.T) {
 	client := &DummyClient{
 		ConnectRTMFunc: func(_ context.Context, _ string) (rtmapi.Connection, error) {
 			return &DummyConnection{}, nil
 		},
-	}
-	rtmStart := &webapi.RTMStart{
-		URL: "http://localhsot/",
+		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
+			return &webapi.RTMStart{}, nil
+		},
 	}
 
-	conn, err := connectRTM(context.TODO(), client, rtmStart, 3, time.Duration(0))
+	adapter := &Adapter{
+		config: &Config{
+			RetryInterval: 1 * time.Millisecond,
+			RetryLimit:    1,
+		},
+		client: client,
+	}
 
+	conn, err := adapter.connect(context.TODO())
 	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
 
 	if conn == nil {
-		t.Fatal("Connection instance should be returned.")
+		t.Error("Connection is not returned.")
+	}
+}
+
+func TestAdapter_connect_error(t *testing.T) {
+	expected := errors.New("expected error")
+	client := &DummyClient{
+		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
+			return nil, expected
+		},
+	}
+
+	adapter := &Adapter{
+		config: &Config{
+			RetryInterval: 1 * time.Millisecond,
+			RetryLimit:    1,
+		},
+		client: client,
+	}
+
+	conn, err := adapter.connect(context.TODO())
+	if err == nil {
+		t.Fatal("Unexpected error is not returned.")
+	}
+
+	if conn != nil {
+		t.Fatal("Connection should not be returned.")
 	}
 }
 

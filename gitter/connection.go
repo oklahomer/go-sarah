@@ -77,7 +77,7 @@ func decodePayload(payload []byte) (*Message, error) {
 
 	message := &Message{}
 	if err := json.Unmarshal(payload, message); err != nil {
-		return nil, NewMalformedPayloadError(string(payload))
+		return nil, NewMalformedPayloadError(err.Error())
 	}
 
 	return message, nil
