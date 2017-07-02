@@ -228,12 +228,24 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 
 // connect fetches WebSocket endpoint information via Rest API and establishes WebSocket connection.
 func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) {
-	rtmSession, err := startRTMSession(ctx, adapter.client, adapter.config.RetryLimit, adapter.config.RetryInterval)
+	// Get RTM session via Web API.
+	var rtmStart *webapi.RTMStart
+	err := retry.WithInterval(adapter.config.RetryLimit, func() (e error) {
+		rtmStart, e = adapter.client.StartRTMSession(ctx)
+		return e
+	}, adapter.config.RetryInterval)
 	if err != nil {
 		return nil, err
 	}
 
-	return connectRTM(ctx, adapter.client, rtmSession, adapter.config.RetryLimit, adapter.config.RetryInterval)
+	// Establish WebSocket connection with given RTM session.
+	var conn rtmapi.Connection
+	err = retry.WithInterval(adapter.config.RetryLimit, func() (e error) {
+		conn, e = adapter.client.ConnectRTM(ctx, rtmStart.URL)
+		return e
+	}, adapter.config.RetryInterval)
+
+	return conn, err
 }
 
 func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver rtmapi.PayloadReceiver, tryPing chan<- struct{}, enqueueInput func(sarah.Input) error) {
@@ -380,28 +392,6 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	}
 }
 
-// startRTMSession starts Real Time Messaging session and returns initial state.
-func startRTMSession(ctx context.Context, starter RTMSessionStarter, retrial uint, interval time.Duration) (*webapi.RTMStart, error) {
-	var rtmStart *webapi.RTMStart
-	err := retry.WithInterval(retrial, func() (e error) {
-		rtmStart, e = starter.StartRTMSession(ctx)
-		return e
-	}, interval)
-
-	return rtmStart, err
-}
-
-// connectRTM establishes WebSocket connection with retries.
-func connectRTM(ctx context.Context, connector RTMConnector, rtm *webapi.RTMStart, retrial uint, interval time.Duration) (rtmapi.Connection, error) {
-	var conn rtmapi.Connection
-	err := retry.WithInterval(retrial, func() (e error) {
-		conn, e = connector.ConnectRTM(ctx, rtm.URL)
-		return e
-	}, interval)
-
-	return conn, err
-}
-
 // MessageInput satisfies Input interface
 type MessageInput struct {
 	event *rtmapi.Message
@@ -478,22 +468,7 @@ func NewPostMessageResponseWithNext(input sarah.Input, message string, attachmen
 
 // SlackClient is an interface that covers golack's public methods.
 type SlackClient interface {
-	RTMSessionStarter
-	RTMConnector
-	MessagePoster
-}
-
-// RTMSessionStarter is an interface that is used to ease web API tests with retrials.
-type RTMSessionStarter interface {
 	StartRTMSession(context.Context) (*webapi.RTMStart, error)
-}
-
-// RTMConnector is an interface that is used to ease connection tests with retrials
-type RTMConnector interface {
 	ConnectRTM(context.Context, string) (rtmapi.Connection, error)
-}
-
-// MessagePoster is an interface that is used to ease API posting tests
-type MessagePoster interface {
 	PostMessage(context.Context, *webapi.PostMessage) (*webapi.APIResponse, error)
 }

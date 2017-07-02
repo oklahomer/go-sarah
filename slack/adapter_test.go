@@ -3,7 +3,6 @@ package slack
 import (
 	"errors"
 	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/retry"
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
@@ -153,85 +152,6 @@ func TestAdapter_BotType(t *testing.T) {
 
 	if adapter.BotType() != SLACK {
 		t.Errorf("Unexpected BotType is returned: %s.", adapter.BotType())
-	}
-}
-
-func TestAdapter_startRTMSession_WithError(t *testing.T) {
-	client := &DummyClient{
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
-			return nil, errors.New("connection error")
-		},
-	}
-
-	retrialCnt := 3
-	rtmStart, err := startRTMSession(context.TODO(), client, uint(retrialCnt), time.Duration(0))
-
-	if err == nil {
-		t.Fatal("Expected error is not returned.")
-	}
-
-	if e, ok := err.(*retry.Errors); ok {
-		if len(*e) != retrialCnt {
-			t.Errorf("# of error should be equal to that of retrial: %d.", len(*e))
-		}
-
-	} else {
-		t.Fatalf("Returned error is not instance of retry.Errors: %#v.", err)
-
-	}
-
-	if rtmStart != nil {
-		t.Errorf("RTMStart instant should not be returned: %#v.", rtmStart)
-	}
-}
-
-func TestAdapter_startRTMSession(t *testing.T) {
-	client := &DummyClient{
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
-			return &webapi.RTMStart{}, nil
-		},
-	}
-
-	rtmStart, err := startRTMSession(context.TODO(), client, 3, time.Duration(0))
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if rtmStart == nil {
-		t.Fatal("RTMStart instance should be returned.")
-	}
-}
-
-func TestAdapter_connectRTM_WithError(t *testing.T) {
-	client := &DummyClient{
-		ConnectRTMFunc: func(_ context.Context, _ string) (rtmapi.Connection, error) {
-			return nil, errors.New("connection error.")
-		},
-	}
-	rtmStart := &webapi.RTMStart{
-		URL: "http://localhsot/",
-	}
-
-	retrialCnt := 3
-	conn, err := connectRTM(context.TODO(), client, rtmStart, uint(retrialCnt), time.Duration(0))
-
-	if err == nil {
-		t.Fatal("Expected error is not returned.")
-	}
-
-	if e, ok := err.(*retry.Errors); ok {
-		if len(*e) != retrialCnt {
-			t.Errorf("# of error should be equal to that of retrial: %d.", len(*e))
-		}
-
-	} else {
-		t.Fatalf("Returned error is not instance of retry.Errors: %#v.", err)
-
-	}
-
-	if conn != nil {
-		t.Errorf("Connection instant should not be returned: %#v.", conn)
 	}
 }
 
@@ -729,27 +649,6 @@ func TestMessageInput(t *testing.T) {
 
 	if input.SentAt() != timestamp {
 		t.Errorf("Unexpected SentAt is returned: %s.", input.SentAt().String())
-	}
-}
-
-func TestAdapter_connectRTM(t *testing.T) {
-	client := &DummyClient{
-		ConnectRTMFunc: func(_ context.Context, _ string) (rtmapi.Connection, error) {
-			return &DummyConnection{}, nil
-		},
-	}
-	rtmStart := &webapi.RTMStart{
-		URL: "http://localhsot/",
-	}
-
-	conn, err := connectRTM(context.TODO(), client, rtmStart, 3, time.Duration(0))
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if conn == nil {
-		t.Fatal("Connection instance should be returned.")
 	}
 }
 
