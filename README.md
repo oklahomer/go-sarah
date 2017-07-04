@@ -7,11 +7,6 @@ Sarah is a general purpose bot framework named after author's firstborn daughter
 
 While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
 
-# Version
-Sarah is currently at her Pre-Alpha stage, and is under active development. Interfaces are subjects to change without notice.
-
-Author plans to release 1.0 by actual Sarah's birthday, but does not disclose what year it will be.
-
 # Example codes
 Some example codes are located under [./examples](https://github.com/oklahomer/go-sarah/tree/master/examples).
 
