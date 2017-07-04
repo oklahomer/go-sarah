@@ -157,11 +157,15 @@ func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc
 	}
 }
 
+// APIClient is an interface that Rest API client must satisfy.
+// This is mainly defined to ease tests.
 type APIClient interface {
 	Rooms(context.Context) (*Rooms, error)
 	PostMessage(context.Context, *Room, string) (*Message, error)
 }
 
+// StreamingClient is an interface that HTTP Streaming client must satisfy.
+// This is mainly defined to ease tests.
 type StreamingClient interface {
 	Connect(context.Context, *Room) (Connection, error)
 }
