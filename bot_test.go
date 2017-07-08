@@ -107,7 +107,7 @@ func TestDefaultBot_AppendCommand(t *testing.T) {
 	myBot.AppendCommand(command)
 
 	registeredCommands := myBot.commands
-	if len(*registeredCommands) != 1 {
+	if len(registeredCommands.collection) != 1 {
 		t.Errorf("1 registered command should exists: %#v.", registeredCommands)
 	}
 }
@@ -136,8 +136,8 @@ func TestDefaultBot_Respond_StorageAcquisitionError(t *testing.T) {
 
 func TestDefaultBot_Respond_WithCommandError(t *testing.T) {
 	expectedErr := errors.New("expected")
-	myBot := &defaultBot{
-		commands: &Commands{
+	commands := &Commands{
+		collection: []Command{
 			&DummyCommand{
 				MatchFunc: func(_ Input) bool {
 					return true
@@ -147,6 +147,9 @@ func TestDefaultBot_Respond_WithCommandError(t *testing.T) {
 				},
 			},
 		},
+	}
+	myBot := &defaultBot{
+		commands: commands,
 	}
 
 	err := myBot.Respond(context.TODO(), &DummyInput{})
@@ -213,7 +216,7 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 	isSent := false
 	myBot := &defaultBot{
 		userContextStorage: dummyStorage,
-		commands:           &Commands{command},
+		commands:           &Commands{collection: []Command{command}},
 		sendMessageFunc: func(_ context.Context, output Output) {
 			isSent = true
 		},
@@ -330,7 +333,7 @@ func TestDefaultBot_Respond_WithContextStorageSetError(t *testing.T) {
 			sendMessageCalled = true
 		},
 		userContextStorage: dummyStorage,
-		commands:           &Commands{cmd},
+		commands:           &Commands{collection: []Command{cmd}},
 	}
 
 	err := myBot.Respond(context.TODO(), &DummyInput{})
@@ -372,7 +375,7 @@ func TestDefaultBot_Respond_UserContextWithoutStorage(t *testing.T) {
 		sendMessageFunc: func(_ context.Context, output Output) {
 			sendMessageCalled = true
 		},
-		commands:           &Commands{cmd},
+		commands:           &Commands{collection: []Command{cmd}},
 		userContextStorage: nil,
 	}
 
@@ -433,7 +436,7 @@ func TestDefaultBot_Respond_Help(t *testing.T) {
 	}
 	myBot := &defaultBot{
 		userContextStorage: dummyStorage,
-		commands:           &Commands{cmd},
+		commands:           &Commands{collection: []Command{cmd}},
 		sendMessageFunc: func(_ context.Context, output Output) {
 			givenOutput = output
 		},

@@ -11,6 +11,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 var (
@@ -100,28 +101,37 @@ func StripMessage(pattern *regexp.Regexp, input string) string {
 }
 
 // Commands stashes all registered Command.
-type Commands []Command
+type Commands struct {
+	collection []Command
+	mutex      sync.RWMutex
+}
 
 // NewCommands creates and returns new Commands instance.
 func NewCommands() *Commands {
-	return &Commands{}
+	return &Commands{
+		collection: []Command{},
+		mutex:      sync.RWMutex{},
+	}
 }
 
 // Append let developers register new Command to its internal stash.
 // If any command is registered with the same ID, the old one is replaced in favor of new one.
 func (commands *Commands) Append(command Command) {
+	commands.mutex.Lock()
+	defer commands.mutex.Unlock()
+
 	// See if command with the same identifier exists.
-	for i, cmd := range *commands {
+	for i, cmd := range commands.collection {
 		if cmd.Identifier() == command.Identifier() {
 			log.Infof("replacing old command in favor of newly appending one: %s.", command.Identifier())
-			(*commands)[i] = command
+			commands.collection[i] = command
 			return
 		}
 	}
 
 	// Not stored, then append to the last.
 	log.Infof("appending new command: %s.", command.Identifier())
-	*commands = append(*commands, command)
+	commands.collection = append(commands.collection, command)
 }
 
 // FindFirstMatched look for first matching command by calling Command's Match method: First Command.Match to return true
@@ -130,7 +140,10 @@ func (commands *Commands) Append(command Command) {
 // This check is run in the order of Command registration: Earlier the Commands.Append is called, the command is checked
 // earlier. So register important Command first.
 func (commands *Commands) FindFirstMatched(input Input) Command {
-	for _, command := range *commands {
+	commands.mutex.RLock()
+	defer commands.mutex.RUnlock()
+
+	for _, command := range commands.collection {
 		if command.Match(input) {
 			return command
 		}
@@ -151,8 +164,11 @@ func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) 
 
 // Helps returns underlying commands help messages in a form of *CommandHelps.
 func (commands *Commands) Helps() *CommandHelps {
+	commands.mutex.RLock()
+	defer commands.mutex.RUnlock()
+
 	helps := &CommandHelps{}
-	for _, command := range *commands {
+	for _, command := range commands.collection {
 		h := &CommandHelp{
 			Identifier:   command.Identifier(),
 			InputExample: command.InputExample(),

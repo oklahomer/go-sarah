@@ -300,7 +300,7 @@ func TestCommands_FindFirstMatched(t *testing.T) {
 	irrelevantCommand2.MatchFunc = func(_ Input) bool {
 		return false
 	}
-	commands = &Commands{irrelevantCommand, echoCommand, irrelevantCommand2}
+	commands = &Commands{collection: []Command{irrelevantCommand, echoCommand, irrelevantCommand2}}
 
 	matchedCommand = commands.FindFirstMatched(&DummyInput{MessageValue: "echo"})
 	if matchedCommand == nil {
@@ -332,7 +332,7 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 	echoCommand.ExecuteFunc = func(_ context.Context, _ Input) (*CommandResponse, error) {
 		return &CommandResponse{Content: ""}, nil
 	}
-	commands = &Commands{echoCommand}
+	commands = &Commands{collection: []Command{echoCommand}}
 	response, err = commands.ExecuteFirstMatched(context.TODO(), input)
 	if err != nil {
 		t.Errorf("Unexpected error on command execution: %#v.", err)
@@ -361,18 +361,18 @@ func TestCommands_Append(t *testing.T) {
 
 	// First operation
 	commands.Append(command)
-	if len(*commands) == 0 {
+	if len(commands.collection) == 0 {
 		t.Fatal("Provided command was not appended.")
 	}
 
-	if (*commands)[0] != command {
-		t.Fatalf("Appended command is not the one provided: %#v", (*commands)[0])
+	if (commands.collection)[0] != command {
+		t.Fatalf("Appended command is not the one provided: %#v", commands.collection[0])
 	}
 
 	// Second operation with same command
 	commands.Append(command)
-	if len(*commands) != 1 {
-		t.Fatalf("Expected only one command to stay, but was: %d.", len(*commands))
+	if len(commands.collection) != 1 {
+		t.Fatalf("Expected only one command to stay, but was: %d.", len(commands.collection))
 	}
 
 	// Third operation with different command
@@ -380,8 +380,8 @@ func TestCommands_Append(t *testing.T) {
 		IdentifierValue: "second",
 	}
 	commands.Append(anotherCommand)
-	if len(*commands) != 2 {
-		t.Fatalf("Expected 2 commands to stay, but was: %d.", len(*commands))
+	if len(commands.collection) != 2 {
+		t.Fatalf("Expected 2 commands to stay, but was: %d.", len(commands.collection))
 	}
 }
 
@@ -392,7 +392,7 @@ func TestCommands_Helps(t *testing.T) {
 			return "example"
 		},
 	}
-	commands := &Commands{cmd}
+	commands := &Commands{collection: []Command{cmd}}
 
 	helps := commands.Helps()
 	if len(*helps) != 1 {
