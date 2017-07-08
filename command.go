@@ -42,38 +42,88 @@ type Command interface {
 	Match(Input) bool
 }
 
-type simpleCommand struct {
-	identifier  string
-	example     string
-	matchFunc   func(Input) bool
-	commandFunc commandFunc
-	config      CommandConfig
+type commandConfigWrapper struct {
+	value CommandConfig
+	mutex *sync.RWMutex
 }
 
-func (command *simpleCommand) Identifier() string {
+type defaultCommand struct {
+	identifier    string
+	example       string
+	matchFunc     func(Input) bool
+	commandFunc   commandFunc
+	configWrapper *commandConfigWrapper
+}
+
+func (command *defaultCommand) Identifier() string {
 	return command.identifier
 }
 
-func (command *simpleCommand) InputExample() string {
+func (command *defaultCommand) InputExample() string {
 	return command.example
 }
 
-func (command *simpleCommand) Match(input Input) bool {
+func (command *defaultCommand) Match(input Input) bool {
 	return command.matchFunc(input)
 }
 
-func (command *simpleCommand) Execute(ctx context.Context, input Input) (*CommandResponse, error) {
-	return command.commandFunc(ctx, input, command.config)
+func (command *defaultCommand) Execute(ctx context.Context, input Input) (*CommandResponse, error) {
+	wrapper := command.configWrapper
+	if wrapper == nil {
+		return command.commandFunc(ctx, input)
+	}
+
+	// If the command has configuration struct, lock before execution.
+	// Config struct may be updated on configuration file change.
+	wrapper.mutex.RLock()
+	defer wrapper.mutex.RUnlock()
+	return command.commandFunc(ctx, input, wrapper.value)
+}
+
+var cl = &configLocker{
+	fileMutex: map[string]*sync.RWMutex{},
+	mutex:     sync.Mutex{},
+}
+
+// configLocker locks when config struct is being read or written.
+// Since ScheduledTask and Command may share same Identifier, they may refer to same configuration file.
+// Therefore they must share same mutex instance.
+type configLocker struct {
+	fileMutex map[string]*sync.RWMutex
+	mutex     sync.Mutex
+}
+
+func (cl *configLocker) get(configPath string) *sync.RWMutex {
+	cl.mutex.Lock()
+	defer cl.mutex.Unlock()
+
+	locker, ok := cl.fileMutex[configPath]
+	if !ok {
+		locker = &sync.RWMutex{}
+		cl.fileMutex[configPath] = locker
+	}
+
+	return locker
 }
 
 func newCommand(props *CommandProps, configDir string) (Command, error) {
 	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
 	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
 	commandConfig := props.config
+	var configWrapper *commandConfigWrapper
 	if configDir != "" && commandConfig != nil {
 		fileName := props.identifier + ".yaml"
 		configPath := path.Join(configDir, fileName)
-		err := readConfig(configPath, commandConfig)
+
+		// https://github.com/oklahomer/go-sarah/issues/44
+		locker := cl.get(configPath)
+
+		err := func() error {
+			locker.Lock()
+			defer locker.Unlock()
+
+			return readConfig(configPath, commandConfig)
+		}()
 		if err != nil && os.IsNotExist(err) {
 			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
 				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
@@ -82,14 +132,19 @@ func newCommand(props *CommandProps, configDir string) (Command, error) {
 			// File was there, but could not read.
 			return nil, err
 		}
+
+		configWrapper = &commandConfigWrapper{
+			value: commandConfig,
+			mutex: locker,
+		}
 	}
 
-	return &simpleCommand{
-		identifier:  props.identifier,
-		example:     props.example,
-		matchFunc:   props.matchFunc,
-		commandFunc: props.commandFunc,
-		config:      commandConfig,
+	return &defaultCommand{
+		identifier:    props.identifier,
+		example:       props.example,
+		matchFunc:     props.matchFunc,
+		commandFunc:   props.commandFunc,
+		configWrapper: configWrapper,
 	}, nil
 }
 
