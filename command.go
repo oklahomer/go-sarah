@@ -80,32 +80,6 @@ func (command *defaultCommand) Execute(ctx context.Context, input Input) (*Comma
 	return command.commandFunc(ctx, input, wrapper.value)
 }
 
-var cl = &configLocker{
-	fileMutex: map[string]*sync.RWMutex{},
-	mutex:     sync.Mutex{},
-}
-
-// configLocker locks when config struct is being read or written.
-// Since ScheduledTask and Command may share same Identifier, they may refer to same configuration file.
-// Therefore they must share same mutex instance.
-type configLocker struct {
-	fileMutex map[string]*sync.RWMutex
-	mutex     sync.Mutex
-}
-
-func (cl *configLocker) get(configPath string) *sync.RWMutex {
-	cl.mutex.Lock()
-	defer cl.mutex.Unlock()
-
-	locker, ok := cl.fileMutex[configPath]
-	if !ok {
-		locker = &sync.RWMutex{}
-		cl.fileMutex[configPath] = locker
-	}
-
-	return locker
-}
-
 func newCommand(props *CommandProps, configDir string) (Command, error) {
 	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
 	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
@@ -116,7 +90,7 @@ func newCommand(props *CommandProps, configDir string) (Command, error) {
 		configPath := path.Join(configDir, fileName)
 
 		// https://github.com/oklahomer/go-sarah/issues/44
-		locker := cl.get(configPath)
+		locker := configLocker.get(configPath)
 
 		err := func() error {
 			locker.Lock()

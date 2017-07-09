@@ -111,7 +111,7 @@ func newScheduledTask(props *ScheduledTaskProps, configDir string) (ScheduledTas
 		configPath := path.Join(configDir, fileName)
 
 		// https://github.com/oklahomer/go-sarah/issues/44
-		locker := cl.get(configPath)
+		locker := configLocker.get(configPath)
 
 		err := func() error {
 			locker.Lock()
