@@ -133,7 +133,7 @@ func Run(ctx context.Context, config *Config, options ...WorkerOption) (Worker, 
 }
 
 func runChild(ctx context.Context, job <-chan func(), workerID uint) {
-	log.Debug("Start worker id: %d.", workerID)
+	log.Debugf("Start worker id: %d.", workerID)
 
 	for {
 		select {
