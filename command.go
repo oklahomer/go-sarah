@@ -11,6 +11,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 var (
@@ -41,38 +42,62 @@ type Command interface {
 	Match(Input) bool
 }
 
-type simpleCommand struct {
-	identifier  string
-	example     string
-	matchFunc   func(Input) bool
-	commandFunc commandFunc
-	config      CommandConfig
+type commandConfigWrapper struct {
+	value CommandConfig
+	mutex *sync.RWMutex
 }
 
-func (command *simpleCommand) Identifier() string {
+type defaultCommand struct {
+	identifier    string
+	example       string
+	matchFunc     func(Input) bool
+	commandFunc   commandFunc
+	configWrapper *commandConfigWrapper
+}
+
+func (command *defaultCommand) Identifier() string {
 	return command.identifier
 }
 
-func (command *simpleCommand) InputExample() string {
+func (command *defaultCommand) InputExample() string {
 	return command.example
 }
 
-func (command *simpleCommand) Match(input Input) bool {
+func (command *defaultCommand) Match(input Input) bool {
 	return command.matchFunc(input)
 }
 
-func (command *simpleCommand) Execute(ctx context.Context, input Input) (*CommandResponse, error) {
-	return command.commandFunc(ctx, input, command.config)
+func (command *defaultCommand) Execute(ctx context.Context, input Input) (*CommandResponse, error) {
+	wrapper := command.configWrapper
+	if wrapper == nil {
+		return command.commandFunc(ctx, input)
+	}
+
+	// If the command has configuration struct, lock before execution.
+	// Config struct may be updated on configuration file change.
+	wrapper.mutex.RLock()
+	defer wrapper.mutex.RUnlock()
+	return command.commandFunc(ctx, input, wrapper.value)
 }
 
 func newCommand(props *CommandProps, configDir string) (Command, error) {
 	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
 	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
 	commandConfig := props.config
+	var configWrapper *commandConfigWrapper
 	if configDir != "" && commandConfig != nil {
 		fileName := props.identifier + ".yaml"
 		configPath := path.Join(configDir, fileName)
-		err := readConfig(configPath, commandConfig)
+
+		// https://github.com/oklahomer/go-sarah/issues/44
+		locker := configLocker.get(configPath)
+
+		err := func() error {
+			locker.Lock()
+			defer locker.Unlock()
+
+			return readConfig(configPath, commandConfig)
+		}()
 		if err != nil && os.IsNotExist(err) {
 			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
 				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
@@ -81,14 +106,19 @@ func newCommand(props *CommandProps, configDir string) (Command, error) {
 			// File was there, but could not read.
 			return nil, err
 		}
+
+		configWrapper = &commandConfigWrapper{
+			value: commandConfig,
+			mutex: locker,
+		}
 	}
 
-	return &simpleCommand{
-		identifier:  props.identifier,
-		example:     props.example,
-		matchFunc:   props.matchFunc,
-		commandFunc: props.commandFunc,
-		config:      commandConfig,
+	return &defaultCommand{
+		identifier:    props.identifier,
+		example:       props.example,
+		matchFunc:     props.matchFunc,
+		commandFunc:   props.commandFunc,
+		configWrapper: configWrapper,
 	}, nil
 }
 
@@ -100,28 +130,37 @@ func StripMessage(pattern *regexp.Regexp, input string) string {
 }
 
 // Commands stashes all registered Command.
-type Commands []Command
+type Commands struct {
+	collection []Command
+	mutex      sync.RWMutex
+}
 
 // NewCommands creates and returns new Commands instance.
 func NewCommands() *Commands {
-	return &Commands{}
+	return &Commands{
+		collection: []Command{},
+		mutex:      sync.RWMutex{},
+	}
 }
 
 // Append let developers register new Command to its internal stash.
 // If any command is registered with the same ID, the old one is replaced in favor of new one.
 func (commands *Commands) Append(command Command) {
+	commands.mutex.Lock()
+	defer commands.mutex.Unlock()
+
 	// See if command with the same identifier exists.
-	for i, cmd := range *commands {
+	for i, cmd := range commands.collection {
 		if cmd.Identifier() == command.Identifier() {
 			log.Infof("replacing old command in favor of newly appending one: %s.", command.Identifier())
-			(*commands)[i] = command
+			commands.collection[i] = command
 			return
 		}
 	}
 
 	// Not stored, then append to the last.
 	log.Infof("appending new command: %s.", command.Identifier())
-	*commands = append(*commands, command)
+	commands.collection = append(commands.collection, command)
 }
 
 // FindFirstMatched look for first matching command by calling Command's Match method: First Command.Match to return true
@@ -130,7 +169,10 @@ func (commands *Commands) Append(command Command) {
 // This check is run in the order of Command registration: Earlier the Commands.Append is called, the command is checked
 // earlier. So register important Command first.
 func (commands *Commands) FindFirstMatched(input Input) Command {
-	for _, command := range *commands {
+	commands.mutex.RLock()
+	defer commands.mutex.RUnlock()
+
+	for _, command := range commands.collection {
 		if command.Match(input) {
 			return command
 		}
@@ -151,8 +193,11 @@ func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) 
 
 // Helps returns underlying commands help messages in a form of *CommandHelps.
 func (commands *Commands) Helps() *CommandHelps {
+	commands.mutex.RLock()
+	defer commands.mutex.RUnlock()
+
 	helps := &CommandHelps{}
-	for _, command := range *commands {
+	for _, command := range commands.collection {
 		h := &CommandHelp{
 			Identifier:   command.Identifier(),
 			InputExample: command.InputExample(),

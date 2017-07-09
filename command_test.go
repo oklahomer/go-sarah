@@ -1,11 +1,14 @@
 package sarah
 
 import (
+	"fmt"
 	"golang.org/x/net/context"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 type DummyCommand struct {
@@ -300,7 +303,7 @@ func TestCommands_FindFirstMatched(t *testing.T) {
 	irrelevantCommand2.MatchFunc = func(_ Input) bool {
 		return false
 	}
-	commands = &Commands{irrelevantCommand, echoCommand, irrelevantCommand2}
+	commands = &Commands{collection: []Command{irrelevantCommand, echoCommand, irrelevantCommand2}}
 
 	matchedCommand = commands.FindFirstMatched(&DummyInput{MessageValue: "echo"})
 	if matchedCommand == nil {
@@ -332,7 +335,7 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 	echoCommand.ExecuteFunc = func(_ context.Context, _ Input) (*CommandResponse, error) {
 		return &CommandResponse{Content: ""}, nil
 	}
-	commands = &Commands{echoCommand}
+	commands = &Commands{collection: []Command{echoCommand}}
 	response, err = commands.ExecuteFirstMatched(context.TODO(), input)
 	if err != nil {
 		t.Errorf("Unexpected error on command execution: %#v.", err)
@@ -361,18 +364,18 @@ func TestCommands_Append(t *testing.T) {
 
 	// First operation
 	commands.Append(command)
-	if len(*commands) == 0 {
+	if len(commands.collection) == 0 {
 		t.Fatal("Provided command was not appended.")
 	}
 
-	if (*commands)[0] != command {
-		t.Fatalf("Appended command is not the one provided: %#v", (*commands)[0])
+	if (commands.collection)[0] != command {
+		t.Fatalf("Appended command is not the one provided: %#v", commands.collection[0])
 	}
 
 	// Second operation with same command
 	commands.Append(command)
-	if len(*commands) != 1 {
-		t.Fatalf("Expected only one command to stay, but was: %d.", len(*commands))
+	if len(commands.collection) != 1 {
+		t.Fatalf("Expected only one command to stay, but was: %d.", len(commands.collection))
 	}
 
 	// Third operation with different command
@@ -380,8 +383,8 @@ func TestCommands_Append(t *testing.T) {
 		IdentifierValue: "second",
 	}
 	commands.Append(anotherCommand)
-	if len(*commands) != 2 {
-		t.Fatalf("Expected 2 commands to stay, but was: %d.", len(*commands))
+	if len(commands.collection) != 2 {
+		t.Fatalf("Expected 2 commands to stay, but was: %d.", len(commands.collection))
 	}
 }
 
@@ -392,7 +395,7 @@ func TestCommands_Helps(t *testing.T) {
 			return "example"
 		},
 	}
-	commands := &Commands{cmd}
+	commands := &Commands{collection: []Command{cmd}}
 
 	helps := commands.Helps()
 	if len(*helps) != 1 {
@@ -408,7 +411,7 @@ func TestCommands_Helps(t *testing.T) {
 
 func TestSimpleCommand_Identifier(t *testing.T) {
 	id := "bar"
-	command := simpleCommand{identifier: id}
+	command := defaultCommand{identifier: id}
 
 	if command.Identifier() != id {
 		t.Errorf("Stored identifier is not returned: %s.", command.Identifier())
@@ -417,7 +420,7 @@ func TestSimpleCommand_Identifier(t *testing.T) {
 
 func TestSimpleCommand_InputExample(t *testing.T) {
 	example := "example foo"
-	command := simpleCommand{example: example}
+	command := defaultCommand{example: example}
 
 	if command.InputExample() != example {
 		t.Errorf("Stored example is not returned: %s.", command.Identifier())
@@ -425,7 +428,7 @@ func TestSimpleCommand_InputExample(t *testing.T) {
 }
 
 func TestSimpleCommand_Match(t *testing.T) {
-	command := simpleCommand{matchFunc: func(input Input) bool {
+	command := defaultCommand{matchFunc: func(input Input) bool {
 		return regexp.MustCompile(`^\.echo`).MatchString(input.Message())
 	}}
 
@@ -436,8 +439,11 @@ func TestSimpleCommand_Match(t *testing.T) {
 
 func TestSimpleCommand_Execute(t *testing.T) {
 	wrappedFncCalled := false
-	command := simpleCommand{
-		config: &struct{}{},
+	command := defaultCommand{
+		configWrapper: &commandConfigWrapper{
+			value: &struct{}{},
+			mutex: &sync.RWMutex{},
+		},
 		commandFunc: func(ctx context.Context, input Input, cfg ...CommandConfig) (*CommandResponse, error) {
 			wrappedFncCalled = true
 			return nil, nil
@@ -461,4 +467,81 @@ func TestStripMessage(t *testing.T) {
 	if stripped != "foo bar" {
 		t.Errorf("Unexpected return value: %s.", stripped)
 	}
+}
+
+// Test_race_commandRebuild is an integration test to detect race condition on Command (re-)build.
+func Test_race_commandRebuild(t *testing.T) {
+	// Prepare CommandProps
+	type config struct {
+		Token string
+	}
+	props, err := NewCommandPropsBuilder().
+		Identifier("dummy").
+		InputExample(".dummy").
+		BotType("dummyBot").
+		ConfigurableFunc(
+			&config{Token: "default"},
+			func(ctx context.Context, _ Input, givenConfig CommandConfig) (*CommandResponse, error) {
+				fmt.Print(givenConfig.(*config).Token) // Read
+				return nil, nil
+			},
+		).
+		MatchFunc(func(_ Input) bool { return true }).
+		Build()
+	if err != nil {
+		t.Fatalf("Error on CommnadProps preparation: %s.", err.Error())
+	}
+
+	// Prepare a bot
+	commands := NewCommands()
+	bot := &DummyBot{
+		RespondFunc: func(ctx context.Context, input Input) error {
+			_, err := commands.ExecuteFirstMatched(ctx, input)
+			return err
+		},
+		AppendCommandFunc: func(cmd Command) {
+			commands.Append(cmd)
+		},
+	}
+
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+
+	// Continuously read configuration file and re-build Command
+	go func(c context.Context, b Bot, p *CommandProps) {
+		for {
+			select {
+			case <-c.Done():
+				return
+
+			default:
+				// Write
+				command, err := newCommand(p, filepath.Join("testdata", "command"))
+				if err == nil {
+					b.AppendCommand(command)
+				} else {
+					t.Errorf("Error on command build: %s.", err.Error())
+				}
+
+			}
+		}
+	}(ctx, bot, props)
+
+	// Continuously read config struct's field value by calling Bot.Respond
+	go func(c context.Context, b Bot) {
+		for {
+			select {
+			case <-c.Done():
+				return
+
+			default:
+				b.Respond(c, &DummyInput{})
+
+			}
+		}
+	}(ctx, bot)
+
+	// Wait till race condition occurs
+	time.Sleep(1 * time.Second)
+	cancel()
 }

@@ -7,6 +7,7 @@ import (
 	"golang.org/x/net/context"
 	"os"
 	"path"
+	"sync"
 )
 
 var (
@@ -50,12 +51,18 @@ type ScheduledTask interface {
 	Schedule() string
 }
 
+type taskConfigWrapper struct {
+	value TaskConfig
+	mutex *sync.RWMutex
+}
+
 type scheduledTask struct {
 	identifier         string
 	taskFunc           taskFunc
 	schedule           string
 	defaultDestination OutputDestination
 	config             TaskConfig
+	configWrapper      *taskConfigWrapper
 }
 
 // Identifier returns unique ID of this task.
@@ -71,7 +78,16 @@ func (task *scheduledTask) Identifier() string {
 // When sending messages to multiple destinations, create and return results as many as destinations.
 // If output destination is nil, caller tries to find corresponding destination from config struct.
 func (task *scheduledTask) Execute(ctx context.Context) ([]*ScheduledTaskResult, error) {
-	return task.taskFunc(ctx, task.config)
+	wrapper := task.configWrapper
+	if wrapper == nil {
+		return task.taskFunc(ctx)
+	}
+
+	// If the ScheduledTask has configuration struct, lock before execution.
+	// Config struct may be updated on configuration file change.
+	wrapper.mutex.RLock()
+	defer wrapper.mutex.RUnlock()
+	return task.taskFunc(ctx, wrapper.value)
 }
 
 // Schedule returns execution schedule.
@@ -89,10 +105,20 @@ func newScheduledTask(props *ScheduledTaskProps, configDir string) (ScheduledTas
 	// If path to the configuration files' directory is given, corresponding configuration file MAY exist.
 	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
 	taskConfig := props.config
+	var configWrapper *taskConfigWrapper
 	if configDir != "" && taskConfig != nil {
 		fileName := props.identifier + ".yaml"
 		configPath := path.Join(configDir, fileName)
-		err := readConfig(configPath, taskConfig)
+
+		// https://github.com/oklahomer/go-sarah/issues/44
+		locker := configLocker.get(configPath)
+
+		err := func() error {
+			locker.Lock()
+			defer locker.Unlock()
+
+			return readConfig(configPath, taskConfig)
+		}()
 		if err != nil && os.IsNotExist(err) {
 			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
 				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
@@ -100,6 +126,11 @@ func newScheduledTask(props *ScheduledTaskProps, configDir string) (ScheduledTas
 		} else if err != nil {
 			// File was there, but could not read.
 			return nil, err
+		}
+
+		configWrapper = &taskConfigWrapper{
+			value: taskConfig,
+			mutex: locker,
 		}
 	}
 
@@ -133,6 +164,7 @@ func newScheduledTask(props *ScheduledTaskProps, configDir string) (ScheduledTas
 		schedule:           schedule,
 		defaultDestination: dest,
 		config:             props.config,
+		configWrapper:      configWrapper,
 	}, nil
 }
 

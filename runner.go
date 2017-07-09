@@ -335,10 +335,6 @@ func runBot(ctx context.Context, bot Bot, receiveInput func(Input) error, errNot
 	bot.Run(ctx, receiveInput, errNotifier)
 }
 
-func registerCommand(bot Bot, command Command) {
-	bot.AppendCommand(command)
-}
-
 func registerScheduledTask(botCtx context.Context, bot Bot, task ScheduledTask, taskScheduler scheduler) {
 	err := taskScheduler.update(bot.BotType(), task, func() {
 		executeScheduledTask(botCtx, bot, task)
@@ -356,7 +352,7 @@ func registerCommands(bot Bot, props []*CommandProps, configDir string) {
 			continue
 		}
 
-		registerCommand(bot, command)
+		bot.AppendCommand(command)
 	}
 }
 
@@ -397,7 +393,7 @@ func commandUpdaterFunc(bot Bot, props []*CommandProps) func(string) {
 				return
 			}
 
-			registerCommand(bot, command) // replaces the old one.
+			bot.AppendCommand(command) // replaces the old one.
 			return
 		}
 	}

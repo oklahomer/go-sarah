@@ -1,9 +1,11 @@
 package sarah
 
 import (
+	"fmt"
 	"golang.org/x/net/context"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 type DummyScheduledTask struct {
@@ -364,4 +366,68 @@ func Test_newScheduledTask_WithDefaultDestinationConfig(t *testing.T) {
 	if task.DefaultDestination() != config.DestinationValue {
 		t.Fatalf("Expected default destination is returned: %s.", task.DefaultDestination())
 	}
+}
+
+// Test_race_commandRebuild is an integration test to detect race condition on Command (re-)build.
+func Test_race_taskRebuild(t *testing.T) {
+	// Prepare TaskConfig
+	type config struct {
+		Token string
+	}
+	props, err := NewScheduledTaskPropsBuilder().
+		Identifier("dummy").
+		BotType("dummyBot").
+		ConfigurableFunc(&config{Token: "default"}, func(_ context.Context, givenConfig TaskConfig) ([]*ScheduledTaskResult, error) {
+			fmt.Print(givenConfig.(*config).Token) // Read
+			return nil, nil
+		}).
+		Schedule("@every 1m").
+		DefaultDestination("").
+		Build()
+	if err != nil {
+		t.Fatalf("Error on ScheduledTaskProps preparation: %s.", err.Error())
+	}
+
+	rootCtx := context.Background()
+	ctx, cancel := context.WithCancel(rootCtx)
+
+	task, err := newScheduledTask(props, filepath.Join("testdata", "command"))
+	if err != nil {
+		t.Fatalf("Error on ScheduledTask build: %s.", err.Error())
+	}
+
+	// Continuously read configuration file and re-build Command
+	go func(c context.Context, p *ScheduledTaskProps) {
+		for {
+			select {
+			case <-c.Done():
+				return
+
+			default:
+				// Write
+				_, err := newScheduledTask(p, filepath.Join("testdata", "command"))
+				if err != nil {
+					t.Errorf("Error on command build: %s.", err.Error())
+				}
+			}
+		}
+	}(ctx, props)
+
+	// Continuously read config struct's field value by calling ScheduledTask.Execute
+	go func(c context.Context) {
+		for {
+			select {
+			case <-c.Done():
+				return
+
+			default:
+				task.Execute(ctx)
+
+			}
+		}
+	}(ctx)
+
+	// Wait till race condition occurs
+	time.Sleep(1 * time.Second)
+	cancel()
 }
