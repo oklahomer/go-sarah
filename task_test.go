@@ -275,7 +275,7 @@ func TestScheduledTask_Schedule(t *testing.T) {
 	}
 }
 
-func Test_newScheduledTask_WithOutConfigFile(t *testing.T) {
+func Test_buildScheduledTask_WithOutConfigFile(t *testing.T) {
 	config := &struct {
 		Token string
 	}{
@@ -291,7 +291,7 @@ func Test_newScheduledTask_WithOutConfigFile(t *testing.T) {
 		config:             config,
 	}
 
-	task, err := newScheduledTask(props, filepath.Join("testdata", "command"))
+	task, err := buildScheduledTask(props, filepath.Join("testdata", "command"))
 
 	if err != nil {
 		t.Fatalf("Error should not be returned just because configuration file is not found: %s.", err.Error())
@@ -302,7 +302,7 @@ func Test_newScheduledTask_WithOutConfigFile(t *testing.T) {
 	}
 }
 
-func Test_newScheduledTask_WithBrokenYaml(t *testing.T) {
+func Test_buildScheduledTask_WithBrokenYaml(t *testing.T) {
 	config := &struct {
 		Token string `yaml:"token"`
 	}{
@@ -317,14 +317,14 @@ func Test_newScheduledTask_WithBrokenYaml(t *testing.T) {
 		config:             config,
 	}
 
-	_, err := newScheduledTask(props, filepath.Join("testdata", "command"))
+	_, err := buildScheduledTask(props, filepath.Join("testdata", "command"))
 
 	if err == nil {
 		t.Fatal("Error must be returned.")
 	}
 }
 
-func Test_newScheduledTask_WithOutSchedule(t *testing.T) {
+func Test_buildScheduledTask_WithOutSchedule(t *testing.T) {
 	emptyScheduleConfig := &DummyScheduledTaskConfig{}
 	emptyScheduleProps := &ScheduledTaskProps{
 		identifier:         "fileNotFound",
@@ -333,7 +333,7 @@ func Test_newScheduledTask_WithOutSchedule(t *testing.T) {
 		config:             emptyScheduleConfig,
 	}
 
-	_, err := newScheduledTask(emptyScheduleProps, filepath.Join("testdata", "command"))
+	_, err := buildScheduledTask(emptyScheduleProps, filepath.Join("testdata", "command"))
 
 	if err == nil {
 		t.Fatal("Epected error is not returned.")
@@ -357,7 +357,7 @@ func Test_newScheduledTask_WithDefaultDestinationConfig(t *testing.T) {
 		config:             config,
 	}
 
-	task, err := newScheduledTask(props, filepath.Join("testdata", "command"))
+	task, err := buildScheduledTask(props, filepath.Join("testdata", "command"))
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
@@ -391,7 +391,7 @@ func Test_race_taskRebuild(t *testing.T) {
 	rootCtx := context.Background()
 	ctx, cancel := context.WithCancel(rootCtx)
 
-	task, err := newScheduledTask(props, filepath.Join("testdata", "command"))
+	task, err := buildScheduledTask(props, filepath.Join("testdata", "command"))
 	if err != nil {
 		t.Fatalf("Error on ScheduledTask build: %s.", err.Error())
 	}
@@ -405,7 +405,7 @@ func Test_race_taskRebuild(t *testing.T) {
 
 			default:
 				// Write
-				_, err := newScheduledTask(p, filepath.Join("testdata", "command"))
+				_, err := buildScheduledTask(p, filepath.Join("testdata", "command"))
 				if err != nil {
 					t.Errorf("Error on command build: %s.", err.Error())
 				}

@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	"os"
-	"path"
 	"regexp"
 	"strings"
 	"sync"
@@ -80,31 +77,31 @@ func (command *defaultCommand) Execute(ctx context.Context, input Input) (*Comma
 	return command.commandFunc(ctx, input, wrapper.value)
 }
 
-func newCommand(props *CommandProps, configDir string) (Command, error) {
+func buildCommand(props *CommandProps, configDir string) (Command, error) {
 	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
 	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
 	commandConfig := props.config
 	var configWrapper *commandConfigWrapper
 	if configDir != "" && commandConfig != nil {
-		fileName := props.identifier + ".yaml"
-		configPath := path.Join(configDir, fileName)
+		file := findPluginConfigFile(configDir, props.identifier)
 
 		// https://github.com/oklahomer/go-sarah/issues/44
-		locker := configLocker.get(configPath)
+		locker := configLocker.get(configDir, props.identifier)
+		if file != nil {
+			err := func() error {
+				locker.Lock()
+				defer locker.Unlock()
 
-		err := func() error {
-			locker.Lock()
-			defer locker.Unlock()
-
-			return readConfig(configPath, commandConfig)
-		}()
-		if err != nil && os.IsNotExist(err) {
-			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
-				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
-				configPath, props.identifier)
-		} else if err != nil {
-			// File was there, but could not read.
-			return nil, err
+				return updatePluginConfig(file, commandConfig)
+			}()
+			if err != nil && os.IsNotExist(err) {
+				log.Infof("Config struct is set, but there was no corresponding setting file under %s. "+
+					"Assume config struct is already filled with appropriate value and keep going. command ID: %s.",
+					configDir, props.identifier)
+			} else if err != nil {
+				// File was there, but could not read.
+				return nil, err
+			}
 		}
 
 		configWrapper = &commandConfigWrapper{
@@ -332,13 +329,4 @@ func (builder *CommandPropsBuilder) MustBuild() *CommandProps {
 	}
 
 	return props
-}
-
-func readConfig(configPath string, config CommandConfig) error {
-	buf, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		return err
-	}
-
-	return yaml.Unmarshal(buf, config)
 }

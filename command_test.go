@@ -210,7 +210,7 @@ func TestCommandPropsBuilder_MustBuild(t *testing.T) {
 	}
 }
 
-func Test_newCommand(t *testing.T) {
+func Test_buildCommand(t *testing.T) {
 	config := &struct {
 		Token string `yaml:"token"`
 	}{
@@ -221,7 +221,7 @@ func Test_newCommand(t *testing.T) {
 		config:     config,
 	}
 
-	_, err := newCommand(props, filepath.Join("testdata", "command"))
+	_, err := buildCommand(props, filepath.Join("testdata", "command"))
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
@@ -231,7 +231,7 @@ func Test_newCommand(t *testing.T) {
 	}
 }
 
-func Test_newCommand_BrokenYaml(t *testing.T) {
+func Test_buildCommand_BrokenYaml(t *testing.T) {
 	config := &struct {
 		Token string `yaml:"token"`
 	}{
@@ -242,14 +242,14 @@ func Test_newCommand_BrokenYaml(t *testing.T) {
 		config:     config,
 	}
 
-	_, err := newCommand(props, filepath.Join("testdata", "command"))
+	_, err := buildCommand(props, filepath.Join("testdata", "command"))
 
 	if err == nil {
 		t.Fatal("Error must be returned.")
 	}
 }
 
-func Test_newCommand_WithOutConfigFile(t *testing.T) {
+func Test_buildCommand_WithOutConfigFile(t *testing.T) {
 	config := &struct {
 		Token string
 	}{
@@ -263,7 +263,7 @@ func Test_newCommand_WithOutConfigFile(t *testing.T) {
 		config:      config,
 	}
 
-	command, err := newCommand(props, filepath.Join("testdata", "command"))
+	command, err := buildCommand(props, filepath.Join("testdata", "command"))
 
 	if err != nil {
 		t.Fatalf("Error should not be returned just because configuration file is not found: %s.", err.Error())
@@ -516,7 +516,7 @@ func Test_race_commandRebuild(t *testing.T) {
 
 			default:
 				// Write
-				command, err := newCommand(p, filepath.Join("testdata", "command"))
+				command, err := buildCommand(p, filepath.Join("testdata", "command"))
 				if err == nil {
 					b.AppendCommand(command)
 				} else {

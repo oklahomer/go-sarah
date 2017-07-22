@@ -439,17 +439,14 @@ func TestRunner_Run_WithPluginConfigRoot(t *testing.T) {
 	go runner.Run(runnerCtx)
 
 	// Wait till all setup is done.
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	cancelRunner()
 
-	// Watcher.Subscribe should be called for both Command and ScheduledTask
-	for range make([]int, 2) {
-		select {
-		case <-subscribeCh:
-			// O.K.
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Watcher.Subscribe is not called.")
-		}
+	select {
+	case <-subscribeCh:
+		// O.K.
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Error("Watcher.Subscribe is not called.")
 	}
 }
 
@@ -552,15 +549,15 @@ func Test_registerScheduledTask(t *testing.T) {
 	}
 }
 
-func Test_commandUpdaterFunc(t *testing.T) {
-	var botType BotType = "dummy"
-	registeredCommand := 0
-	bot := &DummyBot{
-		BotTypeValue: botType,
-		AppendCommandFunc: func(_ Command) {
-			registeredCommand++
-		},
+func Test_updateCommandConfig(t *testing.T) {
+	type config struct {
+		Token string
 	}
+	c := &config{
+		Token: "default",
+	}
+
+	var botType BotType = "dummy"
 	props := []*CommandProps{
 		{
 			identifier:  "irrelevant",
@@ -571,57 +568,81 @@ func Test_commandUpdaterFunc(t *testing.T) {
 			example:     "exampleInput",
 		},
 		{
-			identifier:  "matching",
+			identifier:  "dummy",
 			botType:     botType,
 			commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
 			matchFunc:   func(_ Input) bool { return true },
-			config:      struct{ foo string }{foo: "broken"},
+			config:      c,
 			example:     "exampleInput",
 		},
 	}
 
-	updater := commandUpdaterFunc(bot, props)
-	updater(filepath.Join("testdata", "command", "matching.yaml"))
+	file := &pluginConfigFile{
+		id:       "dummy",
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
+	err := updateCommandConfig(props, file)
 
-	if registeredCommand != 1 {
-		t.Errorf("Only one comamnd is expected to be registered: %d.", registeredCommand)
+	if err != nil {
+		t.Errorf("Unexpected error returned: %s.", err.Error())
+	}
+
+	if c.Token != "foobar" {
+		t.Errorf("Expected configuration value is not set: %s.", c.Token)
 	}
 }
 
-func Test_commandUpdaterFunc_WithBrokenYaml(t *testing.T) {
-	var botType BotType = "dummy"
-	registeredCommand := 0
-	bot := &DummyBot{
-		BotTypeValue: botType,
-		AppendCommandFunc: func(_ Command) {
-			registeredCommand++
-		},
+func Test_updateCommandConfig_WithBrokenYaml(t *testing.T) {
+	type config struct {
+		Token string
 	}
+	c := &config{
+		Token: "default",
+	}
+
+	var botType BotType = "dummy"
 	props := []*CommandProps{
 		{
 			identifier:  "broken",
 			botType:     botType,
 			commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
 			matchFunc:   func(_ Input) bool { return true },
-			config:      struct{ foo string }{foo: "broken"},
+			config:      c,
 			example:     "exampleInput",
 		},
 	}
 
-	updater := commandUpdaterFunc(bot, props)
-	updater(filepath.Join("testdata", "command", "broken.yaml"))
+	file := &pluginConfigFile{
+		id:       "broken",
+		path:     filepath.Join("testdata", "command", "broken.yaml"),
+		fileType: yaml_file,
+	}
+	err := updateCommandConfig(props, file)
 
-	if registeredCommand != 0 {
-		t.Errorf("No comamnd is expected to be registered: %d.", registeredCommand)
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if err == errUnableToDetermineConfigFileFormat || err == errUnsupportedConfigFileFormat {
+		t.Errorf("Unexpected error type was returned: %T", err)
 	}
 }
 
-func Test_scheduledTaskUpdaterFunc(t *testing.T) {
+func Test_updateScheduledTaskConfig(t *testing.T) {
 	var botType BotType = "dummy"
-	registeredCommand := 0
+	registeredScheduledTask := 0
 	bot := &DummyBot{
 		BotTypeValue: botType,
 	}
+
+	type config struct {
+		Token string
+	}
+	c := &config{
+		Token: "default",
+	}
+
 	props := []*ScheduledTaskProps{
 		{
 			botType:            botType,
@@ -629,7 +650,7 @@ func Test_scheduledTaskUpdaterFunc(t *testing.T) {
 			taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
 			schedule:           "@every 1m",
 			defaultDestination: "boo",
-			config:             nil,
+			config:             c,
 		},
 		{
 			botType:            botType,
@@ -637,27 +658,35 @@ func Test_scheduledTaskUpdaterFunc(t *testing.T) {
 			taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
 			schedule:           "@every 1m",
 			defaultDestination: "dummy",
-			config:             nil,
+			config:             c,
 		},
 	}
 	scheduler := &DummyScheduler{
 		UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
-			registeredCommand++
+			registeredScheduledTask++
 			return nil
 		},
 	}
 
-	updater := scheduledTaskUpdaterFunc(context.TODO(), bot, props, scheduler)
-	updater(filepath.Join("testdata", "command", "dummy.yaml"))
+	file := &pluginConfigFile{
+		id:       "dummy",
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
+	err := updateScheduledTaskConfig(context.TODO(), bot, props, scheduler, file)
 
-	if registeredCommand != 1 {
-		t.Errorf("Only one comamnd is expected to be registered: %d.", registeredCommand)
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if registeredScheduledTask != 1 {
+		t.Errorf("Only one comamnd is expected to be registered: %d.", registeredScheduledTask)
 	}
 }
 
-func Test_scheduledTaskUpdaterFunc_WithBrokenYaml(t *testing.T) {
+func Test_updateScheduledTaskConfig_WithBrokenYaml(t *testing.T) {
 	var botType BotType = "dummy"
-	registeredCommand := 0
+	registeredScheduledTask := 0
 	bot := &DummyBot{
 		BotTypeValue: botType,
 	}
@@ -673,16 +702,24 @@ func Test_scheduledTaskUpdaterFunc_WithBrokenYaml(t *testing.T) {
 	}
 	scheduler := &DummyScheduler{
 		UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
-			registeredCommand++
+			registeredScheduledTask++
 			return nil
 		},
 	}
 
-	updater := scheduledTaskUpdaterFunc(context.TODO(), bot, props, scheduler)
-	updater(filepath.Join("testdata", "command", "broken.yaml"))
+	file := &pluginConfigFile{
+		id:       "broken",
+		path:     filepath.Join("testdata", "command", "broken.yaml"),
+		fileType: yaml_file,
+	}
+	err := updateScheduledTaskConfig(context.TODO(), bot, props, scheduler, file)
 
-	if registeredCommand != 0 {
-		t.Errorf("No comamnd is expected to be registered: %d.", registeredCommand)
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
+	if registeredScheduledTask != 0 {
+		t.Errorf("No comamnd is expected to be registered: %d.", registeredScheduledTask)
 	}
 }
 
@@ -839,5 +876,72 @@ func Test_setupInputReceiver_BlockedInputError(t *testing.T) {
 
 	if _, ok := err.(*BlockedInputError); !ok {
 		t.Fatalf("Expected error type is not returned: %T.", err)
+	}
+}
+
+func Test_plainPathToFile(t *testing.T) {
+	tests := []struct {
+		input    string
+		id       string
+		path     string
+		fileType fileType
+		err      error
+	}{
+		{
+			input:    "./foo/bar.yaml",
+			id:       "bar",
+			path:     func() string { p, _ := filepath.Abs("./foo/bar.yaml"); return p }(),
+			fileType: yaml_file,
+		},
+		{
+			input:    "/abs/foo/bar.yml",
+			id:       "bar",
+			path:     func() string { p, _ := filepath.Abs("/abs/foo/bar.yml"); return p }(),
+			fileType: yaml_file,
+		},
+		{
+			input:    "foo/bar.json",
+			id:       "bar",
+			path:     func() string { p, _ := filepath.Abs("foo/bar.json"); return p }(),
+			fileType: json_file,
+		},
+		{
+			input: "/abs/foo/undetermined",
+			err:   errUnableToDetermineConfigFileFormat,
+		},
+		{
+			input: "/abs/foo/unsupported.csv",
+			err:   errUnsupportedConfigFileFormat,
+		},
+	}
+
+	for i, test := range tests {
+		testNo := i + 1
+		file, err := plainPathToFile(test.input)
+
+		if test.err == nil {
+			if err != nil {
+				t.Errorf("Unexpected error is retuend on test %d: %s.", testNo, err.Error())
+				continue
+			}
+
+			if file.id != test.id {
+				t.Errorf("Unexpected id is set on test %d: %s.", testNo, file.id)
+			}
+
+			if file.path != test.path {
+				t.Errorf("Unexpected path is set on test %d: %s.", testNo, file.path)
+			}
+
+			if file.fileType != test.fileType {
+				t.Errorf("Unexpected fileType is set on test %d: %d.", testNo, file.fileType)
+			}
+
+			continue
+		}
+
+		if err != test.err {
+			t.Errorf("Unexpected error is returned: %#v.", err)
+		}
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"os"
-	"path"
 	"sync"
 )
 
@@ -101,31 +100,31 @@ func (task *scheduledTask) DefaultDestination() OutputDestination {
 	return task.defaultDestination
 }
 
-func newScheduledTask(props *ScheduledTaskProps, configDir string) (ScheduledTask, error) {
+func buildScheduledTask(props *ScheduledTaskProps, configDir string) (ScheduledTask, error) {
 	// If path to the configuration files' directory is given, corresponding configuration file MAY exist.
 	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
 	taskConfig := props.config
 	var configWrapper *taskConfigWrapper
 	if configDir != "" && taskConfig != nil {
-		fileName := props.identifier + ".yaml"
-		configPath := path.Join(configDir, fileName)
+		file := findPluginConfigFile(configDir, props.identifier)
 
 		// https://github.com/oklahomer/go-sarah/issues/44
-		locker := configLocker.get(configPath)
+		locker := configLocker.get(configDir, props.identifier)
+		if file != nil {
+			err := func() error {
+				locker.Lock()
+				defer locker.Unlock()
 
-		err := func() error {
-			locker.Lock()
-			defer locker.Unlock()
-
-			return readConfig(configPath, taskConfig)
-		}()
-		if err != nil && os.IsNotExist(err) {
-			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
-				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
-				configPath, props.identifier)
-		} else if err != nil {
-			// File was there, but could not read.
-			return nil, err
+				return updatePluginConfig(file, taskConfig)
+			}()
+			if err != nil && os.IsNotExist(err) {
+				log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
+					"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
+					configDir, props.identifier)
+			} else if err != nil {
+				// File was there, but could not read.
+				return nil, err
+			}
 		}
 
 		configWrapper = &taskConfigWrapper{

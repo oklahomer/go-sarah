@@ -1,6 +1,10 @@
 package sarah
 
-import "sync"
+import (
+	"fmt"
+	"path/filepath"
+	"sync"
+)
 
 var configLocker = &configRWLocker{
 	fileMutex: map[string]*sync.RWMutex{},
@@ -18,14 +22,20 @@ type configRWLocker struct {
 	mutex     sync.Mutex
 }
 
-func (cl *configRWLocker) get(configPath string) *sync.RWMutex {
+func (cl *configRWLocker) get(configDir string, pluginID string) *sync.RWMutex {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
 
-	locker, ok := cl.fileMutex[configPath]
+	absDir, err := filepath.Abs(configDir)
+	if err != nil {
+		panic(fmt.Sprintf("failed to get absolute path to configuration files: %s", err.Error()))
+	}
+	lockID := fmt.Sprintf("dir:%s::id:%s", absDir, pluginID)
+
+	locker, ok := cl.fileMutex[lockID]
 	if !ok {
 		locker = &sync.RWMutex{}
-		cl.fileMutex[configPath] = locker
+		cl.fileMutex[lockID] = locker
 	}
 
 	return locker

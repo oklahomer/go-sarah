@@ -1,11 +1,16 @@
 package sarah
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/watchers"
 	"github.com/oklahomer/go-sarah/workers"
 	"golang.org/x/net/context"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -270,26 +275,17 @@ func (runner *Runner) Run(ctx context.Context) {
 		commandProps := runner.botCommandProps(botType)
 		registerCommands(bot, commandProps, configDir)
 
-		// Supervise configuration files' directory for commands.
-		if configDir != "" {
-			callback := commandUpdaterFunc(bot, commandProps)
-			err := runner.watcher.Subscribe(botType.String(), configDir, callback)
-			if err != nil {
-				log.Errorf("failed to watch %s: %s", configDir, err.Error())
-			}
-		}
-
 		// Register scheduled tasks.
 		tasks := runner.botScheduledTasks(botType)
 		taskProps := runner.botScheduledTaskProps(botType)
 		registerScheduledTasks(botCtx, bot, tasks, taskProps, taskScheduler, configDir)
 
-		// Supervise configuration files' directory for scheduled tasks.
+		// Supervise configuration files' directory for Command/ScheduledTask.
 		if configDir != "" {
-			callback := scheduledTaskUpdaterFunc(botCtx, bot, taskProps, taskScheduler)
+			callback := runner.configUpdateCallback(botCtx, bot, taskScheduler)
 			err := runner.watcher.Subscribe(botType.String(), configDir, callback)
 			if err != nil {
-				log.Errorf("failed to watch %s: %s", configDir, err.Error())
+				log.Errorf("Failed to watch %s: %s", configDir, err.Error())
 			}
 		}
 
@@ -310,6 +306,34 @@ func (runner *Runner) Run(ctx context.Context) {
 	}
 
 	wg.Wait()
+}
+
+func (runner *Runner) configUpdateCallback(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
+	return func(path string) {
+		file, err := plainPathToFile(path)
+		if err == errUnableToDetermineConfigFileFormat {
+			log.Warnf("File under Config.PluginConfigRoot is updated, but file format can not be determined from its extension: %s.", path)
+			return
+		} else if err == errUnableToDetermineConfigFileFormat {
+			log.Warnf("File under Config.PluginConfigRoot is updated, but file format is not supported: %s.", path)
+			return
+		} else if err != nil {
+			log.Warnf("Failed to locate %s: %s", path, err.Error())
+			return
+		}
+
+		go func() {
+			commandProps := runner.botCommandProps(bot.BotType())
+			if e := updateCommandConfig(commandProps, file); e != nil {
+				log.Errorf("Failed to update Command config: %s.", err.Error())
+			}
+
+			taskProps := runner.botScheduledTaskProps(bot.BotType())
+			if e := updateScheduledTaskConfig(botCtx, bot, taskProps, taskScheduler, file); e != nil {
+				log.Errorf("Failed to update ScheduledTask config: %s", err.Error())
+			}
+		}()
+	}
 }
 
 func runBot(ctx context.Context, bot Bot, receiveInput func(Input) error, errNotifier func(error)) {
@@ -346,7 +370,7 @@ func registerScheduledTask(botCtx context.Context, bot Bot, task ScheduledTask, 
 
 func registerCommands(bot Bot, props []*CommandProps, configDir string) {
 	for _, props := range props {
-		command, err := newCommand(props, configDir)
+		command, err := buildCommand(props, configDir)
 		if err != nil {
 			log.Errorf("can't configure command. %s. %#v", err.Error(), props)
 			continue
@@ -358,7 +382,7 @@ func registerCommands(bot Bot, props []*CommandProps, configDir string) {
 
 func registerScheduledTasks(botCtx context.Context, bot Bot, tasks []ScheduledTask, props []*ScheduledTaskProps, taskScheduler scheduler, configDir string) {
 	for _, props := range props {
-		task, err := newScheduledTask(props, configDir)
+		task, err := buildScheduledTask(props, configDir)
 		if err != nil {
 			log.Errorf("can't configure scheduled task: %s. %#v.", err.Error(), props)
 			continue
@@ -377,49 +401,67 @@ func registerScheduledTasks(botCtx context.Context, bot Bot, tasks []ScheduledTa
 	}
 }
 
-func commandUpdaterFunc(bot Bot, props []*CommandProps) func(string) {
-	return func(path string) {
-		dir, filename := filepath.Split(path)
-		id := strings.TrimSuffix(filename, filepath.Ext(filename)) // buzz.yaml to buzz
+func updateCommandConfig(props []*CommandProps, file *pluginConfigFile) error {
+	dir, _ := filepath.Split(file.path)
 
-		for _, p := range props {
-			if p.identifier != id {
-				continue
-			}
-			log.Infof("start rebuilding command due to config file change: %s.", id)
-			command, err := newCommand(p, dir)
-			if err != nil {
-				log.Errorf("can't configure command. id: %s. %s", p.identifier, err.Error())
-				return
-			}
-
-			bot.AppendCommand(command) // replaces the old one.
-			return
+	for _, p := range props {
+		if p.config == nil {
+			continue
 		}
+
+		if p.identifier != file.id {
+			continue
+		}
+
+		log.Infof("Start updating config due to config file change: %s.", file.id)
+
+		err := func() error {
+			// https://github.com/oklahomer/go-sarah/issues/44
+			locker := configLocker.get(dir, p.identifier)
+			locker.Lock()
+			defer locker.Unlock()
+
+			return updatePluginConfig(file, p.config)
+		}()
+
+		if err != nil {
+			return fmt.Errorf("failed to update config for %s: %s", p.identifier, err.Error())
+		}
+
+		log.Infof("End updating config due to config file change: %s.", file.id)
+
+		return nil
 	}
+
+	return nil
 }
 
-func scheduledTaskUpdaterFunc(botCtx context.Context, bot Bot, taskProps []*ScheduledTaskProps, taskScheduler scheduler) func(string) {
-	return func(path string) {
-		dir, filename := filepath.Split(path)
-		id := strings.TrimSuffix(filename, filepath.Ext(filename)) // buzz.yaml to buzz
+func updateScheduledTaskConfig(botCtx context.Context, bot Bot, taskProps []*ScheduledTaskProps, taskScheduler scheduler, file *pluginConfigFile) error {
+	dir, _ := filepath.Split(file.path)
 
-		for _, p := range taskProps {
-			if p.identifier != id {
-				continue
-			}
-
-			log.Infof("start rebuilding scheduled task due to config file change: %s.", id)
-			task, err := newScheduledTask(p, dir)
-			if err != nil {
-				log.Errorf("can't configure scheduled task. id: %s. %s", p.identifier, err.Error())
-				return
-			}
-
-			registerScheduledTask(botCtx, bot, task, taskScheduler)
-			return
+	for _, p := range taskProps {
+		if p.config == nil {
+			continue
 		}
+
+		if p.identifier != file.id {
+			continue
+		}
+
+		log.Infof("Start rebuilding scheduled task due to config file change: %s.", file.id)
+		task, err := buildScheduledTask(p, dir)
+		if err != nil {
+			return fmt.Errorf("failed to re-build scheduled task id: %s error: %s", p.identifier, err.Error())
+		}
+
+		registerScheduledTask(botCtx, bot, task, taskScheduler)
+
+		log.Infof("End rebuilding scheduled task due to config file change: %s.", file.id)
+
+		return nil
 	}
+
+	return nil
 }
 
 func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
@@ -533,4 +575,130 @@ func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) 
 		// Could not send because probably the workers are too busy or the runner context is already canceled.
 		return NewBlockedInputError(continuousEnqueueErrCnt)
 	}
+}
+
+type fileType uint
+
+const (
+	_ fileType = iota
+	yaml_file
+	json_file
+)
+
+type pluginConfigFile struct {
+	id       string
+	path     string
+	fileType fileType
+}
+
+func updatePluginConfig(file *pluginConfigFile, configPtr interface{}) error {
+	buf, err := ioutil.ReadFile(file.path)
+	if err != nil {
+		return err
+	}
+
+	switch file.fileType {
+	case yaml_file:
+		return yaml.Unmarshal(buf, configPtr)
+
+	case json_file:
+		return json.Unmarshal(buf, configPtr)
+
+	default:
+		return fmt.Errorf("Unsupported file type: %s.", file.path)
+
+	}
+}
+
+var (
+	errUnableToDetermineConfigFileFormat = errors.New("can not determine file format")
+	errUnsupportedConfigFileFormat       = errors.New("unsupported file format")
+	errFailedToLocateConfigFile          = errors.New("failed to locate file")
+)
+
+func plainPathToFile(path string) (*pluginConfigFile, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
+	ext := filepath.Ext(path)
+	if ext == "" {
+		return nil, errUnableToDetermineConfigFileFormat
+	}
+
+	candidates := []struct {
+		ext      string
+		fileType fileType
+	}{
+		{
+			ext:      ".yaml",
+			fileType: yaml_file,
+		},
+		{
+			ext:      ".yml",
+			fileType: yaml_file,
+		},
+		{
+			ext:      ".json",
+			fileType: json_file,
+		},
+	}
+
+	_, filename := filepath.Split(path)
+	id := strings.TrimSuffix(filename, ext) // buzz.yaml to buzz
+
+	for _, c := range candidates {
+		if ext != c.ext {
+			continue
+		}
+
+		return &pluginConfigFile{
+			id:       id,
+			path:     path,
+			fileType: c.fileType,
+		}, nil
+	}
+
+	return nil, errUnsupportedConfigFileFormat
+}
+
+func findPluginConfigFile(configDir, id string) *pluginConfigFile {
+	candidates := []struct {
+		ext      string
+		fileType fileType
+	}{
+		{
+			ext:      ".yaml",
+			fileType: yaml_file,
+		},
+		{
+			ext:      ".yml",
+			fileType: yaml_file,
+		},
+		{
+			ext:      ".json",
+			fileType: json_file,
+		},
+	}
+
+	for _, c := range candidates {
+		configPath, err := filepath.Abs(filepath.Join(configDir, fmt.Sprintf("%s%s", id, c.ext)))
+		if err != nil {
+			// TODO proper error handling by caller.
+			return nil
+		}
+
+		_, err = os.Stat(configPath)
+		if err == nil {
+			// File exists.
+			return &pluginConfigFile{
+				id:       id,
+				path:     configPath,
+				fileType: c.fileType,
+			}
+		}
+	}
+
+	return nil
 }
