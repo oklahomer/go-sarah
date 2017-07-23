@@ -643,20 +643,7 @@ func updatePluginConfig(file *pluginConfigFile, configPtr interface{}) error {
 var (
 	errUnableToDetermineConfigFileFormat = errors.New("can not determine file format")
 	errUnsupportedConfigFileFormat       = errors.New("unsupported file format")
-)
-
-func plainPathToFile(path string) (*pluginConfigFile, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-
-	ext := filepath.Ext(path)
-	if ext == "" {
-		return nil, errUnableToDetermineConfigFileFormat
-	}
-
-	candidates := []struct {
+	configFileCandidates                 = []struct {
 		ext      string
 		fileType fileType
 	}{
@@ -673,11 +660,23 @@ func plainPathToFile(path string) (*pluginConfigFile, error) {
 			fileType: json_file,
 		},
 	}
+)
+
+func plainPathToFile(path string) (*pluginConfigFile, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
+	ext := filepath.Ext(path)
+	if ext == "" {
+		return nil, errUnableToDetermineConfigFileFormat
+	}
 
 	_, filename := filepath.Split(path)
 	id := strings.TrimSuffix(filename, ext) // buzz.yaml to buzz
 
-	for _, c := range candidates {
+	for _, c := range configFileCandidates {
 		if ext != c.ext {
 			continue
 		}
@@ -693,25 +692,7 @@ func plainPathToFile(path string) (*pluginConfigFile, error) {
 }
 
 func findPluginConfigFile(configDir, id string) *pluginConfigFile {
-	candidates := []struct {
-		ext      string
-		fileType fileType
-	}{
-		{
-			ext:      ".yaml",
-			fileType: yaml_file,
-		},
-		{
-			ext:      ".yml",
-			fileType: yaml_file,
-		},
-		{
-			ext:      ".json",
-			fileType: json_file,
-		},
-	}
-
-	for _, c := range candidates {
+	for _, c := range configFileCandidates {
 		configPath := filepath.Join(configDir, fmt.Sprintf("%s%s", id, c.ext))
 		_, err := os.Stat(configPath)
 		if err == nil {
