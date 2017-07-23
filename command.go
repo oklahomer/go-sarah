@@ -327,8 +327,8 @@ func (builder *CommandPropsBuilder) Func(fn func(context.Context, Input) (*Comma
 
 // ConfigurableFunc is a setter to provide command function.
 // While Func let developers set simple function, this allows them to provide function that requires some sort of configuration struct.
-// On Runner.Run configuration is read from YAML file located at /path/to/config/dir/{commandIdentifier}.yaml and mapped to given CommandConfig struct.
-// If no YAML file is found, Runner considers the given CommandConfig is fully configured and ready to use.
+// On Runner.Run configuration is read from YAML/JSON file located at /path/to/config/dir/{commandIdentifier}.(yaml|yml|json) and mapped to given CommandConfig struct.
+// If no YAML/JSON file is found, Runner considers the given CommandConfig is fully configured and ready to use.
 // This configuration struct is passed to command function as its third argument.
 func (builder *CommandPropsBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*CommandResponse, error)) *CommandPropsBuilder {
 	builder.props.config = config

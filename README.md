@@ -115,7 +115,7 @@ var CustomizedProps = sarah.NewCommandPropsBuilder().
         MustBuild()
 
 // Configurable is a helper function that returns CommandProps built with given CommandConfig.
-// CommandConfig can be first configured manually or from YAML file, and then fed to this function.
+// CommandConfig can be first configured manually or from YAML/JSON file, and then fed to this function.
 // Returned CommandProps can be fed to Runner and when configuration file is updated,
 // Runner detects the change and re-build the Command with updated configuration struct.
 func Configurable(config sarah.CommandConfig) *sarah.CommandProps {
@@ -135,7 +135,7 @@ This configuration struct is passed on command execution as 3rd argument.
 
 To let Runner supervise file change event, set sarah.Config.PluginConfigRoot.
 Internal directory watcher supervises ```sarah.Config.PluginConfigRoot + "/" + BotType + "/"``` as ```Bot```'s configuration directory.
-When any file under that directory is updated, ```Runner``` searches for corresponding ```CommandProps``` based on the assumption that the file name is equivalent to ```CommandProps.identifier + ".yaml""```.
+When any file under that directory is updated, ```Runner``` searches for corresponding ```CommandProps``` based on the assumption that the file name is equivalent to ```CommandProps.identifier + ".(yaml|yml|json)""```.
 If a corresponding ```CommandProps``` exists, ```Runner``` rebuild ```Command``` with latest configuration values and replaces with the old one.
 
 ## Scheduled Task
@@ -183,7 +183,7 @@ This configuration struct is passed on task execution as 2nd argument.
 
 To let Runner supervise file change event, set sarah.Config.PluginConfigRoot.
 Internal directory watcher supervises ```sarah.Config.PluginConfigRoot + "/" + BotType + "/"``` as ```Bot```'s configuration directory.
-When any file under that directory is updated, ```Runner``` searches for corresponding ```ScheduledTaskProps``` based on the assumption that the file name is equivalent to ```ScheduledTaskProps.identifier + ".yaml""```.
+When any file under that directory is updated, ```Runner``` searches for corresponding ```ScheduledTaskProps``` based on the assumption that the file name is equivalent to ```ScheduledTaskProps.identifier + ".(yaml|yml|json)""```.
 If a corresponding ```ScheduledTaskProps``` exists, ```Runner``` rebuild ```ScheduledTask``` with latest configuration values and replaces with the old one.
 
 ## Alerter

@@ -115,7 +115,7 @@ component "Runner" as runner {
 
     component "Cron" as cron {
     }
-    note top of cron
+    note bottom of cron
     Execute //ScheduledTask//
     periodically.
     end note
@@ -137,6 +137,10 @@ component "Runner" as runner {
         file alarm.yaml
         file weather.yaml
     }
+    note bottom of configDir
+    Below extensions are supported:
+    .yaml, .yml and .json
+    end note
 }
 note top of runner
 Takes care of other components' life cycles.
