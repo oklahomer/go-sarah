@@ -6,6 +6,7 @@ import (
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -77,45 +78,82 @@ func (command *defaultCommand) Execute(ctx context.Context, input Input) (*Comma
 	return command.commandFunc(ctx, input, wrapper.value)
 }
 
-func buildCommand(props *CommandProps, configDir string) (Command, error) {
-	// If path to the configuration files' directory and config struct's pointer is given, corresponding configuration file MAY exist.
-	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
-	commandConfig := props.config
-	var configWrapper *commandConfigWrapper
-	if configDir != "" && commandConfig != nil {
-		file := findPluginConfigFile(configDir, props.identifier)
+func buildCommand(props *CommandProps, file *pluginConfigFile) (Command, error) {
+	if props.config == nil {
+		return &defaultCommand{
+			identifier:    props.identifier,
+			example:       props.example,
+			matchFunc:     props.matchFunc,
+			commandFunc:   props.commandFunc,
+			configWrapper: nil,
+		}, nil
+	}
 
-		// https://github.com/oklahomer/go-sarah/issues/44
-		locker := configLocker.get(configDir, props.identifier)
-		if file != nil {
-			err := func() error {
-				locker.Lock()
-				defer locker.Unlock()
+	// https://github.com/oklahomer/go-sarah/issues/44
+	locker := configLocker.get(props.botType, props.identifier)
 
-				return updatePluginConfig(file, commandConfig)
-			}()
-			if err != nil && os.IsNotExist(err) {
-				log.Infof("Config struct is set, but there was no corresponding setting file under %s. "+
-					"Assume config struct is already filled with appropriate value and keep going. command ID: %s.",
-					configDir, props.identifier)
-			} else if err != nil {
-				// File was there, but could not read.
-				return nil, err
-			}
-		}
-
-		configWrapper = &commandConfigWrapper{
-			value: commandConfig,
+	if file == nil {
+		// Config file is not found so far, but there is a chance that file is created later.
+		// In that case, file watcher may detect the file creation event and trigger config struct's live update.
+		// To avoid the concurrent read/write, locker is still needed.
+		// Until then, assume given CommandConfig is already configured and proceed to build.
+		configWrapper := &commandConfigWrapper{
+			value: props.config,
 			mutex: locker,
 		}
+
+		return &defaultCommand{
+			identifier:    props.identifier,
+			example:       props.example,
+			matchFunc:     props.matchFunc,
+			commandFunc:   props.commandFunc,
+			configWrapper: configWrapper,
+		}, nil
+	}
+
+	commandConfig := props.config
+
+	// Minimize the scope of mutex with anonymous function for better performance.
+	err := func() error {
+		locker.Lock()
+		defer locker.Unlock()
+
+		rv := reflect.ValueOf(commandConfig)
+		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
+			return updatePluginConfig(file, commandConfig)
+		} else {
+			// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
+			// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
+			n := reflect.New(reflect.TypeOf(commandConfig))
+
+			// Copy the current value to newly created instance.
+			// This includes private field values.
+			n.Elem().Set(rv)
+
+			// Pass the pointer to the newly created instance.
+			e := updatePluginConfig(file, n.Interface())
+
+			// Replace the current value with updated value.
+			commandConfig = n.Elem().Interface()
+			return e
+		}
+	}()
+	if err != nil && os.IsNotExist(err) {
+		return nil, fmt.Errorf("Config file property was given, but failed to locate it: %s", err.Error())
+	} else if err != nil {
+		// File was there, but could not read.
+		return nil, err
 	}
 
 	return &defaultCommand{
-		identifier:    props.identifier,
-		example:       props.example,
-		matchFunc:     props.matchFunc,
-		commandFunc:   props.commandFunc,
-		configWrapper: configWrapper,
+		identifier:  props.identifier,
+		example:     props.example,
+		matchFunc:   props.matchFunc,
+		commandFunc: props.commandFunc,
+		configWrapper: &commandConfigWrapper{
+			value: commandConfig,
+			mutex: locker,
+		},
 	}, nil
 }
 

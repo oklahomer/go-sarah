@@ -275,13 +275,51 @@ func TestScheduledTask_Schedule(t *testing.T) {
 	}
 }
 
+func Test_buildScheduledTask_WithOutConfig(t *testing.T) {
+	schedule := "@every 1m"
+	props := &ScheduledTaskProps{
+		botType:            "botType",
+		identifier:         "fileNotFound",
+		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+		schedule:           schedule,
+		defaultDestination: "dummy",
+		config:             nil,
+	}
+
+	task, err := buildScheduledTask(props, nil)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if task.Schedule() != schedule {
+		t.Errorf("Schedule is not properly set: %s.", task.Schedule())
+	}
+}
+
+func Test_buildScheduledTask_WithOutConfigOrSchedule(t *testing.T) {
+	props := &ScheduledTaskProps{
+		botType:            "botType",
+		identifier:         "fileNotFound",
+		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+		schedule:           "",
+		defaultDestination: "dummy",
+		config:             nil,
+	}
+
+	_, err := buildScheduledTask(props, nil)
+
+	if err == nil {
+		t.Fatalf("Expected error is not returned: %s.", err.Error())
+	}
+}
+
 func Test_buildScheduledTask_WithOutConfigFile(t *testing.T) {
 	config := &struct {
 		Token string
 	}{
 		Token: "presetToken",
 	}
-
 	props := &ScheduledTaskProps{
 		botType:            "botType",
 		identifier:         "fileNotFound",
@@ -290,15 +328,16 @@ func Test_buildScheduledTask_WithOutConfigFile(t *testing.T) {
 		defaultDestination: "dummy",
 		config:             config,
 	}
-
-	task, err := buildScheduledTask(props, filepath.Join("testdata", "command"))
-
-	if err != nil {
-		t.Fatalf("Error should not be returned just because configuration file is not found: %s.", err.Error())
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "fileNotFound.yaml"),
+		fileType: yaml_file,
 	}
 
-	if task == nil {
-		t.Fatal("Built ScheduledTask is not returned.")
+	_, err := buildScheduledTask(props, file)
+
+	if err == nil {
+		t.Fatalf("Error should be returned when expecting config file is not located: %s.", err.Error())
 	}
 }
 
@@ -308,7 +347,6 @@ func Test_buildScheduledTask_WithBrokenYaml(t *testing.T) {
 	}{
 		Token: "",
 	}
-
 	props := &ScheduledTaskProps{
 		identifier:         "broken",
 		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
@@ -316,8 +354,13 @@ func Test_buildScheduledTask_WithBrokenYaml(t *testing.T) {
 		defaultDestination: "dummy",
 		config:             config,
 	}
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "broken.yaml"),
+		fileType: yaml_file,
+	}
 
-	_, err := buildScheduledTask(props, filepath.Join("testdata", "command"))
+	_, err := buildScheduledTask(props, file)
 
 	if err == nil {
 		t.Fatal("Error must be returned.")
@@ -333,7 +376,7 @@ func Test_buildScheduledTask_WithOutSchedule(t *testing.T) {
 		config:             emptyScheduleConfig,
 	}
 
-	_, err := buildScheduledTask(emptyScheduleProps, filepath.Join("testdata", "command"))
+	_, err := buildScheduledTask(emptyScheduleProps, nil)
 
 	if err == nil {
 		t.Fatal("Epected error is not returned.")
@@ -344,7 +387,7 @@ func Test_buildScheduledTask_WithOutSchedule(t *testing.T) {
 	}
 }
 
-func Test_newScheduledTask_WithDefaultDestinationConfig(t *testing.T) {
+func Test_buildScheduledTask_WithDefaultDestinationConfig(t *testing.T) {
 	config := &DummyScheduledTaskConfig{
 		ScheduleValue:    "@every 1m",
 		DestinationValue: "dummy",
@@ -357,7 +400,7 @@ func Test_newScheduledTask_WithDefaultDestinationConfig(t *testing.T) {
 		config:             config,
 	}
 
-	task, err := buildScheduledTask(props, filepath.Join("testdata", "command"))
+	task, err := buildScheduledTask(props, nil)
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
@@ -365,6 +408,39 @@ func Test_newScheduledTask_WithDefaultDestinationConfig(t *testing.T) {
 
 	if task.DefaultDestination() != config.DestinationValue {
 		t.Fatalf("Expected default destination is returned: %s.", task.DefaultDestination())
+	}
+}
+
+func Test_buildScheduledTask_WithConfigValue(t *testing.T) {
+	type config struct {
+		Token string
+	}
+	value := config{
+		Token: "presetToken",
+	}
+	props := &ScheduledTaskProps{
+		botType:            "botType",
+		identifier:         "fileNotFound",
+		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+		schedule:           "@every 1m",
+		defaultDestination: "dummy",
+		config:             value,
+	}
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
+
+	task, err := buildScheduledTask(props, file)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s", err.Error())
+	}
+
+	v := task.(*scheduledTask).configWrapper.value.(config).Token
+	if v != "foobar" {
+		t.Errorf("Newly set config does not reflect value from file: %s.", v)
 	}
 }
 
@@ -387,11 +463,16 @@ func Test_race_taskRebuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error on ScheduledTaskProps preparation: %s.", err.Error())
 	}
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
 
 	rootCtx := context.Background()
 	ctx, cancel := context.WithCancel(rootCtx)
 
-	task, err := buildScheduledTask(props, filepath.Join("testdata", "command"))
+	task, err := buildScheduledTask(props, file)
 	if err != nil {
 		t.Fatalf("Error on ScheduledTask build: %s.", err.Error())
 	}
@@ -405,7 +486,7 @@ func Test_race_taskRebuild(t *testing.T) {
 
 			default:
 				// Write
-				_, err := buildScheduledTask(p, filepath.Join("testdata", "command"))
+				_, err := buildScheduledTask(p, file)
 				if err != nil {
 					t.Errorf("Error on command build: %s.", err.Error())
 				}

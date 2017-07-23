@@ -558,6 +558,13 @@ func Test_updateCommandConfig(t *testing.T) {
 	}
 
 	var botType BotType = "dummy"
+	var appendCalled bool
+	bot := &DummyBot{
+		BotTypeValue: botType,
+		AppendCommandFunc: func(_ Command) {
+			appendCalled = true
+		},
+	}
 	props := []*CommandProps{
 		{
 			identifier:  "irrelevant",
@@ -582,10 +589,14 @@ func Test_updateCommandConfig(t *testing.T) {
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
 		fileType: yaml_file,
 	}
-	err := updateCommandConfig(props, file)
+	err := updateCommandConfig(bot, props, file)
 
 	if err != nil {
 		t.Errorf("Unexpected error returned: %s.", err.Error())
+	}
+
+	if appendCalled {
+		t.Error("Bot.AppendCommand should not be called when pointer to CommandConfig is given.")
 	}
 
 	if c.Token != "foobar" {
@@ -602,6 +613,9 @@ func Test_updateCommandConfig_WithBrokenYaml(t *testing.T) {
 	}
 
 	var botType BotType = "dummy"
+	bot := &DummyBot{
+		BotTypeValue: botType,
+	}
 	props := []*CommandProps{
 		{
 			identifier:  "broken",
@@ -618,7 +632,7 @@ func Test_updateCommandConfig_WithBrokenYaml(t *testing.T) {
 		path:     filepath.Join("testdata", "command", "broken.yaml"),
 		fileType: yaml_file,
 	}
-	err := updateCommandConfig(props, file)
+	err := updateCommandConfig(bot, props, file)
 
 	if err == nil {
 		t.Fatal("Expected error is not returned.")
@@ -626,6 +640,58 @@ func Test_updateCommandConfig_WithBrokenYaml(t *testing.T) {
 
 	if err == errUnableToDetermineConfigFileFormat || err == errUnsupportedConfigFileFormat {
 		t.Errorf("Unexpected error type was returned: %T", err)
+	}
+}
+
+func Test_updateCommandConfig_WithConfigValue(t *testing.T) {
+	type config struct {
+		Token string
+	}
+	c := config{
+		Token: "default",
+	}
+
+	var botType BotType = "dummy"
+	var newCmd Command
+	bot := &DummyBot{
+		BotTypeValue: botType,
+		AppendCommandFunc: func(cmd Command) {
+			newCmd = cmd
+		},
+	}
+	props := []*CommandProps{
+		{
+			identifier:  "dummy",
+			botType:     botType,
+			commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
+			matchFunc:   func(_ Input) bool { return true },
+			config:      c,
+			example:     "exampleInput",
+		},
+	}
+
+	file := &pluginConfigFile{
+		id:       "dummy",
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
+	err := updateCommandConfig(bot, props, file)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if err == errUnableToDetermineConfigFileFormat || err == errUnsupportedConfigFileFormat {
+		t.Errorf("Unexpected error type was returned: %T.", err)
+	}
+
+	if newCmd == nil {
+		t.Error("Bot.AppendCommand must be called to replace old Command when config value is set instead of pointer.")
+	}
+
+	v := newCmd.(*defaultCommand).configWrapper.value.(config).Token
+	if v != "foobar" {
+		t.Errorf("Newly set config does not reflect value from file: %s.", v)
 	}
 }
 
@@ -697,12 +763,18 @@ func Test_updateScheduledTaskConfig_WithBrokenYaml(t *testing.T) {
 			taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
 			schedule:           "@every 1m",
 			defaultDestination: "boo",
-			config:             &struct{ token string }{},
+			config:             &struct{ Token string }{},
 		},
 	}
+
+	var removeCalled bool
 	scheduler := &DummyScheduler{
 		UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
 			registeredScheduledTask++
+			return nil
+		},
+		RemoveFunc: func(_ BotType, _ string) error {
+			removeCalled = true
 			return nil
 		},
 	}
@@ -720,6 +792,10 @@ func Test_updateScheduledTaskConfig_WithBrokenYaml(t *testing.T) {
 
 	if registeredScheduledTask != 0 {
 		t.Errorf("No comamnd is expected to be registered: %d.", registeredScheduledTask)
+	}
+
+	if !removeCalled {
+		t.Error("scheduler.remove should be removed when config update fails.")
 	}
 }
 
@@ -942,6 +1018,35 @@ func Test_plainPathToFile(t *testing.T) {
 
 		if err != test.err {
 			t.Errorf("Unexpected error is returned: %#v.", err)
+		}
+	}
+}
+
+func Test_findPluginConfigFile(t *testing.T) {
+	tests := []struct {
+		configDir string
+		id        string
+		found     bool
+	}{
+		{
+			configDir: filepath.Join("testdata", "command"),
+			id:        "dummy",
+			found:     true,
+		},
+		{
+			configDir: filepath.Join("testdata", "nonExistingDir"),
+			id:        "notFound",
+			found:     false,
+		},
+	}
+
+	for i, test := range tests {
+		testNo := i + 1
+		file := findPluginConfigFile(test.configDir, test.id)
+		if test.found && file == nil {
+			t.Error("Expected *pluginConfigFile is not returned.")
+		} else if !test.found && file != nil {
+			t.Errorf("Unexpected returned value on test %d: %#v.", testNo, file)
 		}
 	}
 }

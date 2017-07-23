@@ -2,7 +2,6 @@ package sarah
 
 import (
 	"fmt"
-	"path/filepath"
 	"sync"
 )
 
@@ -22,16 +21,11 @@ type configRWLocker struct {
 	mutex     sync.Mutex
 }
 
-func (cl *configRWLocker) get(configDir string, pluginID string) *sync.RWMutex {
+func (cl *configRWLocker) get(botType BotType, pluginID string) *sync.RWMutex {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
 
-	absDir, err := filepath.Abs(configDir)
-	if err != nil {
-		panic(fmt.Sprintf("failed to get absolute path to configuration files: %s", err.Error()))
-	}
-	lockID := fmt.Sprintf("dir:%s::id:%s", absDir, pluginID)
-
+	lockID := fmt.Sprintf("botType:%s::id:%s", botType.String(), pluginID)
 	locker, ok := cl.fileMutex[lockID]
 	if !ok {
 		locker = &sync.RWMutex{}
