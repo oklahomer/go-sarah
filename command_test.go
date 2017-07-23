@@ -210,7 +210,7 @@ func TestCommandPropsBuilder_MustBuild(t *testing.T) {
 	}
 }
 
-func Test_newCommand(t *testing.T) {
+func Test_buildCommand(t *testing.T) {
 	config := &struct {
 		Token string `yaml:"token"`
 	}{
@@ -220,8 +220,13 @@ func Test_newCommand(t *testing.T) {
 		identifier: "dummy",
 		config:     config,
 	}
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
 
-	_, err := newCommand(props, filepath.Join("testdata", "command"))
+	_, err := buildCommand(props, file)
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
@@ -231,7 +236,147 @@ func Test_newCommand(t *testing.T) {
 	}
 }
 
-func Test_newCommand_BrokenYaml(t *testing.T) {
+func Test_buildCommand_WithOutConfig(t *testing.T) {
+	props := &CommandProps{
+		botType:    "foo",
+		identifier: "bar",
+		commandFunc: func(_ context.Context, _ Input, config ...CommandConfig) (*CommandResponse, error) {
+			return nil, nil
+		},
+		matchFunc: func(_ Input) bool {
+			return false
+		},
+		example: ".foo",
+		config:  nil,
+	}
+
+	cmd, err := buildCommand(props, nil)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if cmd == nil {
+		t.Error("Expected Command is not returned.")
+	}
+}
+
+func Test_buildCommand_WithOutConfigFile(t *testing.T) {
+	props := &CommandProps{
+		botType:    "foo",
+		identifier: "bar",
+		commandFunc: func(_ context.Context, _ Input, config ...CommandConfig) (*CommandResponse, error) {
+			return nil, nil
+		},
+		matchFunc: func(_ Input) bool {
+			return false
+		},
+		example: ".foo",
+		config:  struct{}{}, // non-nil
+	}
+
+	cmd, err := buildCommand(props, nil)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	if cmd == nil {
+		t.Error("Expected Command is not returned.")
+	}
+}
+
+func Test_buildCommand_WithConfigValue(t *testing.T) {
+	type config struct {
+		Token  string `yaml:"token"`
+		Foo    string `yaml:"foo"`
+		hidden string
+	}
+	// *NOT* a pointer
+	c := config{
+		Token:  "default",
+		Foo:    "initial value",
+		hidden: "hashhash",
+	}
+	props := &CommandProps{
+		identifier: "dummy",
+		config:     c,
+	}
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
+
+	cmd, err := buildCommand(props, file)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+	if cmd.(*defaultCommand).configWrapper.value.(config).Token != "foobar" {
+		t.Errorf("Configuration is not read from testdata/commandbuilder/dummy.yaml file. %#v", cmd.(*defaultCommand).configWrapper.value)
+	}
+	if cmd.(*defaultCommand).configWrapper.value.(config).Foo != "initial value" {
+		t.Errorf("Value is lost. %#v", cmd.(*defaultCommand).configWrapper.value)
+	}
+}
+
+func Test_buildCommand_WithConfigMap(t *testing.T) {
+	config := map[string]interface{}{
+		"token": "default",
+		"foo":   "initial value",
+	}
+	props := &CommandProps{
+		identifier: "dummy",
+		config:     config,
+	}
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
+
+	cmd, err := buildCommand(props, file)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
+
+	configWrapper := cmd.(*defaultCommand).configWrapper
+	if configWrapper == nil {
+		t.Fatal("CommandConfig is not set.")
+	}
+
+	newConfig, ok := configWrapper.value.(map[string]interface{})
+	fmt.Printf("%#v", newConfig)
+	if !ok {
+		t.Fatalf("CommandConfig type is not valid: %T", configWrapper.value)
+	}
+
+	// Make sure original value is updated.
+	v, ok := config["token"]
+	if ok && v != "foobar" {
+		t.Errorf("Unexpected token value is set: %s", v)
+	} else if !ok {
+		t.Error("Token key does not exist.")
+	}
+
+	v, ok = newConfig["token"]
+	if ok && v != "foobar" {
+		t.Errorf("Unexpected token value is set: %s", v)
+	} else if !ok {
+		t.Error("Token key does not exist.")
+	}
+
+	v, ok = newConfig["foo"]
+	if ok && v != "initial value" {
+		t.Errorf("Unexpected foo value is set: %s", v)
+	} else if !ok {
+		t.Error("Foo key does not exist.")
+	}
+}
+
+func Test_buildCommand_BrokenYaml(t *testing.T) {
 	config := &struct {
 		Token string `yaml:"token"`
 	}{
@@ -241,15 +386,20 @@ func Test_newCommand_BrokenYaml(t *testing.T) {
 		identifier: "broken",
 		config:     config,
 	}
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "broken.yaml"),
+		fileType: yaml_file,
+	}
 
-	_, err := newCommand(props, filepath.Join("testdata", "command"))
+	_, err := buildCommand(props, file)
 
 	if err == nil {
 		t.Fatal("Error must be returned.")
 	}
 }
 
-func Test_newCommand_WithOutConfigFile(t *testing.T) {
+func Test_buildCommand_WithUnlocatableConfigFile(t *testing.T) {
 	config := &struct {
 		Token string
 	}{
@@ -262,15 +412,16 @@ func Test_newCommand_WithOutConfigFile(t *testing.T) {
 		commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
 		config:      config,
 	}
-
-	command, err := newCommand(props, filepath.Join("testdata", "command"))
-
-	if err != nil {
-		t.Fatalf("Error should not be returned just because configuration file is not found: %s.", err.Error())
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "fileNotFound.yaml"),
+		fileType: yaml_file,
 	}
 
-	if command == nil {
-		t.Fatal("Built Command is not returned.")
+	_, err := buildCommand(props, file)
+
+	if err == nil {
+		t.Fatalf("Error should be returned when expecting config file is not located: %s.", err.Error())
 	}
 }
 
@@ -507,6 +658,12 @@ func Test_race_commandRebuild(t *testing.T) {
 	rootCtx := context.Background()
 	ctx, cancel := context.WithCancel(rootCtx)
 
+	file := &pluginConfigFile{
+		id:       props.identifier,
+		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+		fileType: yaml_file,
+	}
+
 	// Continuously read configuration file and re-build Command
 	go func(c context.Context, b Bot, p *CommandProps) {
 		for {
@@ -516,7 +673,7 @@ func Test_race_commandRebuild(t *testing.T) {
 
 			default:
 				// Write
-				command, err := newCommand(p, filepath.Join("testdata", "command"))
+				command, err := buildCommand(p, file)
 				if err == nil {
 					b.AppendCommand(command)
 				} else {

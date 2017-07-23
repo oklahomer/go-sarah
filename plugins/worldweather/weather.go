@@ -16,7 +16,7 @@ Setup should be somewhat like below:
   options.Append(sarah.WithCommandProps(worldweather.SlackProps))
 
   // Config.PluginConfigRoot must be set to read configuration file for this command.
-  // Runner searches for configuration file located at config.PluginConfigRoot + "/slack/weather.yaml".
+  // Runner searches for configuration file located at config.PluginConfigRoot + "/slack/weather.(yaml|yml|json)".
   config := sarah.NewConfig()
   config.PluginConfigRoot = "/path/to/config/" // Or do yaml.Unmarshal(fileBuf, config), json.Unmarshal(fileBuf, config)
   runner, err := sarah.NewRunner(config, options.Arg())

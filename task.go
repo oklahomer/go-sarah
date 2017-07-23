@@ -3,10 +3,9 @@ package sarah
 import (
 	"errors"
 	"fmt"
-	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"os"
-	"path"
+	"reflect"
 	"sync"
 )
 
@@ -101,36 +100,62 @@ func (task *scheduledTask) DefaultDestination() OutputDestination {
 	return task.defaultDestination
 }
 
-func newScheduledTask(props *ScheduledTaskProps, configDir string) (ScheduledTask, error) {
-	// If path to the configuration files' directory is given, corresponding configuration file MAY exist.
-	// If exists, read and map to given config struct; if file does not exist, assume the config struct is already configured by developer.
+func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (ScheduledTask, error) {
+	if props.config == nil {
+		// If config struct is not set, props MUST provide settings to set schedule.
+		if props.schedule == "" {
+			return nil, ErrTaskScheduleNotGiven
+		}
+
+		dest := props.defaultDestination // Can be nil because task response may return specific destination to send result to.
+		return &scheduledTask{
+			identifier:         props.identifier,
+			taskFunc:           props.taskFunc,
+			schedule:           props.schedule,
+			defaultDestination: dest,
+			config:             props.config,
+			configWrapper:      nil,
+		}, nil
+	}
+
+	// https://github.com/oklahomer/go-sarah/issues/44
+	//
+	// Because config file can be created later and that may trigger config struct's live update,
+	// locker needs to be obtained and passed to ScheduledTask to avoid concurrent read/write.
+	// Until then, assume given TaskConfig is already configured and proceed to build.
+	locker := configLocker.get(props.botType, props.identifier)
 	taskConfig := props.config
-	var configWrapper *taskConfigWrapper
-	if configDir != "" && taskConfig != nil {
-		fileName := props.identifier + ".yaml"
-		configPath := path.Join(configDir, fileName)
-
-		// https://github.com/oklahomer/go-sarah/issues/44
-		locker := configLocker.get(configPath)
-
+	if file != nil {
+		// Minimize the scope of mutex with anonymous function for better performance.
 		err := func() error {
 			locker.Lock()
 			defer locker.Unlock()
 
-			return readConfig(configPath, taskConfig)
+			rv := reflect.ValueOf(taskConfig)
+			if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
+				return updatePluginConfig(file, taskConfig)
+			} else {
+				// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
+				// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
+				n := reflect.New(reflect.TypeOf(taskConfig))
+
+				// Copy the current value to newly created instance.
+				// This includes private field values.
+				n.Elem().Set(rv)
+
+				// Pass the pointer to the newly created instance.
+				e := updatePluginConfig(file, n.Interface())
+
+				// Replace the current value with updated value.
+				taskConfig = n.Elem().Interface()
+				return e
+			}
 		}()
 		if err != nil && os.IsNotExist(err) {
-			log.Infof("config struct is set, but there was no corresponding setting file at %s. "+
-				"assume config struct is already filled with appropriate value and keep going. command ID: %s.",
-				configPath, props.identifier)
+			return nil, fmt.Errorf("Config file property was given, but failed to locate it: %s", err.Error())
 		} else if err != nil {
 			// File was there, but could not read.
 			return nil, err
-		}
-
-		configWrapper = &taskConfigWrapper{
-			value: taskConfig,
-			mutex: locker,
 		}
 	}
 
@@ -164,7 +189,10 @@ func newScheduledTask(props *ScheduledTaskProps, configDir string) (ScheduledTas
 		schedule:           schedule,
 		defaultDestination: dest,
 		config:             props.config,
-		configWrapper:      configWrapper,
+		configWrapper: &taskConfigWrapper{
+			value: taskConfig,
+			mutex: locker,
+		},
 	}, nil
 }
 

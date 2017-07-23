@@ -1,6 +1,9 @@
 package sarah
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 var configLocker = &configRWLocker{
 	fileMutex: map[string]*sync.RWMutex{},
@@ -18,14 +21,15 @@ type configRWLocker struct {
 	mutex     sync.Mutex
 }
 
-func (cl *configRWLocker) get(configPath string) *sync.RWMutex {
+func (cl *configRWLocker) get(botType BotType, pluginID string) *sync.RWMutex {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
 
-	locker, ok := cl.fileMutex[configPath]
+	lockID := fmt.Sprintf("botType:%s::id:%s", botType.String(), pluginID)
+	locker, ok := cl.fileMutex[lockID]
 	if !ok {
 		locker = &sync.RWMutex{}
-		cl.fileMutex[configPath] = locker
+		cl.fileMutex[lockID] = locker
 	}
 
 	return locker
