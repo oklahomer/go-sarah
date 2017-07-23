@@ -479,9 +479,9 @@ func updateScheduledTaskConfig(botCtx context.Context, bot Bot, taskProps []*Sch
 			e := taskScheduler.remove(bot.BotType(), p.identifier)
 			if e != nil {
 				return fmt.Errorf("tried to remove ScheduledTask because rebuild failed, but removal also failed: %s", e.Error())
-			} else {
-				return fmt.Errorf("failed to re-build scheduled task id: %s error: %s", p.identifier, err.Error())
 			}
+
+			return fmt.Errorf("failed to re-build scheduled task id: %s error: %s", p.identifier, err.Error())
 		}
 
 		registerScheduledTask(botCtx, bot, task, taskScheduler)
@@ -611,8 +611,8 @@ type fileType uint
 
 const (
 	_ fileType = iota
-	yaml_file
-	json_file
+	yamlFile
+	jsonFile
 )
 
 type pluginConfigFile struct {
@@ -628,10 +628,10 @@ func updatePluginConfig(file *pluginConfigFile, configPtr interface{}) error {
 	}
 
 	switch file.fileType {
-	case yaml_file:
+	case yamlFile:
 		return yaml.Unmarshal(buf, configPtr)
 
-	case json_file:
+	case jsonFile:
 		return json.Unmarshal(buf, configPtr)
 
 	default:
@@ -649,15 +649,15 @@ var (
 	}{
 		{
 			ext:      ".yaml",
-			fileType: yaml_file,
+			fileType: yamlFile,
 		},
 		{
 			ext:      ".yml",
-			fileType: yaml_file,
+			fileType: yamlFile,
 		},
 		{
 			ext:      ".json",
-			fileType: json_file,
+			fileType: jsonFile,
 		},
 	}
 )

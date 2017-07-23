@@ -331,7 +331,7 @@ func Test_buildScheduledTask_WithOutConfigFile(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "fileNotFound.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	_, err := buildScheduledTask(props, file)
@@ -357,7 +357,7 @@ func Test_buildScheduledTask_WithBrokenYaml(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "broken.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	_, err := buildScheduledTask(props, file)
@@ -429,7 +429,7 @@ func Test_buildScheduledTask_WithConfigValue(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	task, err := buildScheduledTask(props, file)
@@ -466,7 +466,7 @@ func Test_race_taskRebuild(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	rootCtx := context.Background()

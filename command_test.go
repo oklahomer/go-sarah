@@ -223,7 +223,7 @@ func Test_buildCommand(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	_, err := buildCommand(props, file)
@@ -305,7 +305,7 @@ func Test_buildCommand_WithConfigValue(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	cmd, err := buildCommand(props, file)
@@ -333,7 +333,7 @@ func Test_buildCommand_WithConfigMap(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	cmd, err := buildCommand(props, file)
@@ -389,7 +389,7 @@ func Test_buildCommand_BrokenYaml(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "broken.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	_, err := buildCommand(props, file)
@@ -415,7 +415,7 @@ func Test_buildCommand_WithUnlocatableConfigFile(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "fileNotFound.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	_, err := buildCommand(props, file)
@@ -661,7 +661,7 @@ func Test_race_commandRebuild(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       props.identifier,
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 
 	// Continuously read configuration file and re-build Command

@@ -587,7 +587,7 @@ func Test_updateCommandConfig(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       "dummy",
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 	err := updateCommandConfig(bot, props, file)
 
@@ -630,7 +630,7 @@ func Test_updateCommandConfig_WithBrokenYaml(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       "broken",
 		path:     filepath.Join("testdata", "command", "broken.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 	err := updateCommandConfig(bot, props, file)
 
@@ -673,7 +673,7 @@ func Test_updateCommandConfig_WithConfigValue(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       "dummy",
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 	err := updateCommandConfig(bot, props, file)
 
@@ -737,7 +737,7 @@ func Test_updateScheduledTaskConfig(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       "dummy",
 		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 	err := updateScheduledTaskConfig(context.TODO(), bot, props, scheduler, file)
 
@@ -782,7 +782,7 @@ func Test_updateScheduledTaskConfig_WithBrokenYaml(t *testing.T) {
 	file := &pluginConfigFile{
 		id:       "broken",
 		path:     filepath.Join("testdata", "command", "broken.yaml"),
-		fileType: yaml_file,
+		fileType: yamlFile,
 	}
 	err := updateScheduledTaskConfig(context.TODO(), bot, props, scheduler, file)
 
@@ -967,19 +967,19 @@ func Test_plainPathToFile(t *testing.T) {
 			input:    "./foo/bar.yaml",
 			id:       "bar",
 			path:     func() string { p, _ := filepath.Abs("./foo/bar.yaml"); return p }(),
-			fileType: yaml_file,
+			fileType: yamlFile,
 		},
 		{
 			input:    "/abs/foo/bar.yml",
 			id:       "bar",
 			path:     func() string { p, _ := filepath.Abs("/abs/foo/bar.yml"); return p }(),
-			fileType: yaml_file,
+			fileType: yamlFile,
 		},
 		{
 			input:    "foo/bar.json",
 			id:       "bar",
 			path:     func() string { p, _ := filepath.Abs("foo/bar.json"); return p }(),
-			fileType: json_file,
+			fileType: jsonFile,
 		},
 		{
 			input: "/abs/foo/undetermined",

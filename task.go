@@ -134,22 +134,22 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 			rv := reflect.ValueOf(taskConfig)
 			if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
 				return updatePluginConfig(file, taskConfig)
-			} else {
-				// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
-				// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
-				n := reflect.New(reflect.TypeOf(taskConfig))
-
-				// Copy the current value to newly created instance.
-				// This includes private field values.
-				n.Elem().Set(rv)
-
-				// Pass the pointer to the newly created instance.
-				e := updatePluginConfig(file, n.Interface())
-
-				// Replace the current value with updated value.
-				taskConfig = n.Elem().Interface()
-				return e
 			}
+
+			// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
+			// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
+			n := reflect.New(reflect.TypeOf(taskConfig))
+
+			// Copy the current value to newly created instance.
+			// This includes private field values.
+			n.Elem().Set(rv)
+
+			// Pass the pointer to the newly created instance.
+			e := updatePluginConfig(file, n.Interface())
+
+			// Replace the current value with updated value.
+			taskConfig = n.Elem().Interface()
+			return e
 		}()
 		if err != nil && os.IsNotExist(err) {
 			return nil, fmt.Errorf("Config file property was given, but failed to locate it: %s", err.Error())
