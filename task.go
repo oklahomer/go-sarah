@@ -60,7 +60,6 @@ type scheduledTask struct {
 	taskFunc           taskFunc
 	schedule           string
 	defaultDestination OutputDestination
-	config             TaskConfig
 	configWrapper      *taskConfigWrapper
 }
 
@@ -101,7 +100,8 @@ func (task *scheduledTask) DefaultDestination() OutputDestination {
 }
 
 func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (ScheduledTask, error) {
-	if props.config == nil {
+	taskConfig := props.config
+	if taskConfig == nil {
 		// If config struct is not set, props MUST provide settings to set schedule.
 		if props.schedule == "" {
 			return nil, ErrTaskScheduleNotGiven
@@ -113,7 +113,6 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 			taskFunc:           props.taskFunc,
 			schedule:           props.schedule,
 			defaultDestination: dest,
-			config:             props.config,
 			configWrapper:      nil,
 		}, nil
 	}
@@ -124,7 +123,6 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 	// locker needs to be obtained and passed to ScheduledTask to avoid concurrent read/write.
 	// Until then, assume given TaskConfig is already configured and proceed to build.
 	locker := configLocker.get(props.botType, props.identifier)
-	taskConfig := props.config
 	if file != nil {
 		// Minimize the scope of mutex with anonymous function for better performance.
 		err := func() error {
@@ -161,11 +159,9 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 
 	// Setup execution schedule
 	schedule := props.schedule
-	if taskConfig != nil {
-		if scheduledConfig, ok := (taskConfig).(ScheduledConfig); ok {
-			if s := scheduledConfig.Schedule(); s != "" {
-				schedule = s
-			}
+	if scheduledConfig, ok := (taskConfig).(ScheduledConfig); ok {
+		if s := scheduledConfig.Schedule(); s != "" {
+			schedule = s
 		}
 	}
 	if schedule == "" {
@@ -175,11 +171,9 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 	// Setup default destination
 	// This can be nil since each task execution may return corresponding destination
 	dest := props.defaultDestination
-	if taskConfig != nil {
-		if destConfig, ok := (taskConfig).(DestinatedConfig); ok {
-			if d := destConfig.DefaultDestination(); d != nil {
-				dest = d
-			}
+	if destConfig, ok := (taskConfig).(DestinatedConfig); ok {
+		if d := destConfig.DefaultDestination(); d != nil {
+			dest = d
 		}
 	}
 
@@ -188,7 +182,6 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 		taskFunc:           props.taskFunc,
 		schedule:           schedule,
 		defaultDestination: dest,
-		config:             props.config,
 		configWrapper: &taskConfigWrapper{
 			value: taskConfig,
 			mutex: locker,

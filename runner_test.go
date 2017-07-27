@@ -5,6 +5,7 @@ import (
 	"golang.org/x/net/context"
 	"path/filepath"
 	"regexp"
+	"sync"
 	"testing"
 	"time"
 )
@@ -834,7 +835,10 @@ func Test_executeScheduledTask(t *testing.T) {
 				return val.results, val.error
 			},
 			defaultDestination: testSet.defaultDestination,
-			config:             &DummyScheduledTaskConfig{},
+			configWrapper: &taskConfigWrapper{
+				value: &DummyScheduledTaskConfig{},
+				mutex: &sync.RWMutex{},
+			},
 		}
 		executeScheduledTask(context.TODO(), dummyBot, task)
 	}
