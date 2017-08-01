@@ -1,3 +1,6 @@
+/*
+Package retry provides general retry logic and designated error structure that contains multiple errors.
+*/
 package retry
 
 import (

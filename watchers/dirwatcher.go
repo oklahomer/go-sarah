@@ -1,3 +1,6 @@
+/*
+Package watchers provides mechanism to subscribe events under given directory.
+*/
 package watchers
 
 import (

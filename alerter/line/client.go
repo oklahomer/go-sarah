@@ -1,3 +1,6 @@
+/*
+Package line provides sarah.Alerter implementation for LINE Notify.
+*/
 package line
 
 import (

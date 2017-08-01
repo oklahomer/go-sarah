@@ -1,3 +1,6 @@
+/*
+Package log provides logging mechanism including replaceable Logger interface and its default implementation.
+*/
 package log
 
 import (

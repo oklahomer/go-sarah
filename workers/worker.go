@@ -1,3 +1,6 @@
+/*
+Package workers provides general purpose worker mechanism that outputs stacktrace when given job panics.
+*/
 package workers
 
 import (
