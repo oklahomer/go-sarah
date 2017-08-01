@@ -7,15 +7,57 @@ Sarah is a general purpose bot framework named after author's firstborn daughter
 
 While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
 
-# Example codes
-Some example codes are located under [./examples](https://github.com/oklahomer/go-sarah/tree/master/examples).
+# Example Codes
+For those who like to go ahead and see runnable code, some example codes are located under [./examples](https://github.com/oklahomer/go-sarah/tree/master/examples).
+
+# Notable Features
+
+## User's Conversational Context
+In this project, user's conversational context is referred to as "**user context**," which stores previous user states and defines what function should be executed on next user input.
+While typical bot implementation is somewhat "**stateless**" and hence user-bot interaction does not consider previous state, Sarah natively supports the idea of this conversational context.
+Its aim is to let user provide information as they send messages, and finally build up complex command arguments.
+
+For example, instead of obligating user to input long confusing text such as ".todo Fix Sarah's issue #123 by 2017-04-15 12:00:00" at once, let user build up arguments in a conversational manner as below:
+- User: .todo Fix Sarah's issue #123
+- Bot: Is there any due date? YYYY-MM-DD
+- User: 2017-04-15
+- Bot: Time? HH:MM
+- User: 12:00
+- Bot: Adding todo task "Fix Sarah's issue #123." Deadline is 2017-04-15. Is this O.K.? y/n
+- User: y
+- Bot: Saved.
+
+## Live Configuration Update
+When configuration file for a command is updated,
+Sarah automatically detect the event and re-build the command or scheduled task in thread-safe manner
+so the next execution of that command/task appropriately reflect the new configuration values.
+
+See the usage of ```CommandPropsBuilder``` and ```ScheduledTaskPropsBuilder``` for detail.
+
+## Concurrent Execution by Default
+Developers may implement their own bot by a) implementing ```sarah.Bot``` interface or
+b) implementing ```sarah.Adapter``` and passing it to ```sarah.NewBot()``` to get instance of default ```Bot``` implementation.
+
+Either way, a component called ```sarah.Runner``` takes care of ```Commmand``` execution against given user input.
+This ```sarah.Runner``` dispatches tasks to its internal workers, which means developers do not have to make extra effort to handle flooding incoming messages.
+
+## Alerting Mechanism
+When a bot confronts critical situation and can not continue its operation or recover, Sarah's alerting mechanism sends alert to administrator.
+Zero or more ```sarah.Alerter``` implementations can be registered to send alert to desired destinations.
+
+## Higher Customizability
+To have higher customizability, Sarah is composed of fine grained components that each has one domain to serve:
+sarah.Alerter is responsible for sending bot's critical state to administrator,
+workers.Worker is responsible for executing given job in a panic-proof manner, etc...
+Each component comes with an interface and default implementation,
+so developers may change Sarah's behavior by implementing corresponding component's interface and replacing default implementation.
 
 # Components
 
 ![component diagram](/doc/uml/component.png)
 
 ## Runner
-```Runner``` is the core of Sarah; It manages other components' lifecycle, handles concurrency with internal workers, watches configuration file changes, **re**-configures commands/tasks on file changes, executes scheduled tasks, and most importantly makes Sarah comes alive.
+```Runner``` is the core of Sarah; It manages other components' lifecycle, handles concurrent job execution with internal workers, watches configuration file changes, **re**-configures commands/tasks on file changes, executes scheduled tasks, and most importantly makes Sarah comes alive.
 
 ```Runner``` may take multiple ```Bot``` implementations to run multiple Bots in single process, so resources such as workers and memory space can be shared.
 
@@ -26,7 +68,7 @@ Some example codes are located under [./examples](https://github.com/oklahomer/g
 
 Important thing to be aware of is that, once ```Bot``` receives message from chat service, it sends the input to ```Runner``` via a designated channel.
 ```Runner``` then dispatches a job to internal worker, which calls ```Bot.Respond``` and sends response via ```Bot.SendMessage```.
-In other words, after sending input via channel, things are done in concurrent manner without any additional work.
+In other words, after sending input via the channel, things are done in concurrent manner without any additional work.
 Change worker configuration to throttle the number of concurrent execution -- this may also impact the number of concurrent HTTP requests against chat service provider.
 
 ### DefaultBot
@@ -186,6 +228,24 @@ Internal directory watcher supervises ```sarah.Config.PluginConfigRoot + "/" + B
 When any file under that directory is updated, ```Runner``` searches for corresponding ```ScheduledTaskProps``` based on the assumption that the file name is equivalent to ```ScheduledTaskProps.identifier + ".(yaml|yml|json)""```.
 If a corresponding ```ScheduledTaskProps``` exists, ```Runner``` rebuild ```ScheduledTask``` with latest configuration values and replaces with the old one.
 
+## UserContextStorage
+As described in "Notable Features," Sarah stores user's current state when ```Command```'s response expects user to send series of messages with extra supplemental information.
+```UserContextStorage``` is where the state is stored.
+Developers may store state into desired storage by implementing ```UserContextStorage``` interface.
+Two implementations are currently provided by author:
+
+### Store in Process Memory Space
+```defaultUserContextStorage``` is a ```UserContextStorage``` implementation that stores ```ContextualFunc```, a function to be executed on next user input, in the exact same memory space that process is currently running.
+Under the hood this storage is simply a map where key is user identifier and value is ```ContextualFunc```.
+This ```ContextFunc``` can be any function including instance method and anonymous function that satisfies ```ContextFunc``` type.
+However it is recommended to use anonymous function since some variable declared on last method call can be casually referenced in this scope.
+
+### Store in External KVS
+[go-sarah-rediscontext](https://github.com/oklahomer/go-sarah-rediscontext) stores combination of function identifier and serializable arguments in Redis.
+This is extremely effective when multiple Bot processes run and user context must be shared among them.
+
+e.g. Chat platform such as LINE sends HTTP requests to Bot on every user input, where Bot may consist of multiple servers/processes to balance those requests.
+
 ## Alerter
 When registered Bot encounters critical situation and requires administrator's direct attention, ```Runner``` sends alert message as configured with ```Alerter```.
 LINE alerter is provided by default, but anything that satisfies ```Alerter``` interface can be registered as ```Alerter```.
@@ -193,42 +253,6 @@ Developer may add multiple ```Alerter``` implementations via ```Runner.RegisterA
 
 Bot/Adapter may send ```BotNonContinurableError``` via error channel to notify critical state to ```Runner```.
 e.g. ```Adapter``` can not connect to chat service provider after reasonable number of retrials.
-
-# Features
-
-## User context
-In this project, user's conversational context is referred to as "**user context**," which states what function should be executed on next user input.
-While typical bot implementation is somewhat "stateless" and hence user-bot interaction does not consider previous state, Sarah natively supports this conversational context.
-Its aim is to let user provide information as they send messages, and finally build up complex command arguments.
-
-For example, instead of obligating user to input ".todo Fix Sarah's issue #123 by 2017-04-15 12:00:00" at once, let user build up arguments in a conversational manner as below:
-- User: .todo Fix Sarah's issue #123
-- Bot: Is there any due date? YYYY-MM-DD
-- User: 2017-04-15
-- Bot: Time? HH:MM
-- User: 12:00
-- Bot: Adding todo task "Fix Sarah's issue #123." Deadline is 2017-04-15. Is this O.K.? y/n
-- User: y
-- Bot: Saved.
-
-A common interface, ```UserContextStorage```, and two implementations are currently provided.
-
-### Store in process memory space
-defaultUserContextStorage is a ```UserContextStorage``` implementation that stores ```ContextualFunc```, a function to be executed on next user input, in the exact same memory space that process is currently running.
-Under the hood this storage is simply a map where key is user identifier and value is ```ContextualFunc```.
-This ```ContextFunc``` can be any function including instance method and anonymous function that satisfies ```ContextFunc``` type.
-However it is recommended to use anonymous function since some variable declared on last method call can be casually referenced in this scope.
-
-### Store in external KVS
-[go-sarah-rediscontext](https://github.com/oklahomer/go-sarah-rediscontext) stores combination of function identifier and serializable arguments in Redis.
-This is extremely effective when multiple Bot processes run and user context must be shared among them.
-
-e.g. Chat platform such as LINE sends HTTP requests to Bot on every user input, where Bot may consist of multiple servers/processes to balance those requests.
-
-## Live Configuration Update
-Every once in a while administrators desire to change configuration for registered command.
-As already introduced, with ```dirWatcher```'s supervision, Sarah supports live configuration updates.
-To enable this, use ```CommandPropsBuilder``` and ```ScheduledTaskPropsBuilder``` to register ```Command``` and ```ScheduledTask``` so that ```Runner``` can rebuild corresponding ```Command``` and ```ScheduledTask```.
 
 # Getting Started
 
