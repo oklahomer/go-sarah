@@ -6,7 +6,7 @@ a function is set via CommandPropsBuilder.MatchFunc to do the equivalent task.
 With CommandPropsBuilder.MatchFunc, developers may define more complex matching logic than assigning simple regular expression to CommandPropsBuilder.MatchPattern.
 One more benefit is that strings package or other packages with higher performance can be used internally like this example.
 
-This sarah.CommandProps can be fed to Runner.New as below.
+This sarah.CommandProps can be fed to sarah.NewRunner() as below.
 
   runner, err := sarah.NewRunner(config.Runner, sarah.WithCommandProps(hello.SlackProps), ... )
 */

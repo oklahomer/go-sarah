@@ -80,17 +80,17 @@ func main() {
 	// This Command is not subject to config file supervision.
 	slackBot.AppendCommand(echo.Command)
 
-	// Setup Runner.
+	// Setup sarah.Runner.
 	runner, err := sarah.NewRunner(config.Runner, runnerOptions.Arg())
 	if err != nil {
 		panic(fmt.Errorf("Error on Runner construction: %s.", err.Error()))
 	}
 
-	// Run Runner.
+	// Run sarah.Runner.
 	run(runner)
 }
 
-func run(runner *sarah.Runner) {
+func run(runner sarah.Runner) {
 	ctx, cancel := context.WithCancel(context.Background())
 	runnerStop := make(chan struct{})
 	go func() {

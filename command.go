@@ -14,7 +14,7 @@ import (
 
 var (
 	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to CommandProps.
-	// This is returned on CommandProps.Build() inside of Runner.Run()
+	// This is returned on CommandProps.Build() inside of runner.Run()
 	ErrCommandInsufficientArgument = errors.New("BotType, Identifier, InputExample, MatchFunc, and (Configurable)Func must be set.")
 )
 
@@ -328,7 +328,7 @@ func (builder *CommandPropsBuilder) Func(fn func(context.Context, Input) (*Comma
 // ConfigurableFunc is a setter to provide command function.
 // While Func let developers set simple function, this allows them to provide function that requires some sort of configuration struct.
 // On Runner.Run configuration is read from YAML/JSON file located at /path/to/config/dir/{commandIdentifier}.(yaml|yml|json) and mapped to given CommandConfig struct.
-// If no YAML/JSON file is found, Runner considers the given CommandConfig is fully configured and ready to use.
+// If no YAML/JSON file is found, runner considers the given CommandConfig is fully configured and ready to use.
 // This configuration struct is passed to command function as its third argument.
 func (builder *CommandPropsBuilder) ConfigurableFunc(config CommandConfig, fn func(context.Context, Input, CommandConfig) (*CommandResponse, error)) *CommandPropsBuilder {
 	builder.props.config = config

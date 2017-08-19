@@ -6,8 +6,8 @@ import (
 )
 
 // Bot provides interface for each bot implementation.
-// Instance of concrete type can be fed to Runner.RegisterBot to have its lifecycle managed by Runner.
-// Multiple Bot implementation may be registered to single Runner instance.
+// Instance of concrete type can be fed to Runner.RegisterBot to have its lifecycle under control.
+// Multiple Bot implementation may be registered to single Runner.
 type Bot interface {
 	// BotType represents what this Bot implements. e.g. slack, gitter, cli, etc...
 	// This can be used as a unique ID to distinguish one from another.
