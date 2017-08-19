@@ -42,7 +42,13 @@ func NewConfig() *Config {
 // Bot is responsible for bot-specific implementation such as connection handling, message reception and sending.
 //
 // Developers can register desired number of Bots and Commands to create own bot experience.
-type Runner struct {
+type Runner interface {
+	// Run starts Bot interaction.
+	// At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
+	Run(context.Context)
+}
+
+type runner struct {
 	config            *Config
 	bots              []Bot
 	worker            workers.Worker
@@ -53,9 +59,17 @@ type Runner struct {
 	alerters          *alerters
 }
 
-// NewRunner creates and return new Runner instance.
-func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
-	runner := &Runner{
+// NewRunner creates and return new instance that satisfies Runner interface.
+//
+// The reason for returning interface instead of concrete implementation
+// is to avoid developers from executing RunnerOption outside of NewRunner,
+// where sarah can not be aware of and severe side-effect may occur.
+//
+// Ref. https://github.com/oklahomer/go-sarah/pull/47
+//
+// So the aim is not to let developers switch its implementations.
+func NewRunner(config *Config, options ...RunnerOption) (Runner, error) {
+	r := &runner{
 		config:            config,
 		bots:              []Bot{},
 		worker:            nil,
@@ -66,17 +80,17 @@ func NewRunner(config *Config, options ...RunnerOption) (*Runner, error) {
 	}
 
 	for _, opt := range options {
-		err := opt(runner)
+		err := opt(r)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return runner, nil
+	return r, nil
 }
 
-// RunnerOption defines a function signature that Runner's functional option must satisfy.
-type RunnerOption func(*Runner) error
+// RunnerOption defines a function signature that NewRunner's functional option must satisfy.
+type RunnerOption func(*runner) error
 
 // RunnerOptions stashes group of RunnerOption for later use with NewRunner().
 //
@@ -116,9 +130,9 @@ func (options *RunnerOptions) Append(opt RunnerOption) {
 
 // Arg returns stashed RunnerOptions in a form that can be directly fed to NewRunner's second argument.
 func (options *RunnerOptions) Arg() RunnerOption {
-	return func(runner *Runner) error {
+	return func(r *runner) error {
 		for _, opt := range *options {
-			err := opt(runner)
+			err := opt(r)
 			if err != nil {
 				return err
 			}
@@ -130,65 +144,65 @@ func (options *RunnerOptions) Arg() RunnerOption {
 
 // WithBot creates RunnerOption that feeds given Bot implementation to Runner.
 func WithBot(bot Bot) RunnerOption {
-	return func(runner *Runner) error {
-		runner.bots = append(runner.bots, bot)
+	return func(r *runner) error {
+		r.bots = append(r.bots, bot)
 		return nil
 	}
 }
 
 // WithCommandProps creates RunnerOption that feeds given CommandProps to Runner.
-// Command is built on Runner.Run with given CommandProps.
+// Command is built on runner.Run with given CommandProps.
 // This props is re-used when configuration file is updated and Command needs to be re-built.
 func WithCommandProps(props *CommandProps) RunnerOption {
-	return func(runner *Runner) error {
-		stashed, ok := runner.commandProps[props.botType]
+	return func(r *runner) error {
+		stashed, ok := r.commandProps[props.botType]
 		if !ok {
 			stashed = []*CommandProps{}
 		}
-		runner.commandProps[props.botType] = append(stashed, props)
+		r.commandProps[props.botType] = append(stashed, props)
 		return nil
 	}
 }
 
 // WithScheduledTaskProps creates RunnerOption that feeds given ScheduledTaskProps to Runner.
-// ScheduledTask is built on Runner.Run with given ScheduledTaskProps.
+// ScheduledTask is built on runner.Run with given ScheduledTaskProps.
 // This props is re-used when configuration file is updated and ScheduledTask needs to be re-built.
 func WithScheduledTaskProps(props *ScheduledTaskProps) RunnerOption {
-	return func(runner *Runner) error {
-		stashed, ok := runner.scheduledTaskPrps[props.botType]
+	return func(r *runner) error {
+		stashed, ok := r.scheduledTaskPrps[props.botType]
 		if !ok {
 			stashed = []*ScheduledTaskProps{}
 		}
-		runner.scheduledTaskPrps[props.botType] = append(stashed, props)
+		r.scheduledTaskPrps[props.botType] = append(stashed, props)
 		return nil
 	}
 }
 
 // WithScheduledTask creates RunnerOperation that feeds given ScheduledTask to Runner.
 func WithScheduledTask(botType BotType, task ScheduledTask) RunnerOption {
-	return func(runner *Runner) error {
-		tasks, ok := runner.scheduledTasks[botType]
+	return func(r *runner) error {
+		tasks, ok := r.scheduledTasks[botType]
 		if !ok {
 			tasks = []ScheduledTask{}
 		}
-		runner.scheduledTasks[botType] = append(tasks, task)
+		r.scheduledTasks[botType] = append(tasks, task)
 		return nil
 	}
 }
 
 // WithAlerter creates RunnerOperation that feeds given Alerter implementation to Runner.
 func WithAlerter(alerter Alerter) RunnerOption {
-	return func(runner *Runner) error {
-		runner.alerters.appendAlerter(alerter)
+	return func(r *runner) error {
+		r.alerters.appendAlerter(alerter)
 		return nil
 	}
 }
 
 // WithWorker creates RunnerOperation that feeds given Worker implementation to Runner.
-// If no WithWorker is supplied, Runner creates worker with default configuration on Runner.Run.
+// If no WithWorker is supplied, Runner creates worker with default configuration on runner.Run.
 func WithWorker(worker workers.Worker) RunnerOption {
-	return func(runner *Runner) error {
-		runner.worker = worker
+	return func(r *runner) error {
+		r.worker = worker
 		return nil
 	}
 }
@@ -196,95 +210,93 @@ func WithWorker(worker workers.Worker) RunnerOption {
 // WithWatcher creates RunnerOption that feeds given Watcher implementation to Runner.
 // If Config.PluginConfigRoot is set without WithWatcher option, Runner creates Watcher with default configuration on Runner.Run.
 func WithWatcher(watcher watchers.Watcher) RunnerOption {
-	return func(runner *Runner) error {
-		runner.watcher = watcher
+	return func(r *runner) error {
+		r.watcher = watcher
 		return nil
 	}
 }
 
-func (runner *Runner) botCommandProps(botType BotType) []*CommandProps {
-	if props, ok := runner.commandProps[botType]; ok {
+func (r *runner) botCommandProps(botType BotType) []*CommandProps {
+	if props, ok := r.commandProps[botType]; ok {
 		return props
 	}
 	return []*CommandProps{}
 }
 
-func (runner *Runner) botScheduledTaskProps(botType BotType) []*ScheduledTaskProps {
-	if props, ok := runner.scheduledTaskPrps[botType]; ok {
+func (r *runner) botScheduledTaskProps(botType BotType) []*ScheduledTaskProps {
+	if props, ok := r.scheduledTaskPrps[botType]; ok {
 		return props
 	}
 	return []*ScheduledTaskProps{}
 }
 
-func (runner *Runner) botScheduledTasks(botType BotType) []ScheduledTask {
-	if tasks, ok := runner.scheduledTasks[botType]; ok {
+func (r *runner) botScheduledTasks(botType BotType) []ScheduledTask {
+	if tasks, ok := r.scheduledTasks[botType]; ok {
 		return tasks
 	}
 	return []ScheduledTask{}
 }
 
-// Run starts Bot interaction.
-// At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
-func (runner *Runner) Run(ctx context.Context) {
-	if runner.worker == nil {
+func (r *runner) Run(ctx context.Context) {
+	if r.worker == nil {
 		w, e := workers.Run(ctx, workers.NewConfig())
 		if e != nil {
 			panic(fmt.Sprintf("worker could not run: %s", e.Error()))
 		}
 
-		runner.worker = w
+		r.worker = w
 	}
 
-	if runner.config.PluginConfigRoot != "" && runner.watcher == nil {
+	if r.config.PluginConfigRoot != "" && r.watcher == nil {
 		w, e := watchers.Run(ctx)
 		if e != nil {
 			panic(fmt.Sprintf("watcher could not run: %s", e.Error()))
 		}
 
-		runner.watcher = w
+		r.watcher = w
 	}
 
-	loc, locErr := time.LoadLocation(runner.config.TimeZone)
+	loc, locErr := time.LoadLocation(r.config.TimeZone)
 	if locErr != nil {
 		panic(fmt.Sprintf("given timezone can't be converted to time.Location: %s", locErr.Error()))
 	}
 	taskScheduler := runScheduler(ctx, loc)
 
 	var wg sync.WaitGroup
-	for _, bot := range runner.bots {
+	for _, bot := range r.bots {
 		wg.Add(1)
 
 		botType := bot.BotType()
 		log.Infof("starting %s", botType.String())
 
 		// Each Bot has its own context propagating Runner's lifecycle.
-		botCtx, errNotifier := botSupervisor(ctx, botType, runner.alerters)
+		botCtx, errNotifier := botSupervisor(ctx, botType, r.alerters)
 
 		// Prepare function that receives Input.
-		receiveInput := setupInputReceiver(botCtx, bot, runner.worker)
+		receiveInput := setupInputReceiver(botCtx, bot, r.worker)
 
 		// Run Bot
 		go runBot(botCtx, bot, receiveInput, errNotifier)
 
 		// Setup config directory.
 		var configDir string
-		if runner.config.PluginConfigRoot != "" {
-			configDir = filepath.Join(runner.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
+		if r.config.PluginConfigRoot != "" {
+			configDir = filepath.Join(r.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
 		}
 
 		// Build commands with stashed CommandProps.
-		commandProps := runner.botCommandProps(botType)
+		commandProps := r.botCommandProps(botType)
 		registerCommands(bot, commandProps, configDir)
 
 		// Register scheduled tasks.
-		tasks := runner.botScheduledTasks(botType)
-		taskProps := runner.botScheduledTaskProps(botType)
+		tasks := r.botScheduledTasks(botType)
+		taskProps := r.botScheduledTaskProps(botType)
 		registerScheduledTasks(botCtx, bot, tasks, taskProps, taskScheduler, configDir)
 
 		// Supervise configuration files' directory for Command/ScheduledTask.
 		if configDir != "" {
-			callback := runner.configUpdateCallback(botCtx, bot, taskScheduler)
-			err := runner.watcher.Subscribe(botType.String(), configDir, callback)
+			callback := r.configUpdateCallback(botCtx, bot, taskScheduler)
+			err := r.watcher.Subscribe(botType.String(), configDir, callback)
 			if err != nil {
 				log.Errorf("Failed to watch %s: %s", configDir, err.Error())
 			}
@@ -296,7 +308,7 @@ func (runner *Runner) Run(ctx context.Context) {
 				wg.Done()
 
 				// When Bot stops, stop subscription for config file changes.
-				err := runner.watcher.Unsubscribe(b.BotType().String())
+				err := r.watcher.Unsubscribe(b.BotType().String())
 				if err != nil {
 					// Probably because Runner context is canceled, and its derived contexts are canceled simultaneously.
 					// In that case this warning is harmless since Watcher itself is canceled at this point.
@@ -309,7 +321,7 @@ func (runner *Runner) Run(ctx context.Context) {
 	wg.Wait()
 }
 
-func (runner *Runner) configUpdateCallback(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
+func (r *runner) configUpdateCallback(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
 	return func(path string) {
 		file, err := plainPathToFile(path)
 		if err == errUnableToDetermineConfigFileFormat {
@@ -327,12 +339,12 @@ func (runner *Runner) configUpdateCallback(botCtx context.Context, bot Bot, task
 		// Developer may update bunch of files under PluginConfigRoot at once. e.g. rsync whole all files under the directory.
 		// That makes series of callback function calls while each Command/ScheduledTask blocks config file while its execution.
 		// See if that block is critical to watcher implementation.
-		commandProps := runner.botCommandProps(bot.BotType())
+		commandProps := r.botCommandProps(bot.BotType())
 		if e := updateCommandConfig(bot, commandProps, file); e != nil {
 			log.Errorf("Failed to update Command config: %s.", e.Error())
 		}
 
-		taskProps := runner.botScheduledTaskProps(bot.BotType())
+		taskProps := r.botScheduledTaskProps(bot.BotType())
 		if e := updateScheduledTaskConfig(botCtx, bot, taskProps, taskScheduler, file); e != nil {
 			log.Errorf("Failed to update ScheduledTask config: %s", e.Error())
 		}

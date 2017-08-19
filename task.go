@@ -254,7 +254,7 @@ func (builder *ScheduledTaskPropsBuilder) DefaultDestination(dest OutputDestinat
 // ConfigurableFunc sets function for ScheduledTask with configuration struct.
 // Passed configuration struct is passed to function as a third argument.
 //
-// When resulting ScheduledTaskProps is passed Runner.New as part of sarah.WithScheduledTaskProps and Runner runs with Config.PluginConfigRoot,
+// When resulting ScheduledTaskProps is passed to sarah.NewRunner() as part of sarah.WithScheduledTaskProps and Runner runs with Config.PluginConfigRoot,
 // configuration struct gets updated automatically when corresponding configuration file is updated.
 func (builder *ScheduledTaskPropsBuilder) ConfigurableFunc(config TaskConfig, fn func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error)) *ScheduledTaskPropsBuilder {
 	builder.props.config = config

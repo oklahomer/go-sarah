@@ -89,7 +89,7 @@ func WithPayloadHandler(fnc func(context.Context, *Config, rtmapi.DecodedPayload
 
 // Adapter internally calls Slack Rest API and Real Time Messaging API to offer Bot developers easy way to communicate with Slack.
 //
-// This implements sarah.Adapter interface, so this instance can be fed to sarah.Runner instance as below.
+// This implements sarah.Adapter interface, so this instance can be fed to sarah.Runner as below.
 //
 //  runnerOptions := sarah.NewRunnerOptions()
 //
@@ -150,11 +150,11 @@ func (adapter *Adapter) BotType() sarah.BotType {
 // Run establishes connection with Slack, supervise it, and tries to reconnect when current connection is gone.
 // Connection will be
 //
-// When message is sent from slack server, the payload is passed to Runner via the function given as 2nd argument, enqueueInput.
+// When message is sent from slack server, the payload is passed to sarah.Runner via the function given as 2nd argument, enqueueInput.
 // This function simply wraps a channel to prevent blocking situation. When workers are too busy and channel blocks, this function returns BlockedInputError.
 //
-// When critical situation such as reconnection trial fails for specified times, this critical situation is notified to Runner via 3rd argument function, notifyErr.
-// Runner cancels this Bot/Adapter and related resources when BotNonContinuableError is given to this function.
+// When critical situation such as reconnection trial fails for specified times, this critical situation is notified to sarah.Runner via 3rd argument function, notifyErr.
+// sarah.Runner cancels this Bot/Adapter and related resources when BotNonContinuableError is given to this function.
 func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) error, notifyErr func(error)) {
 	for {
 		conn, err := adapter.connect(ctx)

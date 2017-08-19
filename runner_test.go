@@ -48,7 +48,7 @@ func TestNewRunnerOptions(t *testing.T) {
 
 func TestRunnerOptions_Append(t *testing.T) {
 	options := &RunnerOptions{}
-	options.Append(func(_ *Runner) error { return nil })
+	options.Append(func(_ *runner) error { return nil })
 
 	if len(*options) != 1 {
 		t.Errorf("Size of stashed options should be 0 at first, but was %d.", len(*options))
@@ -60,17 +60,17 @@ func TestRunnerOptions_Arg(t *testing.T) {
 	calledCnt := 0
 	*options = append(
 		*options,
-		func(_ *Runner) error {
+		func(_ *runner) error {
 			calledCnt++
 			return nil
 		},
-		func(_ *Runner) error {
+		func(_ *runner) error {
 			calledCnt++
 			return nil
 		},
 	)
 
-	options.Arg()(&Runner{})
+	options.Arg()(&runner{})
 
 	if calledCnt != 2 {
 		t.Fatalf("Options are not properly called. Count: %d.", calledCnt)
@@ -80,17 +80,17 @@ func TestRunnerOptions_Arg(t *testing.T) {
 func TestRunnerOptions_Arg_WithError(t *testing.T) {
 	calledCnt := 0
 	options := &RunnerOptions{
-		func(_ *Runner) error {
+		func(_ *runner) error {
 			calledCnt++
 			return errors.New("something is wrong")
 		},
-		func(_ *Runner) error {
+		func(_ *runner) error {
 			calledCnt++
 			return nil
 		},
 	}
 
-	err := options.Arg()(&Runner{})
+	err := options.Arg()(&runner{})
 
 	if err == nil {
 		t.Fatal("Error should be returned.")
@@ -103,25 +103,30 @@ func TestRunnerOptions_Arg_WithError(t *testing.T) {
 
 func TestNewRunner(t *testing.T) {
 	config := NewConfig()
-	runner, err := NewRunner(config)
+	r, err := NewRunner(config)
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v.", err)
 	}
 
-	if runner == nil {
+	if r == nil {
 		t.Fatal("NewRunner reutrned nil.")
 	}
 
-	if runner.config != config {
-		t.Errorf("Passed config is not set: %#v.", runner.config)
+	impl, ok := r.(*runner)
+	if !ok {
+		t.Fatalf("Returned instance is not runner instance: %T", r)
 	}
 
-	if runner.bots == nil {
+	if impl.config != config {
+		t.Errorf("Passed config is not set: %#v.", impl.config)
+	}
+
+	if impl.bots == nil {
 		t.Error("Bot slice is nil.")
 	}
 
-	if runner.scheduledTasks == nil {
+	if impl.scheduledTasks == nil {
 		t.Error("scheduledTasks are not set.")
 	}
 }
@@ -129,16 +134,16 @@ func TestNewRunner(t *testing.T) {
 func TestNewRunner_WithRunnerOption(t *testing.T) {
 	called := false
 	config := NewConfig()
-	runner, err := NewRunner(
+	r, err := NewRunner(
 		config,
-		func(_ *Runner) error {
+		func(_ *runner) error {
 			called = true
 			return nil
 		},
 	)
 
-	if runner == nil {
-		t.Error("Runner instance should be returned.")
+	if r == nil {
+		t.Error("runner instance should be returned.")
 	}
 
 	if called == false {
@@ -154,19 +159,19 @@ func TestNewRunner_WithRunnerFatalOptions(t *testing.T) {
 	called := false
 	optErr := errors.New("Second RunnerOption returns this error.")
 	config := NewConfig()
-	runner, err := NewRunner(
+	r, err := NewRunner(
 		config,
-		func(_ *Runner) error {
+		func(_ *runner) error {
 			called = true
 			return nil
 		},
-		func(_ *Runner) error {
+		func(_ *runner) error {
 			return optErr
 		},
 	)
 
-	if runner != nil {
-		t.Error("Runner instance should not be returned on error.")
+	if r != nil {
+		t.Error("runner instance should not be returned on error.")
 	}
 
 	if called == false {
@@ -184,13 +189,13 @@ func TestNewRunner_WithRunnerFatalOptions(t *testing.T) {
 
 func TestWithBot(t *testing.T) {
 	bot := &DummyBot{}
-	runner := &Runner{
+	r := &runner{
 		bots: []Bot{},
 	}
 
-	WithBot(bot)(runner)
+	WithBot(bot)(r)
 
-	registeredBots := runner.bots
+	registeredBots := r.bots
 	if len(registeredBots) != 1 {
 		t.Fatalf("One and only one bot should be registered, but actual number was %d.", len(registeredBots))
 	}
@@ -205,13 +210,13 @@ func TestWithCommandProps(t *testing.T) {
 	props := &CommandProps{
 		botType: botType,
 	}
-	runner := &Runner{
+	r := &runner{
 		commandProps: make(map[BotType][]*CommandProps),
 	}
 
-	WithCommandProps(props)(runner)
+	WithCommandProps(props)(r)
 
-	botCmdProps, ok := runner.commandProps[botType]
+	botCmdProps, ok := r.commandProps[botType]
 	if !ok {
 		t.Fatal("Expected BotType is not stashed as key.")
 	}
@@ -222,20 +227,20 @@ func TestWithCommandProps(t *testing.T) {
 
 func TestWithWorker(t *testing.T) {
 	worker := &DummyWorker{}
-	runner := &Runner{}
-	WithWorker(worker)(runner)
+	r := &runner{}
+	WithWorker(worker)(r)
 
-	if runner.worker != worker {
+	if r.worker != worker {
 		t.Fatal("Given worker is not set.")
 	}
 }
 
 func TestWithWatcher(t *testing.T) {
 	watcher := &DummyWatcher{}
-	runner := &Runner{}
-	WithWatcher(watcher)(runner)
+	r := &runner{}
+	WithWatcher(watcher)(r)
 
-	if runner.watcher != watcher {
+	if r.watcher != watcher {
 		t.Fatal("Given watcher is not set.")
 	}
 }
@@ -245,13 +250,13 @@ func TestWithScheduledTaskProps(t *testing.T) {
 	props := &ScheduledTaskProps{
 		botType: botType,
 	}
-	runner := &Runner{
+	r := &runner{
 		scheduledTaskPrps: make(map[BotType][]*ScheduledTaskProps),
 	}
 
-	WithScheduledTaskProps(props)(runner)
+	WithScheduledTaskProps(props)(r)
 
-	taskProps, ok := runner.scheduledTaskPrps[botType]
+	taskProps, ok := r.scheduledTaskPrps[botType]
 	if !ok {
 		t.Fatal("Expected BotType is not stashed as key.")
 	}
@@ -263,13 +268,13 @@ func TestWithScheduledTaskProps(t *testing.T) {
 func TestWithScheduledTask(t *testing.T) {
 	var botType BotType = "dummy"
 	task := &DummyScheduledTask{}
-	runner := &Runner{
+	r := &runner{
 		scheduledTasks: make(map[BotType][]ScheduledTask),
 	}
 
-	WithScheduledTask(botType, task)(runner)
+	WithScheduledTask(botType, task)(r)
 
-	tasks, ok := runner.scheduledTasks[botType]
+	tasks, ok := r.scheduledTasks[botType]
 	if !ok {
 		t.Fatal("Expected BotType is not stashed as key.")
 	}
@@ -280,13 +285,13 @@ func TestWithScheduledTask(t *testing.T) {
 
 func TestWithAlerter(t *testing.T) {
 	alerter := &DummyAlerter{}
-	runner := &Runner{
+	r := &runner{
 		alerters: &alerters{},
 	}
 
-	WithAlerter(alerter)(runner)
+	WithAlerter(alerter)(r)
 
-	registeredAlerters := runner.alerters
+	registeredAlerters := r.alerters
 	if len(*registeredAlerters) != 1 {
 		t.Fatalf("One and only one alerter should be registered, but actual number was %d.", len(*registeredAlerters))
 	}
@@ -295,6 +300,7 @@ func TestWithAlerter(t *testing.T) {
 		t.Fatalf("Passed alerter is not registered: %#v.", (*registeredAlerters)[0])
 	}
 }
+
 func TestRunner_Run(t *testing.T) {
 	var botType BotType = "myBot"
 
@@ -337,8 +343,8 @@ func TestRunner_Run(t *testing.T) {
 		defaultDestination: "",
 	}
 
-	// Configure Runner
-	runner := &Runner{
+	// Configure runner
+	r := &runner{
 		config: NewConfig(),
 		bots:   []Bot{bot},
 		commandProps: map[BotType][]*CommandProps{
@@ -377,7 +383,7 @@ func TestRunner_Run(t *testing.T) {
 	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
 	finished := make(chan bool)
 	go func() {
-		runner.Run(runnerCtx)
+		r.Run(runnerCtx)
 		finished <- true
 	}()
 
@@ -416,7 +422,7 @@ func TestRunner_Run_WithPluginConfigRoot(t *testing.T) {
 	}
 
 	subscribeCh := make(chan struct{}, 2)
-	runner := &Runner{
+	r := &runner{
 		config:            config,
 		bots:              []Bot{bot},
 		commandProps:      map[BotType][]*CommandProps{},
@@ -437,7 +443,7 @@ func TestRunner_Run_WithPluginConfigRoot(t *testing.T) {
 	// Let it run
 	rootCtx := context.Background()
 	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
-	go runner.Run(runnerCtx)
+	go r.Run(runnerCtx)
 
 	// Wait till all setup is done.
 	time.Sleep(100 * time.Millisecond)
@@ -456,7 +462,7 @@ func TestRunner_Run_Minimal(t *testing.T) {
 		PluginConfigRoot: "/",
 		TimeZone:         time.Now().Location().String(),
 	}
-	runner := &Runner{
+	r := &runner{
 		config:            config,
 		bots:              []Bot{},
 		commandProps:      map[BotType][]*CommandProps{},
@@ -471,13 +477,13 @@ func TestRunner_Run_Minimal(t *testing.T) {
 	runnerCtx, cancelRunner := context.WithCancel(rootCtx)
 	defer cancelRunner()
 
-	runner.Run(runnerCtx)
+	r.Run(runnerCtx)
 
-	if runner.watcher == nil {
+	if r.watcher == nil {
 		t.Error("Default watcher is not set.")
 	}
 
-	if runner.worker == nil {
+	if r.worker == nil {
 		t.Error("Default worker is not set.")
 	}
 }
