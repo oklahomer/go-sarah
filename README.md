@@ -18,14 +18,7 @@ While typical bot implementation is somewhat "**stateless**" and hence user-bot 
 Its aim is to let user provide information as they send messages, and finally build up complex command arguments.
 
 For example, instead of obligating user to input long confusing text such as ".todo Fix Sarah's issue #123 by 2017-04-15 12:00:00" at once, let user build up arguments in a conversational manner as below:
-- User: .todo Fix Sarah's issue #123
-- Bot: Is there any due date? YYYY-MM-DD
-- User: 2017-04-15
-- Bot: Time? HH:MM
-- User: 12:00
-- Bot: Adding todo task "Fix Sarah's issue #123." Deadline is 2017-04-15. Is this O.K.? y/n
-- User: y
-- Bot: Saved.
+![](/doc/img/conoversational_context.png)
 
 ## Live Configuration Update
 When configuration file for a command is updated,
