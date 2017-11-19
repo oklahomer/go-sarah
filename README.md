@@ -18,7 +18,7 @@ While typical bot implementation is somewhat "**stateless**" and hence user-bot 
 Its aim is to let user provide information as they send messages, and finally build up complex command arguments.
 
 For example, instead of obligating user to input long confusing text such as ".todo Fix Sarah's issue #123 by 2017-04-15 12:00:00" at once, let user build up arguments in a conversational manner as below:
-![](/doc/img/conoversational_context.png)
+![conversational context example](/doc/img/conoversational_context.png)
 
 ## Live Configuration Update
 When configuration file for a command is updated,
@@ -56,6 +56,7 @@ so developers may change Sarah's behavior by implementing corresponding componen
 
 ## Bot / Adapter
 ```Bot``` interface is responsible for actual interaction with chat services such as Slack, [LINE](https://github.com/oklahomer/go-sarah-line), gitter, etc...
+Or if two or more parties are messaging each other over pre-defined protocol and executing corresponding ```Command```, such system can be created by providing one ```Bot``` for each party just like [go-sarah-iot](https://github.com/oklahomer/go-sarah-iot) does to support communication between IoT devices and a central server.
 
 ```Bot``` receives messages from chat services, sees if the sending user is in the middle of *user context*, searches for corresponding ```Command```, executes ```Command```, and sends response back to chat service.
 
