@@ -7,8 +7,138 @@ Sarah is a general purpose bot framework named after author's firstborn daughter
 
 While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
 
-# Example Codes
-For those who like to go ahead and see runnable code, some example codes are located under [./examples](https://github.com/oklahomer/go-sarah/tree/master/examples).
+# At A Glance
+Below image depicts how regular command, .hello, and a command with user's conversational context, .guess, work. The idea and implementation of "user's conversational context" is go-sarah's signature feature that makes bot command "**state-aware**." A simple example code behind these commands follows this picture.
+
+![simple example](/doc/img/simple_example.png)
+
+Following is the minimal code that implements commands introduced above.
+In this example, two ways to implement [`sarah.Command`](https://github.com/oklahomer/go-sarah/wiki/Command) are shown.
+One simply implements `sarah.Command` interface; while another uses `sarah.CommandPropsBuilder` for lazy construction. Detailed benefit of using `sarah.CommandPropsBuilder` and `sarah.CommandProps` is described at its wiki page, [CommandPropsBuilder](https://github.com/oklahomer/go-sarah/wiki/CommandPropsBuilder).
+
+For more practical examples, see [./examples](https://github.com/oklahomer/go-sarah/tree/master/examples).
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/slack"
+	"golang.org/x/net/context"
+	"math/rand"
+	"strconv"
+	"strings"
+	"time"
+)
+
+func main() {
+	// Setup slack adapter.
+	slackConfig := slack.NewConfig()
+	slackConfig.Token = "REPLACE THIS"
+	adapter, err := slack.NewAdapter(slackConfig)
+	if err != nil {
+		panic(fmt.Errorf("faileld to setup Slack Adapter: %s", err.Error()))
+	}
+
+	// Setup storage.
+	cacheConfig := sarah.NewCacheConfig()
+	storage := sarah.NewUserContextStorage(cacheConfig)
+
+	// A helper to stash sarah.RunnerOptions for later use.
+	options := sarah.NewRunnerOptions()
+
+	// Setup Bot with slack adapter and default storage.
+	bot, err := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
+	if err != nil {
+		panic(fmt.Errorf("faileld to setup Slack Bot: %s", err.Error()))
+	}
+	options.Append(sarah.WithBot(bot))
+
+	// Setup .hello command
+	hello := &HelloCommand{}
+	bot.AppendCommand(hello)
+
+	// Setup properties to setup .guess command on the fly
+	options.Append(sarah.WithCommandProps(GuessProps))
+
+	// Setup sarah.Runner.
+	runnerConfig := sarah.NewConfig()
+	runner, err := sarah.NewRunner(runnerConfig, options.Arg())
+	if err != nil {
+		panic(fmt.Errorf("failed to initialize Runner: %s", err.Error()))
+	}
+
+	// Run sarah.Runner.
+	runner.Run(context.TODO())
+}
+
+var GuessProps = sarah.NewCommandPropsBuilder().
+	BotType(slack.SLACK).
+	Identifier("guess").
+	InputExample(".guess").
+	MatchFunc(func(input sarah.Input) bool {
+		return strings.HasPrefix(strings.TrimSpace(input.Message()), ".guess")
+	}).
+	Func(func(ctx context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+		// Generate answer value at the very beginning.
+		rand.Seed(time.Now().UnixNano())
+		answer := rand.Intn(10)
+
+		// Let user guess the right answer.
+		return slack.NewStringResponseWithNext("Input number.", func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+			return guessFunc(c, i, answer)
+		}), nil
+	}).
+	MustBuild()
+
+func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.CommandResponse, error) {
+	// For handiness, create a function that recursively calls guessFunc until user input right answer.
+	retry := func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+		return guessFunc(c, i, answer)
+	}
+
+	// See if user inputs valid number.
+	guess, err := strconv.Atoi(strings.TrimSpace(input.Message()))
+	if err != nil {
+		return slack.NewStringResponseWithNext("Invalid input format.", retry), nil
+	}
+
+	// If guess is right, tell user and finish current user context.
+	// Otherwise let user input next guess with bit of a hint.
+	if guess == answer {
+		return slack.NewStringResponse("Correct!"), nil
+	} else if guess > answer {
+		return slack.NewStringResponseWithNext("Smaller!", retry), nil
+	} else {
+		return slack.NewStringResponseWithNext("Bigger!", retry), nil
+	}
+}
+
+type HelloCommand struct {
+}
+
+var _ sarah.Command = (*HelloCommand)(nil)
+
+func (hello *HelloCommand) Identifier() string {
+	return "hello"
+}
+
+func (hello *HelloCommand) Execute(context.Context, sarah.Input) (*sarah.CommandResponse, error) {
+	return slack.NewStringResponse("Hello!"), nil
+}
+
+func (hello *HelloCommand) InputExample() string {
+	return ".hello"
+}
+
+func (hello *HelloCommand) Match(input sarah.Input) bool {
+	return strings.TrimSpace(input.Message()) == ".hello"
+}
+```
+
+# BEWARE
+Below sections will be summarized and details will be described under [project wiki](https://github.com/oklahomer/go-sarah/wiki).
 
 # Notable Features
 
