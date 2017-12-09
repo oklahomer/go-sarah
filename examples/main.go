@@ -8,6 +8,7 @@ import (
 	"github.com/oklahomer/go-sarah/examples/plugins/count"
 	"github.com/oklahomer/go-sarah/examples/plugins/echo"
 	"github.com/oklahomer/go-sarah/examples/plugins/fixedtimer"
+	"github.com/oklahomer/go-sarah/examples/plugins/guess"
 	"github.com/oklahomer/go-sarah/examples/plugins/hello"
 	"github.com/oklahomer/go-sarah/examples/plugins/morning"
 	"github.com/oklahomer/go-sarah/examples/plugins/timer"
@@ -69,6 +70,7 @@ func main() {
 	runnerOptions.Append(sarah.WithCommandProps(hello.SlackProps))
 	runnerOptions.Append(sarah.WithCommandProps(morning.SlackProps))
 	runnerOptions.Append(sarah.WithCommandProps(count.SlackProps))
+	runnerOptions.Append(sarah.WithCommandProps(guess.SlackProps))
 
 	// Setup scheduled tasks.
 	// Each configuration file, if exists, is subject to supervise.
