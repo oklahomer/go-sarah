@@ -12,6 +12,7 @@ import (
 	"github.com/oklahomer/go-sarah/examples/plugins/hello"
 	"github.com/oklahomer/go-sarah/examples/plugins/morning"
 	"github.com/oklahomer/go-sarah/examples/plugins/timer"
+	"github.com/oklahomer/go-sarah/examples/plugins/todo"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
 	"golang.org/x/net/context"
@@ -62,9 +63,15 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("Error on Slack Bot construction: %s.", err.Error()))
 	}
+
+	// Setup some commands.
+	todoCmd := todo.BuildCommand(&todo.DummyStorage{})
+	slackBot.AppendCommand(todoCmd)
+
+	// Register bot to run.
 	runnerOptions.Append(sarah.WithBot(slackBot))
 
-	// Setup some plugins.
+	// Setup some plugins to build on the fly.
 	// Each configuration file, if exists, is subject to supervise.
 	// If updated, Command is re-built with new configuration.
 	runnerOptions.Append(sarah.WithCommandProps(hello.SlackProps))
