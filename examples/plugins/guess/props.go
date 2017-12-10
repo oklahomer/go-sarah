@@ -20,6 +20,7 @@ import (
 	"time"
 )
 
+// SlackProps is a pre-built guess command properties for Slack.
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("guess").

@@ -73,7 +73,7 @@ func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.
 	}
 
 	if err := json.Unmarshal(body, data); err != nil {
-		return err
+		return fmt.Errorf("failed to parse returned json data: %s", err.Error())
 	}
 
 	return nil

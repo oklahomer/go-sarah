@@ -19,9 +19,11 @@ import (
 
 var matchPattern = regexp.MustCompile(`^\.todo`)
 
+// DummyStorage is an empty struct that represents a permanent storage.
 type DummyStorage struct {
 }
 
+// Save saves given todo settings to permanent storage.
 func (s *DummyStorage) Save(senderKey string, description string, due time.Time) {
 	// Write to storage
 }
@@ -31,6 +33,7 @@ type args struct {
 	due         time.Time
 }
 
+// BuildCommand builds todo command with given storage.
 func BuildCommand(storage *DummyStorage) sarah.Command {
 	return &command{
 		storage: storage,
