@@ -8,13 +8,26 @@ Sarah is a general purpose bot framework named after author's firstborn daughter
 While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
 
 # At A Glance
-Below image depicts how regular command, .hello, and a command with user's conversational context, .guess, work. The idea and implementation of "user's conversational context" is go-sarah's signature feature that makes bot command "**state-aware**." A simple example code behind these commands follows this picture.
+![hello world](/doc/img/hello.png)
 
-![simple example](/doc/img/simple_example.png)
+Above is a general use of `go-sarah`.
+Registered commands are checked against user input and matching one is executed;
+when a user inputs ".hello," hello command is executed and a message "Hello, 世界" is returned.
 
-Following is the minimal code that implements commands introduced above.
+Below image depicts how a command with user's **conversational context** works.
+The idea and implementation of "user's conversational context" is go-sarah's signature feature that makes bot command "**state-aware**."
+
+![](/doc/img/todo_captioned.png)
+
+Above example is a good way to let user input series of arguments in a conversational manner.
+Below is another example that use stateful command to entertain user.
+
+![](/doc/img/guess_captioned.png)
+
+Following is the minimal code that implements such general command and stateful command introduced above.
 In this example, two ways to implement [`sarah.Command`](https://github.com/oklahomer/go-sarah/wiki/Command) are shown.
-One simply implements `sarah.Command` interface; while another uses `sarah.CommandPropsBuilder` for lazy construction. Detailed benefit of using `sarah.CommandPropsBuilder` and `sarah.CommandProps` is described at its wiki page, [CommandPropsBuilder](https://github.com/oklahomer/go-sarah/wiki/CommandPropsBuilder).
+One simply implements `sarah.Command` interface; while another uses `sarah.CommandPropsBuilder` for lazy construction.
+Detailed benefits of using `sarah.CommandPropsBuilder` and `sarah.CommandProps` are described at its wiki page, [CommandPropsBuilder](https://github.com/oklahomer/go-sarah/wiki/CommandPropsBuilder).
 
 For more practical examples, see [./examples](https://github.com/oklahomer/go-sarah/tree/master/examples).
 
