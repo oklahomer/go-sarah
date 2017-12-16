@@ -3,11 +3,8 @@ package sarah
 import "golang.org/x/net/context"
 
 // Adapter defines interface that each bot adapter implementation has to satisfy.
-// Instance of its concrete struct can be fed to Runner via Runner.RegisterAdapter().
-// Registered adapter is fed to default bot's constructor and the resulting bot instance is stored and managed by Runner.
-//
-//  runner := sarah.NewRunner(config)
-//  runner.RegisterAdapter(myAdapter, "/plugin/config/dir")
+// Instance of its concrete struct and series of sarah.DefaultBotOptions can be fed to defaultBot via sarah.NewBot() to have sarah.Bot.
+// Returned bot instance can be fed to Runner to have its life cycle managed.
 type Adapter interface {
 	// BotType represents what this Bot implements. e.g. slack, gitter, cli, etc...
 	// This can be used as a unique ID to distinguish one from another.
