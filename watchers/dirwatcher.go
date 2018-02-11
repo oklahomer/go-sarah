@@ -9,14 +9,12 @@ import (
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"path/filepath"
-	"sync"
 )
 
 // ErrWatcherNotRunning is returned when method is called after Watcher context cancellation.
 // This error can safely be ignored when this is returned by Watcher.Unsubscribe
 // because the context and all subscriptions are already cancelled.
 var ErrWatcherNotRunning = errors.New("context is already canceled")
-var mutex sync.Mutex
 
 // Watcher defines an interface that all file system watcher must satisfy.
 type Watcher interface {
@@ -65,6 +63,7 @@ func (w *watcher) Subscribe(group string, path string, callback func(string)) er
 	}
 
 	s := &subscribeDir{
+		group:    group,
 		dir:      absDir,
 		callback: callback,
 		initErr:  make(chan error, 1),
@@ -83,14 +82,12 @@ func (w *watcher) Unsubscribe(group string) (err error) {
 		}
 	}()
 
-	mutex.Lock()
-	defer mutex.Unlock()
 	w.unsubscribeGroup <- group
 
 	return nil
 }
 
-func (w *watcher) supervise(ctx context.Context, events <-chan fsnotify.Event, errors <-chan error) {
+func (w *watcher) supervise(ctx context.Context, events <-chan fsnotify.Event, errs <-chan error) {
 	subscription := map[string][]*subscribeDir{}
 
 	for {
@@ -100,15 +97,13 @@ func (w *watcher) supervise(ctx context.Context, events <-chan fsnotify.Event, e
 			if err == nil {
 				log.Info("Stop subscribing to file system event due to context cancel.")
 			} else {
-				log.Warnf("Error on subscription cancelation: %s.", err.Error())
+				log.Warnf("Error on subscription cancellation: %s.", err.Error())
 			}
 
 			// Explicitly close unsubscribeGroup to make sure enqueueing does not block forever, but panics instead.
 			// watcher.Unsubscribe MUST recover and return ErrWatcherNotRunning error to caller.
 			// BEWARE that group unsubscription and root context cancellation can occur simultaneously.
-			mutex.Lock()
 			close(w.unsubscribeGroup)
-			mutex.Unlock()
 
 			return
 
@@ -145,11 +140,11 @@ func (w *watcher) supervise(ctx context.Context, events <-chan fsnotify.Event, e
 			subscribe.initErr <- nil
 
 		case group := <-w.unsubscribeGroup:
-			log.Info("Stop subscription for %s", group)
+			log.Infof("Stop subscription for %s", group)
 
 			for dir, subscribeDirs := range subscription {
 				// Exclude all watches that are tied to given group, and stash those should be kept.
-				remains := []*subscribeDir{}
+				var remains []*subscribeDir
 				for _, subscribeDir := range subscribeDirs {
 					if subscribeDir.group != group {
 						remains = append(remains, subscribeDir)
@@ -167,7 +162,7 @@ func (w *watcher) supervise(ctx context.Context, events <-chan fsnotify.Event, e
 				subscription[dir] = remains
 			}
 
-		case err := <-errors:
+		case err := <-errs:
 			log.Errorf("Error on subscribing to directory change: %s.", err.Error())
 
 		}

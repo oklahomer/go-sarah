@@ -4,6 +4,8 @@ import (
 	"errors"
 	"github.com/fsnotify/fsnotify"
 	"golang.org/x/net/context"
+	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -41,38 +43,103 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func TestWatcher_supervise_Stop(t *testing.T) {
-	closed := make(chan struct{})
-	internalWatcher := dummyInternalWatcher{
-		CloseFunc: func() error {
-			closed <- struct{}{}
-			return nil
+func TestWatcher_Subscribe(t *testing.T) {
+	type testData struct {
+		group string
+		path  string
+		fnc   func(string)
+		err   error
+	}
+	tests := []testData{
+		{
+			group: "dummy",
+			path:  "/",
+			fnc:   func(_ string) {},
+			err:   nil,
+		},
+		{
+			group: "dummy",
+			path:  "/",
+			fnc:   func(_ string) {},
+			err:   errors.New("dummy"),
 		},
 	}
-	w := &watcher{
-		fsWatcher:        internalWatcher,
-		unsubscribeGroup: make(chan string),
-	}
 
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	eventCh := make(chan fsnotify.Event)
-	errCh := make(chan error)
-	go w.supervise(ctx, eventCh, errCh)
+	for i, test := range tests {
+		testNum := i + 1
+		w := &watcher{
+			subscribeDir: make(chan *subscribeDir),
+		}
 
-	cancel()
+		go func(d testData) {
+			select {
+			case subscribe := <-w.subscribeDir:
+				if subscribe.initErr == nil {
+					t.Fatalf("Channel to notify subscription error is not given on test #%d.", testNum)
+				}
+				subscribe.initErr <- d.err
 
-	select {
-	case <-closed:
-	// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Watcher.Close is not called.")
+				if subscribe.group != d.group {
+					t.Errorf("Expected group id is not passed on test #%d: %s.", testNum, subscribe.group)
+				}
+
+				if subscribe.dir != d.path {
+					t.Errorf("Expected path name is not passed on test #%d: %s.", testNum, subscribe.dir)
+				}
+
+				if reflect.ValueOf(subscribe.callback).Pointer() != reflect.ValueOf(d.fnc).Pointer() {
+					t.Errorf("Expected function is not passed on test #%d.", testNum)
+				}
+
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Fatal("Expected subscription request is not passed.")
+
+			}
+		}(test)
+
+		err := w.Subscribe(test.group, test.path, test.fnc)
+
+		if err != test.err {
+			t.Fatalf("Unexpected error is returned on test #%d: %s.", testNum, err.Error())
+		}
 	}
 }
 
-func TestWatcher_supervise_subscription(t *testing.T) {
-	added := make(chan struct{})
-	removed := make(chan struct{})
+func TestWatcher_Unsubscribe(t *testing.T) {
+	w := &watcher{
+		unsubscribeGroup: make(chan string),
+	}
+
+	group := "dummy"
+	go func() {
+		select {
+		case unsubscribe := <-w.unsubscribeGroup:
+			if unsubscribe != group {
+				t.Errorf("Expected group information is not passed: %s.", unsubscribe)
+			}
+
+		case <-time.NewTimer(10 * time.Second).C:
+			t.Fatal("Expected subscription request is not passed.")
+
+		}
+	}()
+
+	err := w.Unsubscribe(group)
+	if err != nil {
+		t.Fatalf("Unexpected error returned: %s.", err.Error())
+	}
+
+	close(w.unsubscribeGroup)
+
+	err = w.Unsubscribe("dummy")
+	if err != ErrWatcherNotRunning {
+		t.Errorf("Expected error is not returned after channel close: %s.", err.Error())
+	}
+}
+
+func TestWatcher_supervise(t *testing.T) {
+	added := make(chan struct{}, 1)
+	removed := make(chan struct{}, 1)
 	internalWatcher := &dummyInternalWatcher{
 		AddFunc: func(_ string) error {
 			added <- struct{}{}
@@ -92,175 +159,212 @@ func TestWatcher_supervise_subscription(t *testing.T) {
 		unsubscribeGroup: make(chan string),
 	}
 
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	eventCh := make(chan fsnotify.Event)
 	errCh := make(chan error)
 	go w.supervise(ctx, eventCh, errCh)
 
-	group := "dummy"
-	dir := "/"
-	callbackCalled := make(chan struct{})
-	subscribeErr := make(chan error)
-	w.subscribeDir <- &subscribeDir{
-		group: group,
-		dir:   dir,
-		callback: func(_ string) {
-			callbackCalled <- struct{}{}
-		},
-		initErr: subscribeErr,
+	dirName, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
 
+	// Add first subscription
+	firstGroup := "first"
+	first := &subscribeDir{
+		group:    firstGroup,
+		dir:      dirName,
+		callback: func(string) {},
+		initErr:  make(chan error),
+	}
+	w.subscribeDir <- first
 	select {
 	case <-added:
 		// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Watcher.Add is not called.")
-	}
 
+	case <-time.NewTimer(1 * time.Second).C:
+		t.Fatal("Watcher.Add is not called.")
+
+	}
 	select {
-	case e := <-subscribeErr:
-		if e != nil {
-			t.Errorf("Unexpected error on subscription: %s.", e.Error())
+	case err := <-first.initErr:
+		if err != nil {
+			t.Errorf("Unexpected error is returned: %s.", err.Error())
 		}
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Subscription error is not returned.")
+
+	case <-time.NewTimer(1 * time.Second).C:
+		t.Fatal("Subscription did not respond")
+
 	}
 
+	// Do nothing, but log. Just check this error does not block.
+	errCh <- fsnotify.ErrEventOverflow
+
+	// Add second subscription
+	secondGroup := "second"
+	callbackCalled := make(chan struct{}, 1)
+	second := &subscribeDir{
+		group: secondGroup,
+		dir:   dirName,
+		callback: func(_ string) {
+			callbackCalled <- struct{}{}
+		},
+		initErr: make(chan error),
+	}
+
+	w.subscribeDir <- second
+	select {
+	case <-added:
+		// O.K.
+
+	case <-time.NewTimer(1 * time.Second).C:
+		t.Fatal("Watcher.Add is not called.")
+
+	}
+	select {
+	case err := <-second.initErr:
+		if err != nil {
+			t.Errorf("Unexpected error is returned: %s.", err.Error())
+		}
+
+	case <-time.NewTimer(1 * time.Second).C:
+		t.Fatal("Subscription did not respond")
+
+	}
+
+	// Unsubscribe first group, but the same directory should still subscribed by second group
+	w.unsubscribeGroup <- firstGroup
+
+	// The target directory is updated
 	eventCh <- fsnotify.Event{
 		Op:   fsnotify.Write,
-		Name: dir,
+		Name: filepath.Join(dirName, "dummy.yml"),
 	}
-
 	select {
 	case <-callbackCalled:
 		// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Expected callback function is not called.")
+
+	case <-time.NewTimer(1 * time.Second).C:
+		t.Fatal("Callback function is not called")
+
 	}
 
-	w.unsubscribeGroup <- group
+	// Unsubscribe second group, which means all subscriptions are canceled
+	w.unsubscribeGroup <- secondGroup
+
+	// The directory is updated, but no active subscription exists
+	eventCh <- fsnotify.Event{
+		Op:   fsnotify.Write,
+		Name: filepath.Join(dirName, "dummy.yml"),
+	}
+	select {
+	case <-callbackCalled:
+		t.Error("Callback function is unintentionally called.")
+
+	case <-time.NewTimer(100 * time.Millisecond).C:
+		// O.K.
+
+	}
+}
+
+func TestWatcher_supervise_subscribe_error(t *testing.T) {
+	addErr := errors.New("dummy")
+	internalWatcher := &dummyInternalWatcher{
+		AddFunc: func(_ string) error {
+			return addErr
+		},
+		CloseFunc: func() error {
+			return nil
+		},
+	}
+	w := &watcher{
+		fsWatcher:        internalWatcher,
+		subscribeDir:     make(chan *subscribeDir),
+		unsubscribeGroup: make(chan string),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	eventCh := make(chan fsnotify.Event)
+	errCh := make(chan error)
+	go w.supervise(ctx, eventCh, errCh)
+
+	dir := &subscribeDir{
+		group:    "dummyGroup",
+		dir:      "foo",
+		callback: func(string) {},
+		initErr:  make(chan error),
+	}
+	w.subscribeDir <- dir
 
 	select {
-	case <-removed:
-	// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Watcher.Remove is not called.")
+	case err := <-dir.initErr:
+		if err != addErr {
+			t.Errorf("Expected error is not returned: %s.", err.Error())
+		}
+
+	case <-time.NewTimer(1 * time.Second).C:
+		t.Fatal("Subscription did not respond")
+
 	}
 }
 
-func TestWatcher_Subscribe_Success(t *testing.T) {
-	internalWatcher := &dummyInternalWatcher{
-		AddFunc: func(_ string) error {
-			return nil
+func TestWatcher_supervise_stop(t *testing.T) {
+	tests := []struct {
+		err error
+	}{
+		{
+			err: nil,
 		},
-		CloseFunc: func() error {
-			return nil
-		},
-	}
-	w := &watcher{
-		fsWatcher:        internalWatcher,
-		subscribeDir:     make(chan *subscribeDir),
-		unsubscribeGroup: make(chan string),
-	}
-
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-
-	go w.supervise(ctx, nil, nil)
-
-	err := w.Subscribe("dummy", "/", func(_ string) {})
-
-	if err != nil {
-		t.Fatalf("Unexpected error returned: %s.", err.Error())
-	}
-}
-
-func TestWatcher_Subscribe_Fail(t *testing.T) {
-	expectedErr := errors.New("expected error")
-	internalWatcher := &dummyInternalWatcher{
-		AddFunc: func(_ string) error {
-			return expectedErr
-		},
-		CloseFunc: func() error {
-			return nil
+		{
+			err: errors.New("dummy"),
 		},
 	}
-	w := &watcher{
-		fsWatcher:        internalWatcher,
-		subscribeDir:     make(chan *subscribeDir),
-		unsubscribeGroup: make(chan string),
-	}
 
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
+	for i, test := range tests {
+		testNum := i + 1
 
-	go w.supervise(ctx, nil, nil)
+		closed := make(chan struct{})
+		internalWatcher := dummyInternalWatcher{
+			CloseFunc: func() error {
+				closed <- struct{}{}
+				return test.err
+			},
+		}
+		w := &watcher{
+			fsWatcher:        internalWatcher,
+			unsubscribeGroup: make(chan string),
+		}
 
-	err := w.Subscribe("dummy", "/", func(_ string) {})
+		ctx, cancel := context.WithCancel(context.Background())
+		finished := make(chan struct{})
+		go func() {
+			w.supervise(ctx, make(chan fsnotify.Event), make(chan error))
 
-	if err != expectedErr {
-		t.Fatalf("Expected error is not returned: %s.", err.Error())
-	}
-}
+			// Comes here when supervise finishes
+			// Must finish even if Close returns error
+			finished <- struct{}{}
+		}()
 
-func TestWatcher_Unsubscribe(t *testing.T) {
-	removed := make(chan struct{})
-	internalWatcher := &dummyInternalWatcher{
-		AddFunc: func(_ string) error {
-			return nil
-		},
-		RemoveFunc: func(_ string) error {
-			removed <- struct{}{}
-			return nil
-		},
-		CloseFunc: func() error {
-			return nil
-		},
-	}
-	w := &watcher{
-		fsWatcher:        internalWatcher,
-		subscribeDir:     make(chan *subscribeDir),
-		unsubscribeGroup: make(chan string),
-	}
+		cancel()
 
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel() // Is called manually later, but to make sure canceled is when panic arises beforehand.
+		select {
+		case <-closed:
+			// O.K.
 
-	go w.supervise(ctx, nil, nil)
+		case <-time.NewTimer(10 * time.Second).C:
+			t.Error("Watcher.Close is not called.")
 
-	// Multiple subscriptions exist for one directory.
-	group := "group1"
-	dir := "/"
-	w.subscribeDir <- &subscribeDir{
-		group:    group,
-		dir:      dir,
-		callback: func(_ string) {},
-		initErr:  make(chan error, 1),
-	}
-	anotherGroup := "group2"
-	w.subscribeDir <- &subscribeDir{
-		group:    "another",
-		dir:      dir,
-		callback: func(_ string) {},
-		initErr:  make(chan error, 1),
-	}
+		}
 
-	err := w.Unsubscribe(group)
-	if err != nil {
-		t.Fatalf("Unexpected error returned: %s.", err.Error())
-	}
+		select {
+		case <-finished:
+			// O.K.
 
-	cancel()
-	time.Sleep(100 * time.Millisecond)
+		case <-time.NewTimer(10 * time.Second).C:
+			t.Errorf("Watcher.supervise did not finish on test #%d.", testNum)
 
-	err = w.Unsubscribe(anotherGroup)
-	if err != ErrWatcherNotRunning {
-		t.Errorf("Expected error is not returned: %s.", err.Error())
+		}
 	}
 }
