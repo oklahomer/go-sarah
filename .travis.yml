@@ -2,10 +2,12 @@ language: go
 sudo: false
 
 go:
-  - 1.6
-  - 1.7
-  - 1.8
-  - tip
+  - "1.6"
+  - "1.7"
+  - "1.8"
+  - "1.9"
+  - "1.10"
+  - "tip"
 
 before_install:
   - export PATH=$HOME/gopath/bin:$PATH
