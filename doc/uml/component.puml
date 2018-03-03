@@ -10,7 +10,7 @@ cloud "Alerting Service" as alertingService {
 }
 note top of alertingService
 One or more alerting channels to notify critical state
-of //Bot//, //Runner// or other component
+of //sarah.Bot//, //sarah.Runner// or other component
 end note
 
 cloud "Chat Service" as chatService {
@@ -18,91 +18,31 @@ cloud "Chat Service" as chatService {
     interface "sending protocol" as botSendingProtocol
 }
 
-cloud "Bots" as bots {
-	component "Bot\n(Original implementation or //defaultBot// + //Adapter//)" as bot {
-	    database "UserContextStorage" as botStorage
-	    note right of botStorage
-	    Concrete implementation
-	    of //UserContextStorage//.
-	    Stores users' conversational states.
-	    end note
-
-	    component "Commands" as botCommands {
-	        interface "Commands.ExecuteFirstMatched" as executeFirstMatched
-	        component "echo" as echo
-	        component "weather" as weather
-	    }
-
-	    interface "Bot.Respond" as botRespond
-	    note right of botRespond
-	    Takes care of most important part of responding operation.
-	    - Receive //Input//.
-	    - Fetch user's conversational context from storage.
-	     - If found, execute the next step with given //Input//.
-	     - If not, find corresponding Command for given //Input// and execute it.
-	    - Call //Bot.SendMessage// to send output.
-	    ===
-	    This is called from Worker,
-	    which means simultaneous calls may occur at any time.
-	    end note
-
-	    interface "Bot.SendMessage" as botSendMessage
-	    interface "receiving\nprotocol" as receivingProtocol
-	}
-	note top of bot
-	For easier implementation,
-	use combination of //defaultBot// with //Adapter//.
-	end note
-
-	component "Another Bot implementation" as bot2 #eee {
-	    database "UserContextStorage" as bot2Storage #eee
-	    note bottom of bot2Storage
-	    Default storage uses process memory space,
-	    but other implementation
-	    such as go-sarah-rediscontext is available.
-	    end note
-
-	    component "Commands" as bot2Commands #eee {
-	        interface "Commands.ExecuteFirstMatched" as executeFirstMatched
-	        component "echo" as echo
-	        component "weather" as weather
-	    }
-	    note top of bot2Commands
-	    Group of //sarah.Command//
-	    implementations.
-	    end note
-    }
-}
-note top of bots
-Group of //Bot// implementations
-Multiple Bot instances can be registered to //Runner//.
-end note
-
 component "Runner" as runner {
+    interface "input receiver\n//func(sarah.Input) error//" as inputReceiver
 
-    interface "input receiver" as inputReceiver
+    component "//sarah.Worker//" as worker {
+        interface "//Worker.Enqueue()//" as workerEnqueue
+        queue "//chan func()//" as workerJobCh
 
-    component "Worker" as worker {
-        queue "chan func()" as workerJobCh
-
-        [worker] as worker1
-        [worker] as worker2
-        component "Reporter" as workerReporter {
+        [child worker] as worker1
+        [child worker] as worker2
+        component "//workers.Reporter//" as workerReporter {
         }
-        note bottom of workerReporter
-        Concrete implementation of //Reporter//.
-        Report statistical information.
+        note right of workerReporter
+        Concrete implementation of //workers.Reporter//.
+        Reports statistical information.
         end note
     }
-    note top of worker
+    note bottom of worker
     Group of worker goroutines.
     When a given job panics,
     recover and log stack trace.
     ===
-    This is shared among multiple //Bot//s.
+    This is shared among multiple //sarah.Bot//s.
     end note
 
-    component "dirWatcher" as dirWatcher {
+    component "//workers.Worker//" as dirWatcher {
     }
     note right of dirWatcher
     Supervise configuration files.
@@ -110,36 +50,111 @@ component "Runner" as runner {
     //Command/////ScheduledTask//.
     end note
 
-    component "Alerters" as alerters {
+    component "//sarah.alerters//" as alerters {
+        interface "//alerters.alertAll()//" as alertAll
     }
+    queue "//chan error//" as alertersErrCh
+    note left of alertersErrCh
+    Receives critical error
+    from all components
+    end note
 
-    component "Cron" as cron {
+    component "//cron.Cron//" as cron {
     }
-    note bottom of cron
+    note right of cron
     Execute //ScheduledTask//
     periodically.
     end note
 
-    package "map[BotType][]ScheduledTask" {
+    component "map[BotType][]ScheduledTask" {
         [alarmTask] as alarm
     }
 
-    package "map[BotType][]*ScheduledTaskProps" {
-        [alarmScheduledTaskProps] as alarmTaskProps
-    }
+    cloud "Stashed Props" as stashedProps {
+        component "map[BotType][]*ScheduledTaskProps" as scheduledTaskProps {
+            [alarmScheduledTaskProps] as alarmTaskProps
+        }
 
-    package "map[BotType][]*CommandProps" as commandProps {
-        [echoProps] as echoProps
-        [weatherProps] as weatherProps
+        component "map[BotType][]*CommandProps" as commandProps {
+            [echoProps] as echoProps
+            [weatherProps] as weatherProps
+        }
     }
+    note bottom of stashedProps
+    //Props// is a set of arguments to build
+    //sarah.Command// and //sarah.ScheduledTask//
+    on the fly
+    end note
 
     folder "./config/{BotType}/" as configDir {
-        file alarm.yaml
-        file weather.yaml
+        file alarm.yml
+        file weather.yml
     }
     note bottom of configDir
     Below extensions are supported:
     .yaml, .yml and .json
+    end note
+
+    cloud "Bots" as bots {
+    	component "//sarah.Bot//\n(Original implementation or //sarahdefaultBot// + //sarah.Adapter//)" as bot {
+    	    database "//sarah.UserContextStorage//" as botStorage
+    	    note bottom of botStorage
+    	    Concrete implementation
+    	    of //sarah.UserContextStorage//.
+    	    Stores users' conversational states.
+    	    end note
+
+    	    component "//sarah.Commands//" as botCommands {
+    	        interface "//Commands.ExecuteFirstMatched()//" as executeFirstMatched
+    	        component "echo" as echo
+    	        component "weather" as weather
+    	    }
+
+    	    interface "//Bot.Respond()//" as botRespond
+    	    note bottom of botRespond
+    	    Takes care of most important part of responding operation.
+    	    - Receive //Input//.
+    	    - Fetch user's conversational context from storage.
+    	     - If found, execute the next step with given //Input//.
+    	     - If not, find corresponding Command for given //Input// and execute it.
+    	    - Call //Bot.SendMessage()// to send output.
+    	    ===
+    	    This is called from //workers.Worker//,
+    	    which means simultaneous calls may occur at any time.
+    	    end note
+
+    	    interface "//Bot.SendMessage()//" as botSendMessage
+    	    interface "receiving\nprotocol" as receivingProtocol
+    	    note bottom of receivingProtocol
+    	    Receives service-specific payload
+    	    and converts it to //sarah.Input// implementation
+    	    end note
+    	}
+    	note top of bot
+    	For easier implementation,
+    	use combination of //sarah.defaultBot// with //sarah.Adapter//.
+    	end note
+
+'    	component "Another //sarah.Bot// implementation" as bot2 #ddd {
+'    	    database "//sarah.UserContextStorage//" as bot2Storage #ddd
+'    	    note bottom of bot2Storage
+'    	    Default storage uses process memory space,
+'    	    but other implementation
+'    	    such as go-sarah-rediscontext is available.
+'    	    end note
+'
+'    	    component "Commands" as bot2Commands #ddd {
+'    	    }
+'    	    note top of bot2Commands
+'    	    Group of //sarah.Command//
+'    	    implementations.
+'    	    end note
+'        }
+    }
+    note top of bots
+    Group of //Bot// implementations
+    Multiple Bot instances can run
+    with one //Runner// instance.
     end note
 }
 note top of runner
@@ -153,33 +168,35 @@ actor Administrator as admin
 
 ' interaction
 
-user -[#blue]up-> userInterface : Send message
-userInterface -[#blue]up-> receivingProtocol : User\nmessage
-receivingProtocol -[#blue]> inputReceiver : //Input//
-inputReceiver -[#blue]> workerJobCh : Enqueue job
-workerJobCh -[#blue]down-> worker1 : Dispatch job
-workerJobCh -down-> worker2
+user -[#blue]down-> userInterface : Send\nmessage
+userInterface -[#blue]down-> receivingProtocol : User\nmessage
+receivingProtocol -[#blue]down-> inputReceiver : Pass //sarah.Input//
+inputReceiver -[#blue]down-> workerEnqueue : Enqueue job
+workerEnqueue -[#blue]right->workerJobCh
+workerJobCh -[#blue]up-> worker1 : Dispatch job
+workerJobCh -up-> worker2
 
-worker1 -[#blue]> botRespond : //Input//
+worker1 -[#blue]up-> botRespond : //sarah.Input//
 botRespond -[#blue]up-> executeFirstMatched
-executeFirstMatched -[#blue]up-> echo : Execute
-botRespond -[#blue]down-> botSendMessage : Send\nresponse
-botSendMessage -down-> botSendingProtocol : Send message
-botSendingProtocol -down-> user
-botRespond -[#blue]down-> botStorage : Fetch/store
+executeFirstMatched -[#blue]left-> echo : Execute
+botRespond -[#blue]up-> botSendMessage : Send\nresponse
+botSendMessage -up-> botSendingProtocol : Send message
+botSendingProtocol -up-> user
+botRespond -[#blue]left-> botStorage : Fetch/store
 
-workerReporter -> workerJobCh : Supervise\nqueue length
+workerReporter -up-> workerJobCh : Supervise\nqueue length
 
-cron -[#orange]> alarm : Execute
-alarm -[#orange]> botSendMessage
+cron -[#orange]up-> alarm : Execute
+alarm -[#orange]up-> botSendMessage
 
-admin -[#green]down-> alarm.yaml : Update configuration file
-configDir -[#green]down-> dirWatcher : Notify update event
-dirWatcher -[#green]> alarmTaskProps : Re-build task\nID: alarm
-dirWatcher -[#green]up-> commandProps : Re-build command\nwhen required
-alarmTaskProps -[#green]down-> alarm : Replace old one
+admin -[#green]down-> alarm.yml : Update configuration file
+dirWatcher -[#green]up-> configDir : Subscribe update event
+dirWatcher -[#green]down-> alarmTaskProps : Re-build task\nID: alarm
+dirWatcher .[#green]down.> commandProps : Re-build command\nwhen required
+alarmTaskProps -[#green]down-> alarm : Replace\nold one
 
-alerters ..down.> alertingService
-alertingService .> admin : Notify critical state
+alertersErrCh .right.> alertAll : Proxy\nerror
+alertAll .up.> alertingService
+alertingService .right.> admin : Notify critical state
 
 @enduml
