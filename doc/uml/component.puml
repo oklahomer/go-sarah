@@ -42,7 +42,7 @@ component "Runner" as runner {
     This is shared among multiple //sarah.Bot//s.
     end note
 
-    component "//workers.Worker//" as dirWatcher {
+    component "//watchers.Watcher//" as dirWatcher {
     }
     note right of dirWatcher
     Supervise configuration files.
@@ -180,7 +180,7 @@ worker1 -[#blue]up-> botRespond : //sarah.Input//
 botRespond -[#blue]up-> executeFirstMatched
 executeFirstMatched -[#blue]left-> echo : Execute
 botRespond -[#blue]up-> botSendMessage : Send\nresponse
-botSendMessage -up-> botSendingProtocol : Send message
+botSendMessage -up-> botSendingProtocol : Send\nmessage
 botSendingProtocol -up-> user
 botRespond -[#blue]left-> botStorage : Fetch/store
 
