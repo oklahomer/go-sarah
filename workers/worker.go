@@ -39,19 +39,22 @@ func NewConfig() *Config {
 	}
 }
 
+type Stats struct {
+	QueueSize int
+}
+
 // Reporter is an interface to report statistics such as queue length to outer service.
-// Implement this to pass statistics variable to desired service.
+// Implement this to pass statistical variables in desired way.
 // e.g. Report stats to prometheus via exporter
 type Reporter interface {
-	ReportQueueSize(context.Context, int)
+	Report(context.Context, *Stats)
 }
 
 type reporter struct {
 }
 
-// ReportQueueSize report current queue size.
-func (r reporter) ReportQueueSize(ctx context.Context, size int) {
-	log.Infof("worker queue length: %d", size)
+func (*reporter) Report(_ context.Context, stats *Stats) {
+	log.Infof("Worker queue length: %d", stats.QueueSize)
 }
 
 // WorkerOption defines function that worker's functional option must satisfy.
@@ -129,7 +132,7 @@ func Run(ctx context.Context, config *Config, options ...WorkerOption) (Worker, 
 		if w.reporter == nil {
 			w.reporter = &reporter{}
 		}
-		go superviseQueueLength(ctx, w.reporter, incoming, config.SuperviseInterval)
+		go supervise(ctx, w.reporter, incoming, config.SuperviseInterval)
 	}
 
 	return w, nil
@@ -171,7 +174,7 @@ func runChild(ctx context.Context, job <-chan func(), workerID uint) {
 	}
 }
 
-func superviseQueueLength(ctx context.Context, reporter Reporter, job chan<- func(), interval time.Duration) {
+func supervise(ctx context.Context, reporter Reporter, job chan<- func(), interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -181,7 +184,11 @@ func superviseQueueLength(ctx context.Context, reporter Reporter, job chan<- fun
 			return
 
 		case <-ticker.C:
-			reporter.ReportQueueSize(ctx, len(job))
+			stats := &Stats{
+				QueueSize: len(job),
+			}
+			reporter.Report(ctx, stats)
+
 		}
 	}
 }

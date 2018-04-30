@@ -12,11 +12,11 @@ import (
 )
 
 type DummyReporter struct {
-	ReportQueueSizeFunc func(context.Context, int)
+	ReportFunc func(context.Context, *Stats)
 }
 
-func (r *DummyReporter) ReportQueueSize(ctx context.Context, i int) {
-	r.ReportQueueSizeFunc(ctx, i)
+func (r *DummyReporter) Report(ctx context.Context, stats *Stats) {
+	r.ReportFunc(ctx, stats)
 }
 
 func TestNewConfig(t *testing.T) {
@@ -227,24 +227,24 @@ func Test_superviseQueueLength(t *testing.T) {
 
 	reportedSize := make(chan int, 1)
 	reporter := &DummyReporter{
-		ReportQueueSizeFunc: func(_ context.Context, i int) {
-			reportedSize <- i
+		ReportFunc: func(_ context.Context, stats *Stats) {
+			reportedSize <- stats.QueueSize
 		},
 	}
 
 	rootCtx := context.Background()
 	ctx, cancel := context.WithCancel(rootCtx)
-	go superviseQueueLength(ctx, reporter, job, 1*time.Millisecond)
-
-	time.Sleep(100 * time.Millisecond)
-	cancel()
+	defer cancel()
+	go supervise(ctx, reporter, job, 1*time.Millisecond)
 
 	select {
 	case size := <-reportedSize:
 		if size != cap(job) {
 			t.Errorf("Expected report size to be %d, but was %d.", cap(job), size)
 		}
+
 	case <-time.NewTimer(1 * time.Second).C:
 		t.Fatal("Taking too long.")
+
 	}
 }
