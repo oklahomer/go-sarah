@@ -6,17 +6,16 @@ import (
 	"fmt"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
-	"sync"
 	"testing"
 	"time"
 )
 
 type DummyReporter struct {
-	ReportQueueSizeFunc func(context.Context, int)
+	ReportFunc func(context.Context, *Stats)
 }
 
-func (r *DummyReporter) ReportQueueSize(ctx context.Context, i int) {
-	r.ReportQueueSizeFunc(ctx, i)
+func (r *DummyReporter) Report(ctx context.Context, stats *Stats) {
+	r.ReportFunc(ctx, stats)
 }
 
 func TestNewConfig(t *testing.T) {
@@ -95,13 +94,11 @@ func TestWithReporter(t *testing.T) {
 	}
 
 	if worker.reporter == nil {
-		t.Error("Given reporter is not set")
+		t.Error("Given reporter is not set.")
 	}
 }
 
 func TestRun(t *testing.T) {
-	mutex := &sync.RWMutex{}
-
 	rootCtx := context.Background()
 	workerCtx, cancelWorker := context.WithCancel(rootCtx)
 	defer cancelWorker()
@@ -110,27 +107,34 @@ func TestRun(t *testing.T) {
 		t.Fatalf("Unexpected error: %s.", err.Error())
 	}
 
-	isFinished := false
+	executed := make(chan struct{}, 1)
 	worker.Enqueue(func() {
-		mutex.Lock()
-		defer mutex.Unlock()
-		isFinished = true
+		executed <- struct{}{}
 	})
 
-	time.Sleep(100 * time.Millisecond)
-	func() {
-		mutex.RLock()
-		defer mutex.RUnlock()
-		if isFinished == false {
-			t.Fatal("Job is not executed.")
-		}
-	}()
+	select {
+	case <-time.NewTimer(100 * time.Millisecond).C:
+		t.Fatal("Job is not executed.")
+
+	case <-executed:
+		// O.K.
+
+	}
 
 	// panic won't affect main process
 	worker.Enqueue(func() {
+		executed <- struct{}{}
 		panic("Panic! Catch me!!")
 	})
-	time.Sleep(100 * time.Millisecond)
+
+	select {
+	case <-time.NewTimer(100 * time.Millisecond).C:
+		t.Fatal("Panicable job is not executed.")
+
+	case <-executed:
+		// O.K.
+
+	}
 }
 
 func TestRun_ErrEnqueueAfterShutdown(t *testing.T) {
@@ -148,7 +152,7 @@ func TestRun_ErrEnqueueAfterShutdown(t *testing.T) {
 	err = worker.Enqueue(func() {})
 
 	if err != ErrEnqueueAfterWorkerShutdown {
-		t.Errorf("Expected error is not returned: %T", err)
+		t.Errorf("Expected error is not returned: %T.", err)
 	}
 }
 
@@ -168,13 +172,13 @@ func TestRun_ErrQueueOverflow(t *testing.T) {
 		time.Sleep(3 * time.Second)
 	})
 	if err != nil {
-		t.Fatalf("First enqueue should success: %s", err.Error())
+		t.Fatalf("First enqueue should success: %s.", err.Error())
 	}
 
 	// Next job should be blocked with no buffered channel.
 	err = worker.Enqueue(func() {})
 	if err != ErrQueueOverflow {
-		t.Errorf("Expected error is not returned: %T", err)
+		t.Errorf("Expected error is not returned: %T.", err)
 	}
 }
 
@@ -183,39 +187,30 @@ func TestRun_WorkerOption(t *testing.T) {
 	workerCtx, cancelWorker := context.WithCancel(rootCtx)
 	defer cancelWorker()
 
-	calledCnt := 0
-	_, err := Run(workerCtx, NewConfig(), func(_ *worker) error {
-		calledCnt++
-		return nil
-	})
-
-	if err != nil {
-		t.Fatalf("First enqueue should success: %s", err.Error())
-	}
-
-	if calledCnt != 1 {
-		t.Error("Supplied WorkerOption is not called.")
-	}
-}
-
-func TestRun_WorkerOptionError(t *testing.T) {
-	rootCtx := context.Background()
-	workerCtx, cancelWorker := context.WithCancel(rootCtx)
-	defer cancelWorker()
-
-	calledCnt := 0
+	var cnt int
 	expectedErr := errors.New("expected error")
-	_, err := Run(workerCtx, NewConfig(), func(_ *worker) error {
-		calledCnt++
-		return expectedErr
-	})
+	opts := []WorkerOption{
+		func(*worker) error {
+			cnt++
+			return nil
+		},
+		func(*worker) error {
+			cnt++
+			return expectedErr
+		},
+	}
+	_, err := Run(workerCtx, &Config{}, opts...)
+
+	if cnt != len(opts) {
+		t.Fatalf("%d WorkerOptions are given, but executed %d time(s).", len(opts), cnt)
+	}
 
 	if err == nil {
 		t.Fatal("Error is not returned.")
 	}
 
 	if err != expectedErr {
-		t.Fatalf("Expected error is not returned: %s", err.Error())
+		t.Fatalf("Expected error is not returned: %s.", err.Error())
 	}
 }
 
@@ -227,24 +222,24 @@ func Test_superviseQueueLength(t *testing.T) {
 
 	reportedSize := make(chan int, 1)
 	reporter := &DummyReporter{
-		ReportQueueSizeFunc: func(_ context.Context, i int) {
-			reportedSize <- i
+		ReportFunc: func(_ context.Context, stats *Stats) {
+			reportedSize <- stats.QueueSize
 		},
 	}
 
 	rootCtx := context.Background()
 	ctx, cancel := context.WithCancel(rootCtx)
-	go superviseQueueLength(ctx, reporter, job, 1*time.Millisecond)
-
-	time.Sleep(100 * time.Millisecond)
-	cancel()
+	defer cancel()
+	go supervise(ctx, reporter, job, 1*time.Millisecond)
 
 	select {
 	case size := <-reportedSize:
 		if size != cap(job) {
 			t.Errorf("Expected report size to be %d, but was %d.", cap(job), size)
 		}
+
 	case <-time.NewTimer(1 * time.Second).C:
 		t.Fatal("Taking too long.")
+
 	}
 }
