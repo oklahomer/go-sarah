@@ -1,8 +1,8 @@
 package sarah
 
 import (
-	"fmt"
 	"golang.org/x/net/context"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 	"time"
@@ -454,7 +454,7 @@ func Test_race_taskRebuild(t *testing.T) {
 		Identifier("dummy").
 		BotType("dummyBot").
 		ConfigurableFunc(&config{Token: "default"}, func(_ context.Context, givenConfig TaskConfig) ([]*ScheduledTaskResult, error) {
-			fmt.Print(givenConfig.(*config).Token) // Read
+			ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
 			return nil, nil
 		}).
 		Schedule("@every 1m").

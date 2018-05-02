@@ -1,8 +1,8 @@
 package sarah
 
 import (
-	"fmt"
 	"golang.org/x/net/context"
+	"io/ioutil"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -348,7 +348,6 @@ func Test_buildCommand_WithConfigMap(t *testing.T) {
 	}
 
 	newConfig, ok := configWrapper.value.(map[string]interface{})
-	fmt.Printf("%#v", newConfig)
 	if !ok {
 		t.Fatalf("CommandConfig type is not valid: %T", configWrapper.value)
 	}
@@ -633,7 +632,7 @@ func Test_race_commandRebuild(t *testing.T) {
 		ConfigurableFunc(
 			&config{Token: "default"},
 			func(ctx context.Context, _ Input, givenConfig CommandConfig) (*CommandResponse, error) {
-				fmt.Print(givenConfig.(*config).Token) // Read
+				ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
 				return nil, nil
 			},
 		).
