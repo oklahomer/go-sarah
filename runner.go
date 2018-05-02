@@ -545,13 +545,9 @@ func botSupervisor(runnerCtx context.Context, botType BotType, alerters *alerter
 	// Bot itself MUST NOT kill itself, but the Runner does. Beware that Runner takes care of all related components' lifecycle.
 	activated := make(chan struct{})
 	go func() {
-		signalVal := struct{}{} // avoid multiple construction
+		close(activated)
 		for {
 			select {
-			case activated <- signalVal:
-				// Send sentinel value to make sure this goroutine is all ready by the end of this method call.
-				// This blocks once the value is sent because of the nature of non-buffered channel and one-time subscription.
-
 			case e := <-errCh:
 				switch e.(type) {
 				case *BotNonContinuableError:
