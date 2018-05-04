@@ -39,7 +39,11 @@ func NewConfig() *Config {
 	}
 }
 
+// Stats represents a group of statistical data.
+// This can be passed to Reporter.Report() to report current state.
 type Stats struct {
+	// QueueSize is the size of queued task to work.
+	// Use this value to adjust Config.QueueSize.
 	QueueSize int
 }
 
