@@ -7,9 +7,29 @@ import "time"
 //
 // See slack.MessageInput.
 type Input interface {
+	// SenderKey returns the text form of sender identifier.
+	// This value can be used internally as a key to store the sender's conversational context in UserContextStorage.
+	// Generally, When connecting chat service has the concept of group or chat room,
+	// this sender key should contain the group/room identifier along with user identifier
+	// so the user's conversational context is only applied in the exact same group/room.
+	//
+	// e.g. senderKey := fmt.Sprintf("%d_%d", roomID, userID)
 	SenderKey() string
+
+	// Message returns the text form of user input.
+	// This may return empty string when this Input implementation represents non-text payload such as photo,
+	// video clip or file.
 	Message() string
+
+	// SentAt returns the timestamp when the message is sent.
+	// This may return a message reception time if the connecting chat service does not provide one.
+	// e.g. XMPP server only provides timestamp as part of XEP-0203 when delayed message is delivered.
 	SentAt() time.Time
+
+	// ReplyTo returns the sender's address or location to be used to reply message.
+	// This may be passed to Bot.SendMessage() as part of Output value to specify the sending destination.
+	// This typically contains chat room, member id or mail address.
+	// e.g. JID of XMPP server/client.
 	ReplyTo() OutputDestination
 }
 
