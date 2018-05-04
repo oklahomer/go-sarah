@@ -2,42 +2,73 @@
 	"version": 0,
 	"dependencies": [
 		{
+			"importpath": "github.com/fsnotify/fsnotify",
+			"repository": "https://github.com/fsnotify/fsnotify",
+			"revision": "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/jarcoal/httpmock",
 			"repository": "https://github.com/jarcoal/httpmock",
-			"revision": "145b10d659265440f062c31ea15326166bae56ee",
+			"revision": "9c70cfe4a1dad2f143c2244b45f2161fc72ceddf",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/oklahomer/cron",
+			"repository": "https://github.com/oklahomer/cron",
+			"revision": "e6e3d632402c2d06785aadb949125f6f356d92ce",
+			"branch": "feature/removable_job"
+		},
+		{
+			"importpath": "github.com/oklahomer/golack",
+			"repository": "https://github.com/oklahomer/golack",
+			"revision": "2249e739775bbff93d758dad0a8906ac43f28447",
 			"branch": "master"
 		},
 		{
 			"importpath": "github.com/patrickmn/go-cache",
 			"repository": "https://github.com/patrickmn/go-cache",
-			"revision": "e7a9def80f35fe1b170b7b8b68871d59dea117e1",
+			"revision": "a3647f8e31d79543b2d0f0ae2fe5c379d72cedc0",
 			"branch": "master"
 		},
 		{
-			"importpath": "github.com/robfig/cron",
-			"repository": "https://github.com/robfig/cron",
-			"revision": "9585fd555638e77bba25f25db5c44b41f264aeb7",
+			"importpath": "github.com/tidwall/gjson",
+			"repository": "https://github.com/tidwall/gjson",
+			"revision": "3cd3a1192327ac5e24f7e87824be578b0b07c604",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/tidwall/match",
+			"repository": "https://github.com/tidwall/match",
+			"revision": "1731857f09b1f38450e2c12409748407822dc6be",
 			"branch": "master"
 		},
 		{
 			"importpath": "golang.org/x/net/context",
 			"repository": "https://go.googlesource.com/net",
-			"revision": "4971afdc2f162e82d185353533d3cf16188a9f4e",
+			"revision": "640f4622ab692b87c2f3a94265e6f579fe38263d",
 			"branch": "master",
 			"path": "/context"
 		},
 		{
 			"importpath": "golang.org/x/net/websocket",
 			"repository": "https://go.googlesource.com/net",
-			"revision": "4971afdc2f162e82d185353533d3cf16188a9f4e",
+			"revision": "640f4622ab692b87c2f3a94265e6f579fe38263d",
 			"branch": "master",
 			"path": "/websocket"
 		},
 		{
+			"importpath": "golang.org/x/sys/unix",
+			"repository": "https://go.googlesource.com/sys",
+			"revision": "6f686a352de66814cdd080d970febae7767857a3",
+			"branch": "master",
+			"path": "/unix"
+		},
+		{
 			"importpath": "gopkg.in/yaml.v2",
 			"repository": "https://gopkg.in/yaml.v2",
-			"revision": "a5b47d31c556af34a302ce5d659e6fea44d90de0",
-			"branch": "v2"
+			"revision": "5420a8b6744d3b0345ab293f6fcba19c978f1183",
+			"branch": "master"
 		}
 	]
 }
