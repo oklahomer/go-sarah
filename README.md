@@ -8,7 +8,15 @@ Sarah is a general purpose bot framework named after author's firstborn daughter
 
 While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
 
-# At A Glance
+# Supported Chat Services/Protocols
+Although a developer may implement `sarah.Adapter` to integrate with a desired chat service,
+some adapters are provided as reference implementations:
+- [Slack](https://github.com/oklahomer/go-sarah/tree/master/slack)
+- [Gitter](https://github.com/oklahomer/go-sarah/tree/master/gitter)
+- [XMPP](https://github.com/oklahomer/go-sarah-xmpp)
+- [LINE](https://github.com/oklahomer/go-sarah-line)
+
+# At a Glance
 ![hello world](/doc/img/hello.png)
 
 Above is a general use of `go-sarah`.
