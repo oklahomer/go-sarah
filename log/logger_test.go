@@ -6,7 +6,10 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
+	"sync"
 	"testing"
+	"time"
 )
 
 type DummyLogger struct {
@@ -291,10 +294,9 @@ func TestSetOutputLevel(t *testing.T) {
 }
 
 func TestSetLogger(t *testing.T) {
-	impl := logger.(*defaultLogger)
-	old := impl.logger
+	old := logger.(*defaultLogger)
 	defer func() {
-		impl.logger = old
+		logger = old
 	}()
 
 	newLogger := &DummyLogger{}
@@ -303,4 +305,51 @@ func TestSetLogger(t *testing.T) {
 	if logger != newLogger {
 		t.Errorf("Assigned logger is not set: %#v.", logger)
 	}
+}
+
+func Test_concurrentAccess(t *testing.T) {
+	old := logger.(*defaultLogger)
+	defer func() {
+		logger = old
+	}()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		levels := []Level{
+			DebugLevel, InfoLevel, WarnLevel, ErrorLevel,
+		}
+		rand.Seed(time.Now().Unix())
+		for range make([]int, 1000) {
+			SetOutputLevel(levels[rand.Intn(len(levels))])
+		}
+
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		for range make([]int, 1000) {
+			newLogger := &DummyLogger{
+				DebugFunc: func(args ...interface{}) {
+					// O.K.
+				},
+			}
+			SetLogger(newLogger)
+		}
+
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		for range make([]int, 1000) {
+			Debug("foo")
+		}
+
+		wg.Done()
+	}()
+
+	wg.Wait()
 }

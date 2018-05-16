@@ -17,7 +17,9 @@ type Level uint
 var (
 	outputLevel = DebugLevel
 	logger      = newDefaultLogger()
-	mutex       = &sync.Mutex{}
+
+	// mutex avoids race condition caused by concurrent call to SetLogger(), SetOutputLevel() and logging method.
+	mutex sync.RWMutex
 )
 
 const (
@@ -151,6 +153,8 @@ func SetOutputLevel(level Level) {
 // Debug outputs given arguments via pre-set Logger implementation.
 // Logging level must be set to DebugLevel via logger.SetOutputLevel
 func Debug(args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	if outputLevel >= DebugLevel {
 		logger.Debug(args...)
 	}
@@ -159,6 +163,8 @@ func Debug(args ...interface{}) {
 // Debugf outputs given arguments with format via pre-set Logger implementation.
 // Logging level must be set to DebugLevel via logger.SetOutputLevel
 func Debugf(format string, args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	if outputLevel >= DebugLevel {
 		logger.Debugf(format, args...)
 	}
@@ -167,6 +173,8 @@ func Debugf(format string, args ...interface{}) {
 // Info outputs given arguments via pre-set Logger implementation.
 // Logging level must be set to DebugLevel or InfoLevel via logger.SetOutputLevel
 func Info(args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	if outputLevel >= InfoLevel {
 		logger.Info(args...)
 	}
@@ -175,6 +183,8 @@ func Info(args ...interface{}) {
 // Infof outputs given arguments with format via pre-set Logger implementation.
 // Logging level must be set to DebugLevel or InfoLevel via logger.SetOutputLevel
 func Infof(format string, args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	if outputLevel >= InfoLevel {
 		logger.Infof(format, args...)
 	}
@@ -183,6 +193,8 @@ func Infof(format string, args ...interface{}) {
 // Warn outputs given arguments via pre-set Logger implementation.
 // Logging level must be set to DebugLevel, InfoLevel or WarnLevel via logger.SetOutputLevel
 func Warn(args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	if outputLevel >= WarnLevel {
 		logger.Warn(args...)
 	}
@@ -191,6 +203,8 @@ func Warn(args ...interface{}) {
 // Warnf outputs given arguments with format via pre-set Logger implementation.
 // Logging level must be set to DebugLevel, InfoLevel or WarnLevel via logger.SetOutputLevel
 func Warnf(format string, args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	if outputLevel >= WarnLevel {
 		logger.Warnf(format, args...)
 	}
@@ -198,6 +212,8 @@ func Warnf(format string, args ...interface{}) {
 
 // Error outputs given arguments via pre-set Logger implementation.
 func Error(args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	if outputLevel >= ErrorLevel {
 		logger.Error(args...)
 	}
@@ -205,6 +221,8 @@ func Error(args ...interface{}) {
 
 // Errorf outputs given arguments with format via pre-set Logger implementation.
 func Errorf(format string, args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	if outputLevel >= ErrorLevel {
 		logger.Errorf(format, args...)
 	}
