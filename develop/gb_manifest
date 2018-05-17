@@ -46,21 +46,21 @@
 		{
 			"importpath": "golang.org/x/net/context",
 			"repository": "https://go.googlesource.com/net",
-			"revision": "640f4622ab692b87c2f3a94265e6f579fe38263d",
+			"revision": "2491c5de3490fced2f6cff376127c667efeed857",
 			"branch": "master",
 			"path": "/context"
 		},
 		{
 			"importpath": "golang.org/x/net/websocket",
 			"repository": "https://go.googlesource.com/net",
-			"revision": "640f4622ab692b87c2f3a94265e6f579fe38263d",
+			"revision": "2491c5de3490fced2f6cff376127c667efeed857",
 			"branch": "master",
 			"path": "/websocket"
 		},
 		{
 			"importpath": "golang.org/x/sys/unix",
 			"repository": "https://go.googlesource.com/sys",
-			"revision": "6f686a352de66814cdd080d970febae7767857a3",
+			"revision": "7c87d13f8e835d2fb3a70a2912c811ed0c1d241b",
 			"branch": "master",
 			"path": "/unix"
 		},
