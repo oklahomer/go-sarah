@@ -1,5 +1,34 @@
 /*
 Package log provides logging mechanism including replaceable Logger interface and its default implementation.
+Developers may replace default implementation and output level with her desired Logger implementation in a thread-safe manner as below:
+
+	type MyLogger struct {}
+
+	var _ Logger = (*MyLogger)(nil)
+
+	func (*MyLogger) Debug(args ...interface{}) {}
+
+	func (*MyLogger) Debugf(format string, args ...interface{}) {}
+
+	func (*MyLogger) Info(args ...interface{}) {}
+
+	func (*MyLogger) Infof(format string, args ...interface{}) {}
+
+	func (*MyLogger) Warn(args ...interface{}) {}
+
+	func (*MyLogger) Warnf(format string, args ...interface{}) {}
+
+	func (*MyLogger) Error(args ...interface{}) {}
+
+	func (*MyLogger) Errorf(format string, args ...interface{}) {}
+
+	l := &MyLogger{}
+
+	// These methods are thread-safe
+	log.SetLogger(l)
+	log.SetOutputLevel(log.InfoLevel)
+
+	log.Info("Output via new Logger impl.")
 */
 package log
 
@@ -11,7 +40,7 @@ import (
 )
 
 // Level indicates what logging level the output is representing.
-// This typically indicates the severity of particular logging event.
+// This typically indicates the severity of a particular logging event.
 type Level uint
 
 var (
@@ -24,16 +53,19 @@ var (
 
 const (
 	// ErrorLevel indicates the error state of events. This must be noted and be fixed.
-	// In practical situation, fix may include lowering of the log level.
+	// In practical situation, fix may include lowering the corresponding event's log level.
 	ErrorLevel Level = iota
 
 	// WarnLevel represents those events that are not critical, but deserves to note.
+	// Event with this level may not necessarily be considered as an error;
+	// however frequent occurrence deserves developer's attention and may be subject to bug-fix.
 	WarnLevel
 
 	// InfoLevel is used to inform what is happening inside the application.
 	InfoLevel
 
 	// DebugLevel indicates the output is logged for debugging purpose.
+	// This level is not suitable for production usage.
 	DebugLevel
 )
 
@@ -54,7 +86,7 @@ func (level Level) String() string {
 }
 
 // Logger defines the interface that can be used as logging tool in this application.
-// Developer may provide a customized logger via SetLogger to modify behavior.
+// Developer may provide a customized logger via SetLogger() to modify behavior.
 // By default, instance of defaultLogger is set as default Logger just like http's DefaultClient.
 type Logger interface {
 	Debug(args ...interface{})
@@ -73,6 +105,8 @@ type Logger interface {
 type defaultLogger struct {
 	logger *log.Logger
 }
+
+var _ Logger = (*defaultLogger)(nil)
 
 func (l *defaultLogger) Debug(args ...interface{}) {
 	l.out(DebugLevel, args...)
@@ -124,14 +158,14 @@ func newDefaultLogger() Logger {
 // NewWithStandardLogger creates an instance of defaultLogger with Go's standard log.Logger.
 // This can be used when implementing Logger interface is too much of a task, but still a bit of modification to defaultLogger is required.
 //
-// Returning Logger can be fed to SetLogger to replace old defaultLogger.
+// Returning Logger can be fed to SetLogger() to replace old defaultLogger.
 func NewWithStandardLogger(l *log.Logger) Logger {
 	return &defaultLogger{
 		logger: l,
 	}
 }
 
-// SetLogger receives struct that satisfies Logger interface, and set this as logger.
+// SetLogger receives struct that satisfies Logger interface, and sets this as logger.
 // From this call forward, any call to logging method proxies arguments to corresponding logging method of given Logger.
 // e.g. call to log.Info points to Logger.Info.
 //
@@ -144,6 +178,12 @@ func SetLogger(l Logger) {
 
 // SetOutputLevel sets what logging level to output.
 // Application may call logging method any time, but Logger only outputs if the corresponding log level is equal to or higher than the level set here.
+// e.g. When InfoLevel is set, output with Debug() and Debugf() are ignored.
+//
+// This method is "thread-safe."
+//
+// DebugLevel is set by default, so this should be explicitly overridden with higher logging level on production environment
+// to avoid printing undesired sensitive data.
 func SetOutputLevel(level Level) {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -151,7 +191,7 @@ func SetOutputLevel(level Level) {
 }
 
 // Debug outputs given arguments via pre-set Logger implementation.
-// Logging level must be set to DebugLevel via logger.SetOutputLevel
+// Logging level must be left with the default setting or be set to DebugLevel via SetOutputLevel().
 func Debug(args ...interface{}) {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -161,7 +201,7 @@ func Debug(args ...interface{}) {
 }
 
 // Debugf outputs given arguments with format via pre-set Logger implementation.
-// Logging level must be set to DebugLevel via logger.SetOutputLevel
+// Logging level must be left with the default setting or be set to DebugLevel via SetOutputLevel().
 func Debugf(format string, args ...interface{}) {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -171,7 +211,7 @@ func Debugf(format string, args ...interface{}) {
 }
 
 // Info outputs given arguments via pre-set Logger implementation.
-// Logging level must be set to DebugLevel or InfoLevel via logger.SetOutputLevel
+// Logging level must be set to DebugLevel or InfoLevel via SetOutputLevel().
 func Info(args ...interface{}) {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -181,7 +221,7 @@ func Info(args ...interface{}) {
 }
 
 // Infof outputs given arguments with format via pre-set Logger implementation.
-// Logging level must be set to DebugLevel or InfoLevel via logger.SetOutputLevel
+// Logging level must be set to DebugLevel or InfoLevel via SetOutputLevel().
 func Infof(format string, args ...interface{}) {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -191,7 +231,7 @@ func Infof(format string, args ...interface{}) {
 }
 
 // Warn outputs given arguments via pre-set Logger implementation.
-// Logging level must be set to DebugLevel, InfoLevel or WarnLevel via logger.SetOutputLevel
+// Logging level must be set to DebugLevel, InfoLevel or WarnLevel via SetOutputLevel().
 func Warn(args ...interface{}) {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -201,7 +241,7 @@ func Warn(args ...interface{}) {
 }
 
 // Warnf outputs given arguments with format via pre-set Logger implementation.
-// Logging level must be set to DebugLevel, InfoLevel or WarnLevel via logger.SetOutputLevel
+// Logging level must be set to DebugLevel, InfoLevel or WarnLevel via SetOutputLevel().
 func Warnf(format string, args ...interface{}) {
 	mutex.RLock()
 	defer mutex.RUnlock()
