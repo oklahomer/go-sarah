@@ -12,11 +12,13 @@ go:
 before_install:
   - export PATH=$HOME/gopath/bin:$PATH
   - go get github.com/mattn/goveralls
+  - npm install -g codeclimate-test-reporter
 
 script:
   - go test -race ./...
-  - go test -cover ./...
-  - goveralls -service=travis-ci -ignore=examples/*,examples/plugins/*/*
+  - go test -covermode=count -coverprofile=cover.out ./...
+  - goveralls -coverprofile=cover.out -service=travis-ci -ignore=examples/*,examples/plugins/*/*
+  - codeclimate-test-reporter < cover.out
 
 matrix:
   allow_failures:
