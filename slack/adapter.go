@@ -252,7 +252,7 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 	for {
 		select {
 		case <-connCtx.Done():
-			log.Info("stop receiving payload due to context cancel")
+			log.Info("Stop receiving payload due to context cancel")
 			return
 
 		default:
@@ -263,10 +263,12 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 			} else if _, ok := err.(*rtmapi.MalformedPayloadError); ok {
 				// Malformed payload was passed, but there is no programmable way to handle this error.
 				// Leave log and proceed.
-				log.Warnf("ignoring malformed paylaod: %s.", err.Error())
+				log.Warnf("Ignore malformed payload: %s.", err.Error())
+			} else if _, ok := err.(*rtmapi.UnexpectedMessageTypeError); ok {
+				log.Warnf("Ignore a payload with unexpected message type: %s.", err.Error())
 			} else if err != nil {
 				// Connection might not be stable or is closed already.
-				log.Debugf("ping caused by '%s'", err.Error())
+				log.Debugf("Ping caused by '%s'", err.Error())
 				nonBlockSignal(pingSignalChannelID, tryPing)
 				continue
 			}
@@ -282,10 +284,16 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 
 func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
 	switch p := payload.(type) {
-	case *rtmapi.WebSocketReply:
-		if !p.OK {
-			log.Errorf("something was wrong with previous message sending. id: %d. text: %s.", p.ReplyTo, p.Text)
-		}
+	case *rtmapi.WebSocketOKReply:
+		log.Debugf("Successfully sent. ID: %d. Text: %s.", p.ReplyTo, p.Text)
+
+	case *rtmapi.WebSocketNGReply:
+		log.Errorf(
+			"Something was wrong with previous message sending. id: %d. error code: %d. error message: %s.",
+			p.ReplyTo, p.ErrorReason.Code, p.ErrorReason.Message)
+
+	case *rtmapi.Pong:
+		log.Debug("Pong message received.")
 
 	case *rtmapi.Message:
 		// Convert RTM specific message to one that satisfies sarah.Input interface.
@@ -306,7 +314,7 @@ func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayl
 		}
 
 	default:
-		log.Debugf("payload given, but no corresponding action is defined. %#v", p)
+		log.Debugf("Payload given, but no corresponding action is defined. %#v", p)
 
 	}
 }

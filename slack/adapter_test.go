@@ -617,7 +617,7 @@ func TestMessageInput(t *testing.T) {
 	content := "Hello, 世界"
 	timestamp := time.Now()
 	rtmMessage := &rtmapi.Message{
-		CommonEvent: rtmapi.CommonEvent{
+		TypedEvent: rtmapi.TypedEvent{
 			Type: rtmapi.MessageEvent,
 		},
 		ChannelID: slackobject.ChannelID(channelID),
@@ -743,7 +743,7 @@ func TestNewPostMessageResponse(t *testing.T) {
 	channelID := slackobject.ChannelID("id")
 	input := NewMessageInput(
 		&rtmapi.Message{
-			CommonEvent: rtmapi.CommonEvent{
+			TypedEvent: rtmapi.TypedEvent{
 				Type: rtmapi.MessageEvent,
 			},
 			ChannelID: channelID,
@@ -785,7 +785,7 @@ func TestNewPostMessageResponseWithNext(t *testing.T) {
 	channelID := slackobject.ChannelID("id")
 	input := NewMessageInput(
 		&rtmapi.Message{
-			CommonEvent: rtmapi.CommonEvent{
+			TypedEvent: rtmapi.TypedEvent{
 				Type: rtmapi.MessageEvent,
 			},
 			ChannelID: channelID,
@@ -842,9 +842,11 @@ func Test_handlePayload(t *testing.T) {
 		inputType reflect.Type
 	}{
 		{
-			payload: &rtmapi.WebSocketReply{
-				OK:   false,
-				Text: "no good",
+			payload: &rtmapi.WebSocketNGReply{
+				WebSocketReply: rtmapi.WebSocketReply{
+					ReplyTo: 1,
+					OK:      false,
+				},
 			},
 			inputType: nil,
 		},
