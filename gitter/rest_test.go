@@ -1,9 +1,9 @@
 package gitter
 
 import (
-	"fmt"
-	"github.com/jarcoal/httpmock"
+	"encoding/json"
 	"golang.org/x/net/context"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -55,9 +55,6 @@ func TestRestAPIClient_buildEndPoint(t *testing.T) {
 }
 
 func TestRestAPIClient_Get(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	type GetResponseDummy struct {
 		Foo string
 	}
@@ -65,14 +62,26 @@ func TestRestAPIClient_Get(t *testing.T) {
 	response := &GetResponseDummy{
 		Foo: "foo",
 	}
-	responder, _ := httpmock.NewJsonResponder(200, response)
-	httpmock.RegisterResponder("GET", "https://api.gitter.im/v1/bar", responder)
+	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodGet {
+			t.Fatalf("Unexpected request method: %s.", req.Method)
+		}
+
+		bytes, err := json.Marshal(response)
+		if err != nil {
+			t.Fatalf("Unexpected json marshal error: %s.", err.Error())
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+		}, nil
+	})
+	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "buzz",
 		apiVersion: "v1",
 	}
-
 	returned := &GetResponseDummy{}
 	err := client.Get(context.TODO(), []string{"bar"}, returned)
 
@@ -86,49 +95,59 @@ func TestRestAPIClient_Get(t *testing.T) {
 }
 
 func TestClient_Get_StatusError(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodGet {
+			t.Fatalf("Unexpected request method: %s.", req.Method)
+		}
 
-	type GetResponseDummy struct {
-		Foo string
-	}
-
-	statusCode := 404
-	responder := func(req *http.Request) (*http.Response, error) {
-		resp := httpmock.NewStringResponse(statusCode, "foo bar")
-		resp.Request = req // To let *http.Response.Request work
-		return resp, nil
-	}
-	httpmock.RegisterResponder("GET", "https://api.gitter.im/v1/foo", responder)
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Body:       ioutil.NopCloser(strings.NewReader("foo bar")),
+		}, nil
+	})
+	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "buzz",
 		apiVersion: "v1",
 	}
-	returned := &GetResponseDummy{}
+	returned := struct{}{}
 	err := client.Get(context.TODO(), []string{"foo"}, returned)
 
 	if err == nil {
-		t.Errorf("error should return when %d is given.", statusCode)
+		t.Errorf("error should return when %d is given.", http.StatusNotFound)
 	}
 }
 
 func TestRestAPIClient_Post(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	type PostResponseDummy struct {
 		OK bool
 	}
 
-	responder, _ := httpmock.NewJsonResponder(200, &PostResponseDummy{OK: true})
-	httpmock.RegisterResponder("POST", "https://api.gitter.im/v1/bar", responder)
+	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodPost {
+			t.Fatalf("Unexpected request method: %s.", req.Method)
+		}
+
+		bytes, err := json.Marshal(&PostResponseDummy{OK: true})
+		if err != nil {
+			if err != nil {
+				t.Fatalf("Unexpected json marshal error: %s.", err.Error())
+			}
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+		}, nil
+	})
+	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "bar",
 		apiVersion: "v1",
 	}
-	returned := &PostResponseDummy{OK: true}
+	returned := &PostResponseDummy{}
 	err := client.Post(context.TODO(), []string{"bar"}, url.Values{}, returned)
 
 	if err != nil {
@@ -141,24 +160,37 @@ func TestRestAPIClient_Post(t *testing.T) {
 }
 
 func TestRestAPIClient_Rooms(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodGet {
+			t.Fatalf("Unexpected request method: %s.", req.Method)
+		}
 
-	response := &Rooms{
-		&Room{
-			LastAccessTime: TimeStamp{
-				OriginalValue: "2015-04-08T07:06:00.000Z",
+		response := &Rooms{
+			&Room{
+				LastAccessTime: TimeStamp{
+					OriginalValue: "2015-04-08T07:06:00.000Z",
+				},
 			},
-		},
-	}
-	responder, _ := httpmock.NewJsonResponder(200, response)
-	httpmock.RegisterResponder("GET", "https://api.gitter.im/v1/rooms", responder)
+		}
+
+		bytes, err := json.Marshal(response)
+		if err != nil {
+			if err != nil {
+				t.Fatalf("Unexpected json marshal error: %s.", err.Error())
+			}
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+		}, nil
+	})
+	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "buzz",
 		apiVersion: "v1",
 	}
-
 	rooms, err := client.Rooms(context.TODO())
 
 	if err != nil {
@@ -171,20 +203,33 @@ func TestRestAPIClient_Rooms(t *testing.T) {
 }
 
 func TestRestAPIClient_PostMessage(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodPost {
+			t.Fatalf("Unexpected request method: %s.", req.Method)
+		}
 
-	roomID := "123"
-	response := &Message{
-		SendTimeStamp: TimeStamp{
-			OriginalValue: "2015-04-08T07:06:00.000Z",
-		},
-		EditTimeStamp: TimeStamp{
-			OriginalValue: "2015-04-08T07:06:00.000Z",
-		},
-	}
-	responder, _ := httpmock.NewJsonResponder(200, response)
-	httpmock.RegisterResponder("POST", fmt.Sprintf("https://api.gitter.im/v1/rooms/%s/chatMessages", roomID), responder)
+		response := &Message{
+			SendTimeStamp: TimeStamp{
+				OriginalValue: "2015-04-08T07:06:00.000Z",
+			},
+			EditTimeStamp: TimeStamp{
+				OriginalValue: "2015-04-08T07:06:00.000Z",
+			},
+		}
+
+		bytes, err := json.Marshal(response)
+		if err != nil {
+			if err != nil {
+				t.Fatalf("Unexpected json marshal error: %s.", err.Error())
+			}
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+		}, nil
+	})
+	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "bar",
@@ -192,7 +237,7 @@ func TestRestAPIClient_PostMessage(t *testing.T) {
 	}
 
 	room := &Room{
-		ID: roomID,
+		ID: "123",
 		LastAccessTime: TimeStamp{
 			OriginalValue: "2015-04-08T07:06:00.000Z",
 		},
@@ -205,5 +250,23 @@ func TestRestAPIClient_PostMessage(t *testing.T) {
 
 	if message == nil {
 		t.Error("Expected payload is not returned")
+	}
+}
+
+type roundTripFnc func(*http.Request) (*http.Response, error)
+
+func (fnc roundTripFnc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return fnc(r)
+}
+
+func switchHTTPClient(fnc roundTripFnc) func() {
+	oldClient := http.DefaultClient
+
+	http.DefaultClient = &http.Client{
+		Transport: fnc,
+	}
+
+	return func() {
+		http.DefaultClient = oldClient
 	}
 }

@@ -1,9 +1,12 @@
 package line
 
 import (
+	"encoding/json"
 	"errors"
-	"github.com/jarcoal/httpmock"
 	"golang.org/x/net/context"
+	"io/ioutil"
+	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -37,9 +40,6 @@ func TestNew(t *testing.T) {
 }
 
 func TestClient_Alert(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	responses := []*struct {
 		Status  int    `json:"status"`
 		Message string `json:"message"`
@@ -54,21 +54,36 @@ func TestClient_Alert(t *testing.T) {
 		},
 	}
 
-	var errs []error
 	for _, r := range responses {
-		responder, _ := httpmock.NewJsonResponder(r.Status, r)
-		httpmock.RegisterResponder("POST", Endpoint, responder)
+		http.DefaultClient = &http.Client{
+			Transport: roundTripFnc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != "POST" {
+					t.Fatalf("Unexpected request method: %s.", req.Method)
+				}
 
-		config := NewConfig()
-		client := New(config)
-		errs = append(errs, client.Alert(context.TODO(), "DUMMY", errors.New("message")))
-	}
+				bytes, err := json.Marshal(r)
+				if err != nil {
+					t.Fatalf("Unexpected json marshal error: %s.", err.Error())
+				}
+				return &http.Response{
+					StatusCode: r.Status,
+					Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+				}, nil
+			}),
+		}
 
-	if errs[0] == nil {
-		t.Error("Expected error is not returned.")
+		client := New(NewConfig())
+		err := client.Alert(context.TODO(), "DUMMY", errors.New("message"))
+		if r.Status == 200 && err != nil {
+			t.Errorf("Unexpected error is returned: %s.", err.Error())
+		} else if r.Status != 200 && err == nil {
+			t.Error("Expected error is not returned.")
+		}
 	}
+}
 
-	if errs[1] != nil {
-		t.Errorf("Unexpected error is returned: %s.", errs[1].Error())
-	}
+type roundTripFnc func(*http.Request) (*http.Response, error)
+
+func (fnc roundTripFnc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return fnc(r)
 }

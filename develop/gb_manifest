@@ -14,12 +14,6 @@
 			"branch": "master"
 		},
 		{
-			"importpath": "github.com/jarcoal/httpmock",
-			"repository": "https://github.com/jarcoal/httpmock",
-			"revision": "9c70cfe4a1dad2f143c2244b45f2161fc72ceddf",
-			"branch": "master"
-		},
-		{
 			"importpath": "github.com/oklahomer/cron",
 			"repository": "https://github.com/oklahomer/cron",
 			"revision": "e6e3d632402c2d06785aadb949125f6f356d92ce",
