@@ -20,7 +20,7 @@ type Errors []error
 // Error returns the concatenated message of all belonging errors.
 // All err.Err() strings are joined with "\n".
 func (e *Errors) Error() string {
-	errs := []string{}
+	var errs []string
 	for _, err := range *e {
 		errs = append(errs, err.Error())
 	}
@@ -29,6 +29,31 @@ func (e *Errors) Error() string {
 
 func (e *Errors) appendError(err error) {
 	*e = append(*e, err)
+}
+
+// NewPolicy creates and returns new retrial policy.
+// To let developers supply flexible retrial policy from outside rather than obligating them to call a specific retry function,
+// pass this returned value to retry.WithPolicy().
+func NewPolicy() *Policy {
+	return &Policy{
+		Trial:      1,
+		Interval:   0,
+		RandFactor: 0,
+	}
+}
+
+// Policy represents a configuration value for retrial logic.
+type Policy struct {
+	Trial      uint          `json:"trial" yaml:"trial"`
+	Interval   time.Duration `json:"interval" yaml:"interval"`
+	RandFactor float64       `json:"random_factor" yaml:"random_factor"`
+}
+
+// WithPolicy receives retrial policy and an executable function.
+// Passed function is recursively executed as long as it returns an error or the retrial count exceeds given configuration value.
+// Unlike other retrial functions, this function is among the most flexible since a user has maximum freedom on configuration.
+func WithPolicy(policy *Policy, function func() error) error {
+	return WithBackOff(policy.Trial, function, policy.Interval, policy.RandFactor)
 }
 
 // Retry retries given function as many times as the maximum trial count.

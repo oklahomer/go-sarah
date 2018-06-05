@@ -9,6 +9,25 @@ import (
 	"time"
 )
 
+func TestNewPolicy(t *testing.T) {
+	policy := NewPolicy()
+	if policy == nil {
+		t.Fatal("Expected retrial policy is not returned.")
+	}
+}
+
+func TestWithPolicy(t *testing.T) {
+	policy := &Policy{Trial: 1}
+	called := false
+	WithPolicy(policy, func() error {
+		called = true
+		return nil
+	})
+	if !called {
+		t.Error("Passed function is not called.")
+	}
+}
+
 func TestRetry(t *testing.T) {
 	trial := uint(3)
 
