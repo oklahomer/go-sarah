@@ -1,12 +1,13 @@
 package worldweather
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
-	"github.com/jarcoal/httpmock"
 	"golang.org/x/net/context"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -101,41 +102,56 @@ func TestClient_Get(t *testing.T) {
 		},
 	}
 
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	for i, datum := range data {
 		testNo := i + 1
 
-		var responder httpmock.Responder
+		var res *http.Response
 		if str, ok := datum.response.(string); ok {
-			responder = httpmock.NewStringResponder(datum.status, str)
+			res = &http.Response{
+				StatusCode: datum.status,
+				Body:       ioutil.NopCloser(strings.NewReader(str)),
+			}
 		} else {
-			responder, _ = httpmock.NewJsonResponder(datum.status, datum.response)
-		}
-		requestURL := fmt.Sprintf(weatherAPIEndpointFormat, datum.apiType)
-		httpmock.RegisterResponder("GET", requestURL, responder)
-
-		queryParams := &url.Values{}
-		queryParams.Add("q", "1600 Pennsylvania Avenue NW Washington, DC 20500")
-		response := &CommonData{}
-		err := client.Get(context.TODO(), apiType, queryParams, response)
-
-		if datum.status != http.StatusOK {
-			if err == nil {
-				t.Errorf("Expected error is not returned on test No. %d.", testNo)
+			bytes, err := json.Marshal(datum.response)
+			if err != nil {
+				t.Fatalf("Unexpected json marshal error: %s.", err.Error())
 			}
-			continue
-		}
-
-		expectedResponse, ok := datum.response.(*CommonData)
-		if ok && expectedResponse.HasError() && !response.HasError() {
-			t.Errorf("Expected error response is not returned on test No. %d.", testNo)
-		} else if !ok {
-			if err == nil {
-				t.Errorf("Expected error is not returned on test No. %d.", testNo)
+			res = &http.Response{
+				StatusCode: datum.status,
+				Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
 			}
 		}
+
+		func(r *http.Response) {
+			resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodGet {
+					t.Fatalf("Unexpected request method: %s.", req.Method)
+				}
+
+				return r, nil
+			})
+			defer resetClient()
+
+			queryParams := &url.Values{}
+			queryParams.Add("q", "1600 Pennsylvania Avenue NW Washington, DC 20500")
+			response := &CommonData{}
+			err := client.Get(context.TODO(), apiType, queryParams, response)
+
+			if datum.status != http.StatusOK {
+				if err == nil {
+					t.Errorf("Expected error is not returned on test No. %d.", testNo)
+				}
+			}
+
+			expectedResponse, ok := datum.response.(*CommonData)
+			if ok && expectedResponse.HasError() && !response.HasError() {
+				t.Errorf("Expected error response is not returned on test No. %d.", testNo)
+			} else if !ok {
+				if err == nil {
+					t.Errorf("Expected error is not returned on test No. %d.", testNo)
+				}
+			}
+		}(res)
 	}
 }
 
@@ -146,22 +162,23 @@ func TestClient_GetRequestError(t *testing.T) {
 		},
 	}
 
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	expectedErr := &url.Error{
 		Op:  "dummy",
 		URL: "http://sample.com/",
 		Err: errors.New("dummy error"),
 	}
 
-	apiType := "weather"
-	requestURL := fmt.Sprintf(weatherAPIEndpointFormat, apiType)
-	httpmock.RegisterResponder("GET", requestURL, func(_ *http.Request) (*http.Response, error) {
+	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodGet {
+			t.Fatalf("Unexpected request method: %s.", req.Method)
+		}
+
 		return nil, expectedErr
 	})
+	defer resetClient()
+
 	response := &CommonData{}
-	err := client.Get(context.TODO(), apiType, nil, response)
+	err := client.Get(context.TODO(), "weather", nil, response)
 
 	if err == nil {
 		t.Fatal("Expected error is not returned.")
@@ -204,38 +221,65 @@ func TestClient_LocalWeather(t *testing.T) {
 		},
 	}
 
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	for i, datum := range data {
 		testNo := i + 1
-		requestURL := fmt.Sprintf(weatherAPIEndpointFormat, "weather")
-		responder, err := httpmock.NewJsonResponder(datum.status, datum.response)
-		if err != nil {
-			t.Fatalf("Error on mock setup: %s.", err.Error())
-		}
-		httpmock.RegisterResponder("GET", requestURL, responder)
 
-		response, err := client.LocalWeather(context.TODO(), "1600 Pennsylvania Avenue NW Washington, DC 20500")
+		func(n int) {
+			resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodGet {
+					t.Fatalf("Unexpected request method: %s.", req.Method)
+				}
 
-		if datum.status == http.StatusOK {
-			if err != nil {
-				t.Errorf("Unexected error is returned: %s.", err.Error())
+				bytes, err := json.Marshal(datum.response)
+				if err != nil {
+					t.Fatalf("Unexpected json marshal error: %s.", err.Error())
+				}
+
+				return &http.Response{
+					StatusCode: datum.status,
+					Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+				}, nil
+			})
+			defer resetClient()
+
+			response, err := client.LocalWeather(context.TODO(), "1600 Pennsylvania Avenue NW Washington, DC 20500")
+
+			if datum.status == http.StatusOK {
+				if err != nil {
+					t.Errorf("Unexected error is returned: %s.", err.Error())
+				}
+
+				if response == nil {
+					t.Errorf("Expected response is not returned on test No. %d.", n)
+				}
+
+				if response.Data.HasError() {
+					t.Errorf("Unexpected error indication on test No. %d: %#v", n, response.Data)
+				}
+
+			} else {
+				if err == nil {
+					t.Errorf("Expected error is not returned on test No. %d.", n)
+				}
 			}
+		}(testNo)
+	}
+}
 
-			if response == nil {
-				t.Errorf("Expected response is not returned on test No. %d.", testNo)
-				continue
-			}
+type roundTripFnc func(*http.Request) (*http.Response, error)
 
-			if response.Data.HasError() {
-				t.Errorf("Unexpected error indication on test No. %d: %#v", testNo, response.Data)
-			}
+func (fnc roundTripFnc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return fnc(r)
+}
 
-		} else {
-			if err == nil {
-				t.Errorf("Expected error is not returned on test No. %d.", testNo)
-			}
-		}
+func switchHTTPClient(fnc roundTripFnc) func() {
+	oldClient := http.DefaultClient
+
+	http.DefaultClient = &http.Client{
+		Transport: fnc,
+	}
+
+	return func() {
+		http.DefaultClient = oldClient
 	}
 }

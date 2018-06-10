@@ -1,9 +1,9 @@
 package gitter
 
 import (
-	"fmt"
-	"github.com/jarcoal/httpmock"
 	"golang.org/x/net/context"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -50,12 +50,17 @@ func TestStreamingAPIClient_buildEndPoint(t *testing.T) {
 }
 
 func TestStreamingAPIClient_Connect(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodGet {
+			t.Fatalf("Unexpected request method: %s.", req.Method)
+		}
 
-	roomID := "foo"
-	responder := httpmock.NewStringResponder(200, "OK")
-	httpmock.RegisterResponder("GET", fmt.Sprintf("https://stream.gitter.im/v1/rooms/%s/chatMessages", roomID), responder)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       ioutil.NopCloser(strings.NewReader("https://stream.gitter.im/v1/rooms/foo/chatMessages")),
+		}, nil
+	})
+	defer resetClient()
 
 	client := &StreamingAPIClient{
 		apiVersion: "v1",
