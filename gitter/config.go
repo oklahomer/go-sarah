@@ -1,12 +1,14 @@
 package gitter
 
-import "time"
+import (
+	"github.com/oklahomer/go-sarah/retry"
+	"time"
+)
 
 // Config contains some configuration variables for gitter Adapter.
 type Config struct {
-	Token         string        `json:"token" yaml:"token"`
-	RetryLimit    uint          `json:"retry_limit" yaml:"retry_limit"`
-	RetryInterval time.Duration `json:"retry_interval" yaml:"retry_interval"`
+	Token       string        `json:"token" yaml:"token"`
+	RetryPolicy *retry.Policy `json:"retry_policy" yaml:"retry_policy"`
 }
 
 // NewConfig returns initialized Config struct with default settings.
@@ -14,8 +16,10 @@ type Config struct {
 // or direct assignment.
 func NewConfig() *Config {
 	return &Config{
-		Token:         "",
-		RetryLimit:    10,
-		RetryInterval: 500 * time.Millisecond,
+		Token: "",
+		RetryPolicy: &retry.Policy{
+			Trial:    10,
+			Interval: 500 * time.Millisecond,
+		},
 	}
 }

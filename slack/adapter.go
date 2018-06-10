@@ -230,20 +230,20 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) {
 	// Get RTM session via Web API.
 	var rtmStart *webapi.RTMStart
-	err := retry.WithInterval(adapter.config.RetryLimit, func() (e error) {
+	err := retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
 		rtmStart, e = adapter.client.StartRTMSession(ctx)
 		return e
-	}, adapter.config.RetryInterval)
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	// Establish WebSocket connection with given RTM session.
 	var conn rtmapi.Connection
-	err = retry.WithInterval(adapter.config.RetryLimit, func() (e error) {
+	err = retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
 		conn, e = adapter.client.ConnectRTM(ctx, rtmStart.URL)
 		return e
-	}, adapter.config.RetryInterval)
+	})
 
 	return conn, err
 }
