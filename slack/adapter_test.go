@@ -3,6 +3,7 @@ package slack
 import (
 	"errors"
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/retry"
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
@@ -384,9 +385,10 @@ func TestAdapter_Run(t *testing.T) {
 
 	adapter := &Adapter{
 		config: &Config{
-			PingInterval:  100 * time.Second,
-			RetryInterval: 1 * time.Millisecond,
-			RetryLimit:    1,
+			PingInterval: 100 * time.Second,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 		client: client,
 	}
@@ -424,8 +426,9 @@ func TestAdapter_Run_ConnectionInitializationError(t *testing.T) {
 
 	adapter := &Adapter{
 		config: &Config{
-			RetryInterval: 1 * time.Millisecond,
-			RetryLimit:    1,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 		client: client,
 	}
@@ -483,9 +486,10 @@ func TestAdapter_Run_ConnectionAbortionError(t *testing.T) {
 
 	adapter := &Adapter{
 		config: &Config{
-			PingInterval:  100 * time.Second,
-			RetryInterval: 1 * time.Millisecond,
-			RetryLimit:    1,
+			PingInterval: 100 * time.Second,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 		client: client,
 	}
@@ -664,8 +668,9 @@ func TestAdapter_connect(t *testing.T) {
 
 	adapter := &Adapter{
 		config: &Config{
-			RetryInterval: 1 * time.Millisecond,
-			RetryLimit:    1,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 		client: client,
 	}
@@ -690,8 +695,9 @@ func TestAdapter_connect_error(t *testing.T) {
 
 	adapter := &Adapter{
 		config: &Config{
-			RetryInterval: 1 * time.Millisecond,
-			RetryLimit:    1,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 		client: client,
 	}

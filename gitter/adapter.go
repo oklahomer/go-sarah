@@ -49,10 +49,10 @@ func (adapter *Adapter) BotType() sarah.BotType {
 func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) error, notifyErr func(error)) {
 	// Get belonging rooms.
 	var rooms *Rooms
-	err := retry.WithInterval(adapter.config.RetryLimit, func() (e error) {
+	err := retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
 		rooms, e = adapter.apiClient.Rooms(ctx)
 		return e
-	}, adapter.config.RetryInterval)
+	})
 	if err != nil {
 		notifyErr(sarah.NewBotNonContinuableError(err.Error()))
 		return
@@ -91,10 +91,10 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			log.Infof("connecting to room: %s", room.ID)
 
 			var conn Connection
-			err := retry.WithInterval(adapter.config.RetryLimit, func() (e error) {
+			err := retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
 				conn, e = adapter.streamingClient.Connect(ctx, room)
 				return e
-			}, adapter.config.RetryInterval)
+			})
 			if err != nil {
 				log.Warnf("could not connect to room: %s. error: %s.", room.ID, err.Error())
 				return

@@ -3,6 +3,7 @@ package gitter
 import (
 	"errors"
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/retry"
 	"golang.org/x/net/context"
 	"reflect"
 	"testing"
@@ -141,8 +142,9 @@ func TestAdapter_runEachRoom(t *testing.T) {
 			},
 		},
 		config: &Config{
-			RetryLimit:    retryLimit,
-			RetryInterval: 1 * time.Millisecond,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 	}
 
@@ -183,8 +185,9 @@ func TestAdapter_runEachRoom_ConnectionInitializationError(t *testing.T) {
 			},
 		},
 		config: &Config{
-			RetryLimit:    retryLimit,
-			RetryInterval: 1 * time.Millisecond,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 	}
 
@@ -237,8 +240,9 @@ func TestAdapter_runEachRoom_ConnectionError(t *testing.T) {
 			},
 		},
 		config: &Config{
-			RetryLimit:    1,
-			RetryInterval: 1 * time.Millisecond,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 	}
 
@@ -277,8 +281,9 @@ func TestAdapter_Run(t *testing.T) {
 	roomID := "dummy"
 	adapter := &Adapter{
 		config: &Config{
-			RetryLimit:    1,
-			RetryInterval: 100 * time.Millisecond,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 		apiClient: &DummyAPIClient{
 			RoomsFunc: func(_ context.Context) (*Rooms, error) {
@@ -313,8 +318,9 @@ func TestAdapter_Run(t *testing.T) {
 func TestAdapter_Run_RestAPIClientRoomsError(t *testing.T) {
 	adapter := &Adapter{
 		config: &Config{
-			RetryLimit:    1,
-			RetryInterval: 100 * time.Millisecond,
+			RetryPolicy: &retry.Policy{
+				Trial: 1,
+			},
 		},
 		apiClient: &DummyAPIClient{
 			RoomsFunc: func(_ context.Context) (*Rooms, error) {
