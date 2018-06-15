@@ -2,13 +2,30 @@ package sarah
 
 import (
 	"errors"
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
+	"io/ioutil"
+	stdLogger "log"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	oldLogger := log.GetLogger()
+	defer log.SetLogger(oldLogger)
+
+	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
+	logger := log.NewWithStandardLogger(l)
+	log.SetLogger(logger)
+
+	code := m.Run()
+
+	os.Exit(code)
+}
 
 type DummyWorker struct {
 	EnqueueFunc func(func()) error

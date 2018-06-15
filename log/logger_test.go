@@ -106,7 +106,7 @@ func Test_newDefaultLogger(t *testing.T) {
 }
 
 func TestNewWithStandardLogger(t *testing.T) {
-	standardLogger := log.New(bytes.NewBuffer([]byte{}), "", 0)
+	standardLogger := log.New(ioutil.Discard, "", 0)
 	l := NewWithStandardLogger(standardLogger)
 
 	if l == nil {
@@ -308,15 +308,19 @@ func TestSetLogger(t *testing.T) {
 }
 
 func Test_concurrentAccess(t *testing.T) {
-	old := logger.(*defaultLogger)
+	impl := logger.(*defaultLogger)
+	old := impl.logger
+	impl.logger = log.New(ioutil.Discard, "", 0)
 	defer func() {
-		logger = old
+		impl.logger = old
 	}()
 
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
 		levels := []Level{
 			DebugLevel, InfoLevel, WarnLevel, ErrorLevel,
 		}
@@ -324,12 +328,12 @@ func Test_concurrentAccess(t *testing.T) {
 		for range make([]int, 1000) {
 			SetOutputLevel(levels[rand.Intn(len(levels))])
 		}
-
-		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
 		for range make([]int, 1000) {
 			newLogger := &DummyLogger{
 				DebugFunc: func(args ...interface{}) {
@@ -339,16 +343,15 @@ func Test_concurrentAccess(t *testing.T) {
 			SetLogger(newLogger)
 		}
 
-		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
 		for range make([]int, 1000) {
 			Debug("foo")
 		}
-
-		wg.Done()
 	}()
 
 	wg.Wait()

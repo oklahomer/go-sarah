@@ -3,12 +3,29 @@ package gitter
 import (
 	"errors"
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
 	"golang.org/x/net/context"
+	"io/ioutil"
+	stdLogger "log"
+	"os"
 	"reflect"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	oldLogger := log.GetLogger()
+	defer log.SetLogger(oldLogger)
+
+	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
+	logger := log.NewWithStandardLogger(l)
+	log.SetLogger(logger)
+
+	code := m.Run()
+
+	os.Exit(code)
+}
 
 type DummyAPIClient struct {
 	RoomsFunc       func(context.Context) (*Rooms, error)

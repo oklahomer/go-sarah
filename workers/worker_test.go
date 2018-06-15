@@ -4,11 +4,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	stdLogger "log"
+	"os"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	oldLogger := log.GetLogger()
+	defer log.SetLogger(oldLogger)
+
+	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
+	logger := log.NewWithStandardLogger(l)
+	log.SetLogger(logger)
+
+	code := m.Run()
+
+	os.Exit(code)
+}
 
 type DummyReporter struct {
 	ReportFunc func(context.Context, *Stats)

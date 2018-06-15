@@ -176,6 +176,41 @@ func SetLogger(l Logger) {
 	logger = l
 }
 
+// GetLogger returns currently set Logger.
+// Once a preferred Logger implementation is set via log.SetLogger,
+// developer may use its method by calling this package's function: log.Debug, log.Debugf and others.
+//
+// However when developer wishes to retrieve the Logger instance, this function helps.
+// This is particularly useful in such situation where Logger implementation must be temporarily switched but must be
+// switched back when a task is done.
+// Example follows.
+//
+//	import (
+//		"github.com/oklahomer/go-sarah/log"
+//		"io/ioutil"
+//		stdLogger "log"
+//		"os"
+//		"testing"
+//	)
+//
+//	func TestMain(m *testing.M) {
+//		oldLogger := log.GetLogger()
+//		defer log.SetLogger(oldLogger)
+//
+//		l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
+// 		logger := log.NewWithStandardLogger(l)
+//		log.SetLogger(logger)
+//
+//		code := m.Run()
+//
+//		os.Exit(code)
+//	}
+func GetLogger() Logger {
+	mutex.RLock()
+	defer mutex.RUnlock()
+	return logger
+}
+
 // SetOutputLevel sets what logging level to output.
 // Application may call logging method any time, but Logger only outputs if the corresponding log level is equal to or higher than the level set here.
 // e.g. When InfoLevel is set, output with Debug() and Debugf() are ignored.
