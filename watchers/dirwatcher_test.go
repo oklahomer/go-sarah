@@ -3,12 +3,29 @@ package watchers
 import (
 	"errors"
 	"github.com/fsnotify/fsnotify"
+	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
+	"io/ioutil"
+	stdLogger "log"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	oldLogger := log.GetLogger()
+	defer log.SetLogger(oldLogger)
+
+	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
+	logger := log.NewWithStandardLogger(l)
+	log.SetLogger(logger)
+
+	code := m.Run()
+
+	os.Exit(code)
+}
 
 type dummyInternalWatcher struct {
 	AddFunc    func(string) error

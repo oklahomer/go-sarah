@@ -3,7 +3,7 @@ package retry
 import (
 	"errors"
 	"fmt"
-	"github.com/oklahomer/go-sarah/log"
+	"io/ioutil"
 	"strings"
 	"testing"
 	"time"
@@ -101,7 +101,7 @@ func TestWithInterval(t *testing.T) {
 	interval := 100 * time.Millisecond
 	WithInterval(2, func() error {
 		i++
-		log.Error(i)
+		ioutil.Discard.Write([]byte("writing dummy output"))
 		if i == 1 {
 			startAt = time.Now()
 		} else {
@@ -126,7 +126,7 @@ func TestWithBackOff(t *testing.T) {
 	factor := 0.01
 	WithBackOff(2, func() error {
 		i++
-		log.Error(i)
+		ioutil.Discard.Write([]byte("writing dummy output"))
 		if i == 1 {
 			startAt = time.Now()
 		} else {
