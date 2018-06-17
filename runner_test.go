@@ -146,6 +146,10 @@ func TestNewRunner(t *testing.T) {
 	if impl.scheduledTasks == nil {
 		t.Error("scheduledTasks are not set.")
 	}
+
+	if impl.status == nil {
+		t.Error("status is not set.")
+	}
 }
 
 func TestNewRunner_WithRunnerOption(t *testing.T) {
@@ -174,7 +178,7 @@ func TestNewRunner_WithRunnerOption(t *testing.T) {
 
 func TestNewRunner_WithRunnerFatalOptions(t *testing.T) {
 	called := false
-	optErr := errors.New("Second RunnerOption returns this error.")
+	optErr := errors.New("second RunnerOption returns this error")
 	config := NewConfig()
 	r, err := NewRunner(
 		config,
@@ -393,6 +397,11 @@ func TestRunner_Run(t *testing.T) {
 				return nil
 			},
 		},
+		status: &status{},
+	}
+
+	if r.Status().Running {
+		t.Error("Status.Running should be false at this point.")
 	}
 
 	// Let it run
@@ -405,6 +414,17 @@ func TestRunner_Run(t *testing.T) {
 	}()
 
 	time.Sleep(1 * time.Second)
+	if !r.Status().Running {
+		t.Error("Status.Running should be true at this point.")
+	}
+	if len(r.Status().Bots) != 1 {
+		t.Error("Status of one Bot must be returned.")
+	} else {
+		if !r.Status().Bots[0].Running {
+			t.Error("Bot's status must be Running.")
+		}
+	}
+
 	cancelRunner()
 
 	select {
@@ -412,15 +432,23 @@ func TestRunner_Run(t *testing.T) {
 		if cmd == nil || cmd.Identifier() != commandProps.identifier {
 			t.Errorf("Stashed CommandPropsBuilder was not properly configured: %#v.", passedCommand)
 		}
+
 	case <-time.NewTimer(10 * time.Second).C:
 		t.Fatal("CommandPropsBuilder was not properly built.")
+
 	}
 
 	select {
 	case <-finished:
 		// O.K.
+
 	case <-time.NewTimer(10 * time.Second).C:
 		t.Error("Runner is not finished.")
+
+	}
+
+	if r.Status().Running {
+		t.Error("Status.Running should be false at this point.")
 	}
 }
 
@@ -455,6 +483,7 @@ func TestRunner_Run_WithPluginConfigRoot(t *testing.T) {
 			},
 		},
 		worker: &DummyWorker{},
+		status: &status{},
 	}
 
 	// Let it run
@@ -487,6 +516,7 @@ func TestRunner_Run_Minimal(t *testing.T) {
 		scheduledTasks:    map[BotType][]ScheduledTask{},
 		watcher:           nil,
 		worker:            nil,
+		status:            &status{},
 	}
 
 	// Let it run
@@ -502,6 +532,19 @@ func TestRunner_Run_Minimal(t *testing.T) {
 
 	if r.worker == nil {
 		t.Error("Default worker is not set.")
+	}
+}
+
+func TestRunner_Status(t *testing.T) {
+	r := &runner{status: &status{}}
+	s := r.Status()
+
+	if s.Running {
+		t.Error("Status.Running should be false at this point.")
+	}
+
+	if len(s.Bots) != 0 {
+		t.Error("Status.Bots should be empty at this point.")
 	}
 }
 
