@@ -302,20 +302,22 @@ func (r *runner) Run(ctx context.Context) {
 			}
 		}
 
-		go func(c context.Context, b Bot) {
+		go func(c context.Context, b Bot, d string) {
 			select {
 			case <-c.Done():
 				wg.Done()
 
 				// When Bot stops, stop subscription for config file changes.
-				err := r.watcher.Unsubscribe(b.BotType().String())
-				if err != nil {
-					// Probably because Runner context is canceled, and its derived contexts are canceled simultaneously.
-					// In that case this warning is harmless since Watcher itself is canceled at this point.
-					log.Warnf("Failed to unsubscribe %s", err.Error())
+				if d != "" {
+					err := r.watcher.Unsubscribe(b.BotType().String())
+					if err != nil {
+						// Probably because Runner context is canceled, and its derived contexts are canceled simultaneously.
+						// In that case this warning is harmless since Watcher itself is canceled at this point.
+						log.Warnf("Failed to unsubscribe %s", err.Error())
+					}
 				}
 			}
-		}(botCtx, bot)
+		}(botCtx, bot, configDir)
 	}
 
 	wg.Wait()
