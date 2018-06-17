@@ -1,6 +1,9 @@
 package sarah
 
-import "sync"
+import (
+	"github.com/oklahomer/go-sarah/log"
+	"sync"
+)
 
 // Status represents the current status of the bot system including Runner and all registered Bots.
 type Status struct {
@@ -92,6 +95,10 @@ func (s *status) stop() {
 	defer func() {
 		if recover() != nil {
 			// O.K.
+			// Comes here when channel is already closed.
+			// stop() is not expected to be called multiple times,
+			// but recover here to avoid panic.
+			log.Warn("Multiple status.stop() call occurred.")
 		}
 	}()
 
@@ -118,7 +125,10 @@ func (bs *botStatus) stop() {
 	defer func() {
 		if recover() != nil {
 			// O.K.
-			// comes here when channel is already closed
+			// Comes here when channel is already closed.
+			// stop() is not expected to be called multiple times,
+			// but recover here to avoid panic.
+			log.Warnf("Multiple botStatus.stop() call for %s occurred.", bs.botType)
 		}
 	}()
 
