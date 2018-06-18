@@ -42,10 +42,19 @@ func NewConfig() *Config {
 // Bot is responsible for bot-specific implementation such as connection handling, message reception and sending.
 //
 // Developers can register desired number of Bots and Commands to create own bot experience.
+// While developers may provide own implementation for interfaces in this project to customize behavior,
+// this particular interface is not meant to be implemented and replaced.
+// See https://github.com/oklahomer/go-sarah/pull/47
 type Runner interface {
 	// Run starts Bot interaction.
 	// At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
 	Run(context.Context)
+
+	// Status returns the status of Runner and belonging Bots.
+	// The returned Status value represents a snapshot of the status when this method is called,
+	// which means each field value is not subject to update.
+	// To reflect the latest status, this is recommended to call this method whenever the value is needed.
+	Status() Status
 }
 
 type runner struct {
@@ -57,6 +66,7 @@ type runner struct {
 	scheduledTaskPrps map[BotType][]*ScheduledTaskProps
 	scheduledTasks    map[BotType][]ScheduledTask
 	alerters          *alerters
+	status            *status
 }
 
 // NewRunner creates and return new instance that satisfies Runner interface.
@@ -77,6 +87,7 @@ func NewRunner(config *Config, options ...RunnerOption) (Runner, error) {
 		scheduledTaskPrps: make(map[BotType][]*ScheduledTaskProps),
 		scheduledTasks:    make(map[BotType][]ScheduledTask),
 		alerters:          &alerters{},
+		status:            &status{},
 	}
 
 	for _, opt := range options {
@@ -237,7 +248,13 @@ func (r *runner) botScheduledTasks(botType BotType) []ScheduledTask {
 	return []ScheduledTask{}
 }
 
+func (r *runner) Status() Status {
+	return r.status.snapshot()
+}
+
 func (r *runner) Run(ctx context.Context) {
+	r.status.start()
+
 	if r.worker == nil {
 		w, e := workers.Run(ctx, workers.NewConfig())
 		if e != nil {
@@ -277,6 +294,7 @@ func (r *runner) Run(ctx context.Context) {
 
 		// Run Bot
 		go runBot(botCtx, bot, receiveInput, errNotifier)
+		r.status.addBot(bot)
 
 		// Setup config directory.
 		var configDir string
@@ -305,7 +323,7 @@ func (r *runner) Run(ctx context.Context) {
 		go func(c context.Context, b Bot, d string) {
 			select {
 			case <-c.Done():
-				wg.Done()
+				defer wg.Done()
 
 				// When Bot stops, stop subscription for config file changes.
 				if d != "" {
@@ -316,11 +334,14 @@ func (r *runner) Run(ctx context.Context) {
 						log.Warnf("Failed to unsubscribe %s", err.Error())
 					}
 				}
+
+				r.status.stopBot(b)
 			}
 		}(botCtx, bot, configDir)
 	}
 
 	wg.Wait()
+	r.status.stop()
 }
 
 func (r *runner) configUpdateCallback(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
