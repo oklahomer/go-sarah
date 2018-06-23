@@ -23,8 +23,7 @@ var _ statusGetter = sarah.Runner(nil)
 //	  "runtime": {
 //	    "goroutine_count": 115,
 //	    "cpu_count": 4,
-//	    "gc_count": 1,
-//	    "forced_gc_count": 0
+//	    "gc_count": 1
 //	  },
 //	  "bot_system": {
 //	    "running": true,
@@ -60,7 +59,6 @@ func setStatusHandler(mux *http.ServeMux, sg statusGetter) {
 				NumGoroutine: runtime.NumGoroutine(),
 				NumCPU:       runtime.NumCPU(),
 				NumGC:        memStats.NumGC,
-				NumForcedGC:  memStats.NumForcedGC,
 			},
 			BotRunner: systemStatus,
 		}
@@ -84,7 +82,6 @@ type runtimeStatus struct {
 	NumGoroutine int    `json:"goroutine_count"`
 	NumCPU       int    `json:"cpu_count"`
 	NumGC        uint32 `json:"gc_count"`
-	NumForcedGC  uint32 `json:"forced_gc_count"`
 }
 
 type botStatus struct {

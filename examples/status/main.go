@@ -16,7 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
+	"time"
 )
 
 func main() {
@@ -76,32 +76,19 @@ func run(runner sarah.Runner) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	runnerStop := make(chan struct{})
-	go func() {
-		// Blocks til all belonging Bots stop, or context is canceled.
-		runner.Run(ctx)
-		close(runnerStop)
-	}()
+	go runner.Run(ctx)
 
 	mux := http.NewServeMux()
 	setStatusHandler(mux, runner)
+	server := newServer(mux)
+	go server.Run(ctx)
 
-	server := &http.Server{Addr: ":8080", Handler: mux}
-	go func() {
-		server.ListenAndServe()
-	}()
-
+	// Wait til signal reception
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	signal.Notify(c, syscall.SIGTERM)
+	<-c
 
-	select {
-	case <-c:
-		log.Info("Stopping due to signal reception.")
-		cancel()
-		err := server.Shutdown(ctx)
-		if err != nil {
-			log.Errorf("Error occurred while shutting down HTTP server: %s", err.Error())
-		}
-	}
+	log.Info("Stopping due to signal reception.")
+	cancel()
+	time.Sleep(1 * time.Second) // Wait a bit til things finish
 }
