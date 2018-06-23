@@ -6,3 +6,6 @@ slack:
 context_cache:
     expires_in: "3m"
     cleanup_interval: "4m"
+worker:
+    worker_num: 10
+    supervise_interval: "10s"

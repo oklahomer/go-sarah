@@ -17,9 +17,32 @@ type statusGetter interface {
 
 var _ statusGetter = sarah.Runner(nil)
 
-// setStatusHandler sets an endpoint that returns current status of sarah.Runner and its belonging sarah.Bots.
+// setStatusHandler sets an endpoint that returns current status of sarah.Runner, its belonging sarah.Bots and sarah.Worker.
+//
 //	curl -s -XGET   "http://localhost:8080/status" | jq .
 //	{
+//    "worker": [
+//      {
+//        "report_time": "2018-06-23T15:22:37.274064679+09:00",
+//        "queue_size": 0
+//      },
+//      {
+//        "report_time": "2018-06-23T15:22:47.275251621+09:00",
+//        "queue_size": 0
+//      },
+//      {
+//        "report_time": "2018-06-23T15:22:57.272596709+09:00",
+//        "queue_size": 0
+//      },
+//      {
+//        "report_time": "2018-06-23T15:23:07.275004281+09:00",
+//        "queue_size": 0
+//      },
+//      {
+//        "report_time": "2018-06-23T15:23:17.276197523+09:00",
+//        "queue_size": 0
+//      }
+//    ],
 //	  "runtime": {
 //	    "goroutine_count": 115,
 //	    "cpu_count": 4,
@@ -39,7 +62,7 @@ var _ statusGetter = sarah.Runner(nil)
 //	    ]
 //	  }
 //	}
-func setStatusHandler(mux *http.ServeMux, sg statusGetter) {
+func setStatusHandler(mux *http.ServeMux, sg statusGetter, ws *workerStats) {
 	mux.HandleFunc("/status", func(writer http.ResponseWriter, request *http.Request) {
 		runnerStatus := sg.Status()
 		systemStatus := &botSystemStatus{}
@@ -55,6 +78,7 @@ func setStatusHandler(mux *http.ServeMux, sg statusGetter) {
 		var memStats runtime.MemStats
 		runtime.ReadMemStats(&memStats)
 		status := &status{
+			Worker: ws.history(),
 			Runtime: &runtimeStatus{
 				NumGoroutine: runtime.NumGoroutine(),
 				NumCPU:       runtime.NumCPU(),
@@ -74,8 +98,9 @@ func setStatusHandler(mux *http.ServeMux, sg statusGetter) {
 }
 
 type status struct {
-	Runtime   *runtimeStatus   `json:"runtime"`
-	BotRunner *botSystemStatus `json:"bot_system"`
+	Worker    []workerStatsElem `json:"worker"`
+	Runtime   *runtimeStatus    `json:"runtime"`
+	BotRunner *botSystemStatus  `json:"bot_system"`
 }
 
 type runtimeStatus struct {

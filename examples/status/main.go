@@ -12,14 +12,16 @@ import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/go-sarah/workers"
 	"golang.org/x/net/context"
-	"net/http"
 	"os"
 	"os/signal"
 	"time"
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// Parse and check command line flags
 	var path = flag.String("config", "", "path to application configuration file.")
 	flag.Parse()
@@ -47,15 +49,37 @@ func main() {
 	}
 	runnerOptions.Append(sarah.WithBot(slackBot))
 
+	// Setup worker
+	workerReporter := &workerStats{}
+	reporterOpt := workers.WithReporter(workerReporter)
+	worker, err := workers.Run(ctx, cfg.Worker, reporterOpt)
+	if err != nil {
+		panic(err)
+	}
+	runnerOptions.Append(sarah.WithWorker(worker))
+
 	// Setup a Runner to run and supervise above bots
 	runner, err := sarah.NewRunner(cfg.Runner, runnerOptions.Arg())
 	if err != nil {
 		panic(err)
 	}
 
-	// Run sarah.Runner and a HTTP server that returns sarah.Runner's status.
-	// See handler.go for detail and example of HTTP server.
-	run(runner)
+	// Run sarah.Runner
+	go runner.Run(ctx)
+
+	// Run HTTP server that reports current status
+	server := newServer(runner, workerReporter)
+	go server.Run(ctx)
+
+	// Wait til signal reception
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
+
+	// Stop
+	log.Info("Stopping due to signal reception.")
+	cancel()
+	time.Sleep(1 * time.Second) // Wait a bit til things finish
 }
 
 func setupSlackBot(cfg *config) (sarah.Bot, error) {
@@ -69,26 +93,4 @@ func setupSlackBot(cfg *config) (sarah.Bot, error) {
 		return nil, err
 	}
 	return slackBot, nil
-}
-
-func run(runner sarah.Runner) {
-	log.Infof("start pid %d\n", os.Getpid())
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	go runner.Run(ctx)
-
-	mux := http.NewServeMux()
-	setStatusHandler(mux, runner)
-	server := newServer(mux)
-	go server.Run(ctx)
-
-	// Wait til signal reception
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
-
-	log.Info("Stopping due to signal reception.")
-	cancel()
-	time.Sleep(1 * time.Second) // Wait a bit til things finish
 }
