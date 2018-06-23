@@ -1,0 +1,8 @@
+slack:
+    token: "REPLACE_ME"
+    retry_policy:
+        trial: 3
+        interval: "5s"
+context_cache:
+    expires_in: "3m"
+    cleanup_interval: "4m"

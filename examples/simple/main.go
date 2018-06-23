@@ -46,11 +46,14 @@ func main() {
 	var path = flag.String("config", "", "apth to apllication configuration file.")
 	flag.Parse()
 	if *path == "" {
-		panic("./bin/examples -config=/path/to/config/app.yaml")
+		panic("./bin/examples -config=/path/to/config/app.yml")
 	}
 
 	// Read configuration file.
 	config, err := readConfig(*path)
+	if err != nil {
+		panic(err)
+	}
 
 	// A handy helper that holds arbitrary amount of RunnerOptions.
 	runnerOptions := sarah.NewRunnerOptions()

@@ -1,0 +1,34 @@
+package main
+
+import (
+	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/slack"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+)
+
+func readConfig(path string) (*config, error) {
+	body, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Populate with default configuration value by calling each constructor.
+	c := &config{
+		Runner:       sarah.NewConfig(),
+		Slack:        slack.NewConfig(),
+		ContextCache: sarah.NewCacheConfig(),
+	}
+	err = yaml.Unmarshal(body, c)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+type config struct {
+	Runner       *sarah.Config      `json:"runner" yaml:"runner"`
+	Slack        *slack.Config      `json:"slack" yaml:"slack"`
+	ContextCache *sarah.CacheConfig `json:"context_cache" yaml:"context_cache"`
+}
