@@ -84,6 +84,9 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 // Post sends POST requests to gitter with given parameters.
 func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []string, sendingPayload interface{}, responsePayload interface{}) error {
 	reqBody, err := json.Marshal(sendingPayload)
+	if err != nil {
+		return err
+	}
 
 	// Set up sending request
 	endpoint := client.buildEndpoint(resourceFragments)
