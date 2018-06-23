@@ -1,18 +1,20 @@
+/*
+Package main provides a simple bot experience using slack.Adapter with multiple plugin commands and scheduled tasks.
+*/
 package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/alerter/line"
-	"github.com/oklahomer/go-sarah/examples/plugins/count"
-	"github.com/oklahomer/go-sarah/examples/plugins/echo"
-	"github.com/oklahomer/go-sarah/examples/plugins/fixedtimer"
-	"github.com/oklahomer/go-sarah/examples/plugins/guess"
-	"github.com/oklahomer/go-sarah/examples/plugins/hello"
-	"github.com/oklahomer/go-sarah/examples/plugins/morning"
-	"github.com/oklahomer/go-sarah/examples/plugins/timer"
-	"github.com/oklahomer/go-sarah/examples/plugins/todo"
+	"github.com/oklahomer/go-sarah/examples/simple/plugins/count"
+	"github.com/oklahomer/go-sarah/examples/simple/plugins/echo"
+	"github.com/oklahomer/go-sarah/examples/simple/plugins/fixedtimer"
+	"github.com/oklahomer/go-sarah/examples/simple/plugins/guess"
+	"github.com/oklahomer/go-sarah/examples/simple/plugins/hello"
+	"github.com/oklahomer/go-sarah/examples/simple/plugins/morning"
+	"github.com/oklahomer/go-sarah/examples/simple/plugins/timer"
+	"github.com/oklahomer/go-sarah/examples/simple/plugins/todo"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
 	"golang.org/x/net/context"
@@ -41,14 +43,17 @@ func newMyConfig() *myConfig {
 }
 
 func main() {
-	// A handy helper that holds arbitrary amount of RunnerOptions.
-	runnerOptions := sarah.NewRunnerOptions()
+	var path = flag.String("config", "", "apth to apllication configuration file.")
+	flag.Parse()
+	if *path == "" {
+		panic("./bin/examples -config=/path/to/config/app.yaml")
+	}
 
 	// Read configuration file.
-	config, err := readConfig()
-	if err != nil {
-		panic(fmt.Errorf("Error on config construction: %s.", err.Error()))
-	}
+	config, err := readConfig(*path)
+
+	// A handy helper that holds arbitrary amount of RunnerOptions.
+	runnerOptions := sarah.NewRunnerOptions()
 
 	// When Bot encounters critical states, send alert to LINE.
 	// Any number of Alerter implementation can be registered.
@@ -61,7 +66,7 @@ func main() {
 	// Setup Slack Bot.
 	slackBot, err := setupSlack(config.Slack, storage)
 	if err != nil {
-		panic(fmt.Errorf("Error on Slack Bot construction: %s.", err.Error()))
+		panic(err)
 	}
 
 	// Setup some commands.
@@ -92,7 +97,7 @@ func main() {
 	// Setup sarah.Runner.
 	runner, err := sarah.NewRunner(config.Runner, runnerOptions.Arg())
 	if err != nil {
-		panic(fmt.Errorf("Error on Runner construction: %s.", err.Error()))
+		panic(err)
 	}
 
 	// Run sarah.Runner.
@@ -116,20 +121,15 @@ func run(runner sarah.Runner) {
 	case <-c:
 		log.Info("Stopping due to signal reception.")
 		cancel()
+
 	case <-runnerStop:
 		log.Error("Runner stopped.")
+
 	}
 }
 
-func readConfig() (*myConfig, error) {
-	var path = flag.String("config", "", "apth to apllication configuration file.")
-	flag.Parse()
-
-	if *path == "" {
-		panic("./bin/examples -config=/path/to/config/app.yaml")
-	}
-
-	configBody, err := ioutil.ReadFile(*path)
+func readConfig(path string) (*myConfig, error) {
+	configBody, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
