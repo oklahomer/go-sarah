@@ -16,7 +16,7 @@ before_install:
 script:
   - go test -race ./...
   - go test -cover ./...
-  - goveralls -service=travis-ci -ignore=examples/*,examples/plugins/*/*
+  - goveralls -service=travis-ci -ignore=examples/*/*.go,examples/*/*/*.go,examples/*/*/*/*.go
 
 matrix:
   allow_failures:
