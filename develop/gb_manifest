@@ -4,13 +4,19 @@
 		{
 			"importpath": "github.com/fsnotify/fsnotify",
 			"repository": "https://github.com/fsnotify/fsnotify",
-			"revision": "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9",
+			"revision": "11844c0959f6fff69ba325d097fce35bd85a8e93",
 			"branch": "master"
 		},
 		{
 			"importpath": "github.com/gorilla/websocket",
 			"repository": "https://github.com/gorilla/websocket",
-			"revision": "c17c80cb48b806045fc338c94c849909a2e41c12",
+			"revision": "0ec3d1bd7fe50c503d6df98ee649d81f4857c564",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/jarcoal/httpmock",
+			"repository": "https://github.com/jarcoal/httpmock",
+			"revision": "53def6cd0f87425f5425d4f0f27f66f048759b94",
 			"branch": "master"
 		},
 		{
@@ -28,39 +34,45 @@
 		{
 			"importpath": "github.com/patrickmn/go-cache",
 			"repository": "https://github.com/patrickmn/go-cache",
-			"revision": "9f6ff22cfff829561052f5886ec80a2ac148b4eb",
+			"revision": "5633e0862627c011927fa39556acae8b1f1df58a",
 			"branch": "master"
 		},
 		{
 			"importpath": "github.com/tidwall/gjson",
 			"repository": "https://github.com/tidwall/gjson",
-			"revision": "3cd3a1192327ac5e24f7e87824be578b0b07c604",
+			"revision": "181e11634d88481c14eeda620b056fdfaf330af9",
 			"branch": "master"
 		},
 		{
 			"importpath": "github.com/tidwall/match",
 			"repository": "https://github.com/tidwall/match",
-			"revision": "1731857f09b1f38450e2c12409748407822dc6be",
+			"revision": "33827db735fff6510490d69a8622612558a557ed",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/tidwall/pretty",
+			"repository": "https://github.com/tidwall/pretty",
+			"revision": "65a9db5fad5105a89e17f38adcc9878685be6d78",
 			"branch": "master"
 		},
 		{
 			"importpath": "golang.org/x/net/context",
 			"repository": "https://go.googlesource.com/net",
-			"revision": "1e491301e022f8f977054da4c2d852decd59571f",
+			"revision": "b774fd8d5c0f43f4a07fc5c3dd6cba5c4dc21e77",
 			"branch": "master",
 			"path": "/context"
 		},
 		{
 			"importpath": "golang.org/x/sys/unix",
 			"repository": "https://go.googlesource.com/sys",
-			"revision": "c11f84a56e43e20a78cee75a7c034031ecf57d1f",
+			"revision": "10058d7d4faa7dd5ef860cbd31af00903076e7b8",
 			"branch": "master",
 			"path": "/unix"
 		},
 		{
 			"importpath": "gopkg.in/yaml.v2",
 			"repository": "https://gopkg.in/yaml.v2",
-			"revision": "5420a8b6744d3b0345ab293f6fcba19c978f1183",
+			"revision": "51d6538a90f86fe93ac480b35f37b2be17fef232",
 			"branch": "master"
 		}
 	]
