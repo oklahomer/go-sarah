@@ -920,7 +920,7 @@ func Test_executeScheduledTask(t *testing.T) {
 	}
 }
 
-func Test_botSupervisor(t *testing.T) {
+func Test_superviseBot(t *testing.T) {
 	rootCxt := context.Background()
 	alerted := make(chan bool)
 	alerters := &alerters{
@@ -936,7 +936,7 @@ func Test_botSupervisor(t *testing.T) {
 			},
 		},
 	}
-	botCtx, errSupervisor := botSupervisor(rootCxt, "DummyBotType", alerters)
+	botCtx, errSupervisor := superviseBot(rootCxt, "DummyBotType", alerters)
 
 	select {
 	case <-botCtx.Done():
