@@ -125,7 +125,7 @@ func TestRun(t *testing.T) {
 	}
 
 	executed := make(chan struct{}, 1)
-	worker.Enqueue(func() {
+	_ = worker.Enqueue(func() {
 		executed <- struct{}{}
 	})
 
@@ -139,7 +139,7 @@ func TestRun(t *testing.T) {
 	}
 
 	// panic won't affect main process
-	worker.Enqueue(func() {
+	_ = worker.Enqueue(func() {
 		executed <- struct{}{}
 		panic("Panic! Catch me!!")
 	})
@@ -183,6 +183,9 @@ func TestRun_ErrQueueOverflow(t *testing.T) {
 	config.WorkerNum = 1
 	worker, err := Run(workerCtx, config)
 	time.Sleep(100 * time.Millisecond) // Wait til worker goroutines are completely activated.
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err.Error())
+	}
 
 	// This job blocks the only available worker
 	err = worker.Enqueue(func() {

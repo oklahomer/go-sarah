@@ -16,7 +16,7 @@ func (alerter *DummyAlerter) Alert(ctx context.Context, botType BotType, err err
 }
 
 func TestAlertErrs_appendError(t *testing.T) {
-	e := errors.New("Foo")
+	e := errors.New("foo")
 	errs := &alertErrs{}
 	errs.appendError(e)
 
@@ -31,7 +31,7 @@ func TestAlertErrs_isEmpty(t *testing.T) {
 		t.Error("Expected to be true, but was not.")
 	}
 
-	errs = &alertErrs{errors.New("Foo")}
+	errs = &alertErrs{errors.New("foo")}
 	if errs.isEmpty() {
 		t.Error("Expected to be false, but was not.")
 	}
@@ -47,7 +47,7 @@ func TestAlertErrs_Error(t *testing.T) {
 	}
 
 	for i, testSet := range testSets {
-		errs := []string{}
+		var errs []string
 		for _, err := range testSet.errs {
 			errs = append(errs, err.Error())
 		}
@@ -86,7 +86,7 @@ func TestAlerters_alertAll(t *testing.T) {
 		},
 		&DummyAlerter{
 			AlertFunc: func(_ context.Context, _ BotType, _ error) error {
-				return errors.New("ERROR!!")
+				return errors.New("error")
 			},
 		},
 		&DummyAlerter{

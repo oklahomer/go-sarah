@@ -139,7 +139,7 @@ func buildCommand(props *CommandProps, file *pluginConfigFile) (Command, error) 
 		return e
 	}()
 	if err != nil && os.IsNotExist(err) {
-		return nil, fmt.Errorf("Config file property was given, but failed to locate it: %s", err.Error())
+		return nil, fmt.Errorf("config file property was given, but failed to locate it: %s", err.Error())
 	} else if err != nil {
 		// File was there, but could not read.
 		return nil, err

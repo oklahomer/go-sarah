@@ -25,7 +25,7 @@ func (e *alertErrs) isEmpty() bool {
 
 // Error returns stringified form of all stored errors.
 func (e *alertErrs) Error() string {
-	errs := []string{}
+	var errs []string
 	for _, err := range *e {
 		errs = append(errs, err.Error())
 	}

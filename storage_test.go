@@ -56,21 +56,21 @@ func TestDefaultUserContextStorage_CRUD(t *testing.T) {
 
 	key := "myKey"
 	if empty, _ := storage.Get(key); empty != nil {
-		t.Fatalf("nil should return on empty storage. %#v.", empty)
+		t.Fatalf("nil should return on empty storage. %T.", empty)
 	}
 
-	storage.Set(key, NewUserContext(func(ctx context.Context, input Input) (*CommandResponse, error) { return nil, nil }))
+	_ = storage.Set(key, NewUserContext(func(ctx context.Context, input Input) (*CommandResponse, error) { return nil, nil }))
 	if val, _ := storage.Get(key); val == nil {
 		t.Fatal("Expected value is not stored.")
 	}
 
-	storage.Delete(key)
+	_ = storage.Delete(key)
 	if empty, _ := storage.Get(key); empty != nil {
 		t.Fatalf("nil should return after deletion. %#v.", empty)
 	}
 
-	storage.Set(key, NewUserContext(func(ctx context.Context, input Input) (*CommandResponse, error) { return nil, nil }))
-	storage.Flush()
+	_ = storage.Set(key, NewUserContext(func(ctx context.Context, input Input) (*CommandResponse, error) { return nil, nil }))
+	_ = storage.Flush()
 	if storage.cache.ItemCount() > 0 {
 		t.Fatal("Some value is stored after flush.")
 	}

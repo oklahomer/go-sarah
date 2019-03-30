@@ -153,7 +153,7 @@ func (w *watcher) supervise(ctx context.Context, events <-chan fsnotify.Event, e
 
 				// If none should remain, stop subscribing to watch corresponding directory.
 				if len(remains) == 0 {
-					w.fsWatcher.Remove(dir)
+					_ = w.fsWatcher.Remove(dir)
 					delete(subscription, dir)
 					break
 				}

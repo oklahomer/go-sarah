@@ -251,6 +251,7 @@ func TestClient_LocalWeather(t *testing.T) {
 
 				if response == nil {
 					t.Errorf("Expected response is not returned on test No. %d.", n)
+					return
 				}
 
 				if response.Data.HasError() {

@@ -131,9 +131,7 @@ func TestRestAPIClient_Post(t *testing.T) {
 
 		bytes, err := json.Marshal(&PostResponseDummy{OK: true})
 		if err != nil {
-			if err != nil {
-				t.Fatalf("Unexpected json marshal error: %s.", err.Error())
-			}
+			t.Fatalf("Unexpected json marshal error: %s.", err.Error())
 		}
 
 		return &http.Response{
@@ -175,9 +173,7 @@ func TestRestAPIClient_Rooms(t *testing.T) {
 
 		bytes, err := json.Marshal(response)
 		if err != nil {
-			if err != nil {
-				t.Fatalf("Unexpected json marshal error: %s.", err.Error())
-			}
+			t.Fatalf("Unexpected json marshal error: %s.", err.Error())
 		}
 
 		return &http.Response{
@@ -219,9 +215,7 @@ func TestRestAPIClient_PostMessage(t *testing.T) {
 
 		bytes, err := json.Marshal(response)
 		if err != nil {
-			if err != nil {
-				t.Fatalf("Unexpected json marshal error: %s.", err.Error())
-			}
+			t.Fatalf("Unexpected json marshal error: %s.", err.Error())
 		}
 
 		return &http.Response{

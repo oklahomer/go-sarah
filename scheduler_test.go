@@ -31,7 +31,7 @@ func Test_runScheduler(t *testing.T) {
 
 	c := scheduler.(*taskScheduler).cron
 	if c == nil {
-		t.Error("Internal cron instance is not initialized")
+		t.Fatal("Internal cron instance is not initialized")
 	}
 
 	loc := c.Location()

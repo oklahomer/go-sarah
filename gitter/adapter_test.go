@@ -132,7 +132,7 @@ func Test_receiveMessageRecursive(t *testing.T) {
 		enqueueCnt++
 		return nil
 	}
-	receiveMessageRecursive(conn, enqueuer)
+	_ = receiveMessageRecursive(conn, enqueuer)
 
 	if enqueueCnt != 1 {
 		t.Errorf("Enqueued %d times. Should enqueue only if no error is returned.", enqueueCnt)
@@ -443,6 +443,6 @@ func TestNewStringResponseWithNext(t *testing.T) {
 	}
 
 	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
-		t.Fatalf("Expected next step is not returned: %#v.", res.UserContext.Next)
+		t.Fatalf("Expected next step is not returned: %T.", res.UserContext.Next)
 	}
 }

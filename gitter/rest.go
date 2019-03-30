@@ -98,10 +98,6 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	if err != nil {
-		return err
-	}
-
 	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
 	if err != nil {
 		return err

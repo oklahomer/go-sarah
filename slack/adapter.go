@@ -182,7 +182,7 @@ func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) 
 
 		// superviseConnection returns when parent context is canceled or connection is hopelessly unstable
 		// close current connection and do some cleanup
-		conn.Close() // TODO may return net.OpError with "use of closed network connection" if called with closed connection
+		_ = conn.Close() // TODO may return net.OpError with "use of closed network connection" if called with closed connection
 		connCancel()
 		if connErr == nil {
 			// Connection is intentionally closed by caller.
@@ -303,14 +303,14 @@ func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayl
 		if config.HelpCommand != "" && trimmed == config.HelpCommand {
 			// Help command
 			help := sarah.NewHelpInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
-			enqueueInput(help)
+			_ = enqueueInput(help)
 		} else if config.AbortCommand != "" && trimmed == config.AbortCommand {
 			// Abort command
 			abort := sarah.NewAbortInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
-			enqueueInput(abort)
+			_ = enqueueInput(abort)
 		} else {
 			// Regular input
-			enqueueInput(input)
+			_ = enqueueInput(input)
 		}
 
 	default:

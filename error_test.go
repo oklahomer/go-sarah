@@ -28,6 +28,10 @@ func TestBlockedInputError_Error(t *testing.T) {
 	i := 123
 	err := NewBlockedInputError(i)
 
+	if err == nil {
+		t.Fatal("Expected error instance is not returned.")
+	}
+
 	if !strings.Contains(err.Error(), strconv.Itoa(i)) {
 		t.Errorf("Returned string does not contain the count of error occurrence: %s.", err.Error())
 	}

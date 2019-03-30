@@ -310,7 +310,7 @@ func Test_buildScheduledTask_WithOutConfigOrSchedule(t *testing.T) {
 	_, err := buildScheduledTask(props, nil)
 
 	if err == nil {
-		t.Fatalf("Expected error is not returned: %s.", err.Error())
+		t.Fatalf("Expected error is not returned.")
 	}
 }
 
@@ -337,7 +337,7 @@ func Test_buildScheduledTask_WithOutConfigFile(t *testing.T) {
 	_, err := buildScheduledTask(props, file)
 
 	if err == nil {
-		t.Fatalf("Error should be returned when expecting config file is not located: %s.", err.Error())
+		t.Fatalf("Error should be returned when expecting config file is not located")
 	}
 }
 
@@ -454,7 +454,7 @@ func Test_race_taskRebuild(t *testing.T) {
 		Identifier("dummy").
 		BotType("dummyBot").
 		ConfigurableFunc(&config{Token: "default"}, func(_ context.Context, givenConfig TaskConfig) ([]*ScheduledTaskResult, error) {
-			ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
+			_, _ = ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
 			return nil, nil
 		}).
 		Schedule("@every 1m").
@@ -502,7 +502,7 @@ func Test_race_taskRebuild(t *testing.T) {
 				return
 
 			default:
-				task.Execute(ctx)
+				_, _ = task.Execute(ctx)
 
 			}
 		}

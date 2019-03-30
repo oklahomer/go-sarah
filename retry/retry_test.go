@@ -19,7 +19,7 @@ func TestNewPolicy(t *testing.T) {
 func TestWithPolicy(t *testing.T) {
 	policy := &Policy{Trial: 1}
 	called := false
-	WithPolicy(policy, func() error {
+	_ = WithPolicy(policy, func() error {
 		called = true
 		return nil
 	})
@@ -65,7 +65,7 @@ func TestRetry(t *testing.T) {
 				t.Errorf("Returned error is not RetryErrors: %#v.", err)
 			}
 			if uint(len(*retryErr)) != trial {
-				t.Errorf("Something is wrong with retrial: %s.", err.Error())
+				t.Errorf("Something is wrong with retrial: %s.", retryErr.Error())
 			}
 		} else {
 			if err != nil {
@@ -81,9 +81,9 @@ func TestRetry(t *testing.T) {
 
 func TestErrors_Error(t *testing.T) {
 	errs := &Errors{}
-	firstErr := errors.New("1st error.")
+	firstErr := errors.New("1st error")
 	errs.appendError(firstErr)
-	secondErr := errors.New("2nd error.")
+	secondErr := errors.New("2nd error")
 	errs.appendError(secondErr)
 
 	if errs.Error() != strings.Join([]string{firstErr.Error(), secondErr.Error()}, "\n") {
@@ -99,9 +99,9 @@ func TestWithInterval(t *testing.T) {
 	var startAt time.Time
 	var endAt time.Time
 	interval := 100 * time.Millisecond
-	WithInterval(2, func() error {
+	_ = WithInterval(2, func() error {
 		i++
-		ioutil.Discard.Write([]byte("writing dummy output"))
+		_, _ = ioutil.Discard.Write([]byte("writing dummy output"))
 		if i == 1 {
 			startAt = time.Now()
 		} else {
@@ -124,9 +124,9 @@ func TestWithBackOff(t *testing.T) {
 	var endAt time.Time
 	interval := 100 * time.Millisecond
 	factor := 0.01
-	WithBackOff(2, func() error {
+	_ = WithBackOff(2, func() error {
 		i++
-		ioutil.Discard.Write([]byte("writing dummy output"))
+		_, _ = ioutil.Discard.Write([]byte("writing dummy output"))
 		if i == 1 {
 			startAt = time.Now()
 		} else {

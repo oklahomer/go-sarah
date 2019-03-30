@@ -58,9 +58,9 @@ func TestCommandPropsBuilder_ConfigurableFunc(t *testing.T) {
 		t.Error("Passed config struct is not set.")
 	}
 
-	builder.props.commandFunc(context.TODO(), &DummyInput{}, config)
+	_, _ = builder.props.commandFunc(context.TODO(), &DummyInput{}, config)
 	if wrappedFncCalled == false {
-		t.Error("Provided func was not properlly wrapped in builder.")
+		t.Error("Provided func was not properly wrapped in builder.")
 	}
 }
 
@@ -83,7 +83,7 @@ func TestCommandPropsBuilder_Func(t *testing.T) {
 	}
 
 	builder.Func(fnc)
-	builder.props.commandFunc(context.TODO(), &DummyInput{})
+	_, _ = builder.props.commandFunc(context.TODO(), &DummyInput{})
 	if wrappedFncCalled == false {
 		t.Error("Provided func was not properlly wrapped in builder.")
 	}
@@ -420,7 +420,7 @@ func Test_buildCommand_WithUnlocatableConfigFile(t *testing.T) {
 	_, err := buildCommand(props, file)
 
 	if err == nil {
-		t.Fatalf("Error should be returned when expecting config file is not located: %s.", err.Error())
+		t.Fatalf("Error should be returned when expecting config file is not located.")
 	}
 }
 
@@ -632,7 +632,7 @@ func Test_race_commandRebuild(t *testing.T) {
 		ConfigurableFunc(
 			&config{Token: "default"},
 			func(ctx context.Context, _ Input, givenConfig CommandConfig) (*CommandResponse, error) {
-				ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
+				_, _ = ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
 				return nil, nil
 			},
 		).
@@ -691,7 +691,7 @@ func Test_race_commandRebuild(t *testing.T) {
 				return
 
 			default:
-				b.Respond(c, &DummyInput{})
+				_ = b.Respond(c, &DummyInput{})
 
 			}
 		}

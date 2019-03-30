@@ -650,7 +650,7 @@ func updatePluginConfig(file *pluginConfigFile, configPtr interface{}) error {
 		return json.Unmarshal(buf, configPtr)
 
 	default:
-		return fmt.Errorf("Unsupported file type: %s.", file.path)
+		return fmt.Errorf("unsupported file type: %s", file.path)
 
 	}
 }

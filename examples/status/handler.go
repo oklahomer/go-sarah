@@ -89,7 +89,7 @@ func setStatusHandler(mux *http.ServeMux, sg statusGetter, ws *workerStats) {
 		bytes, err := json.Marshal(status)
 		if err == nil {
 			writer.Header().Set("Content-Type", "application/json")
-			writer.Write(bytes)
+			_, _ = writer.Write(bytes)
 		} else {
 			log.Errorf("failed to parse json: %s", err.Error())
 			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

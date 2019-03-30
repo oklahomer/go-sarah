@@ -75,6 +75,10 @@ func TestConnWrapper_Close(t *testing.T) {
 	}
 
 	err := wrapper.Close()
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
 	if err != expected {
 		t.Errorf("Expected error is not returned: %s.", err.Error())
 	}

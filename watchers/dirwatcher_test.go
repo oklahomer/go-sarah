@@ -116,8 +116,14 @@ func TestWatcher_Subscribe(t *testing.T) {
 
 		err := w.Subscribe(test.group, test.path, test.fnc)
 
-		if err != test.err {
-			t.Fatalf("Unexpected error is returned on test #%d: %s.", testNum, err.Error())
+		if test.err != nil {
+			if err == nil {
+				t.Fatal("Expected error is not returned.")
+			}
+
+			if err != test.err {
+				t.Fatalf("Unexpected error is returned on test #%d: %s.", testNum, err.Error())
+			}
 		}
 	}
 }
@@ -149,6 +155,11 @@ func TestWatcher_Unsubscribe(t *testing.T) {
 	close(w.unsubscribeGroup)
 
 	err = w.Unsubscribe("dummy")
+
+	if err == nil {
+		t.Fatal("Expected error is not returned.")
+	}
+
 	if err != ErrWatcherNotRunning {
 		t.Errorf("Expected error is not returned after channel close: %s.", err.Error())
 	}

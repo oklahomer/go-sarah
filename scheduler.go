@@ -108,7 +108,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 				continue
 			}
 
-			removeFunc(add.botType, add.task.Identifier())
+			_ = removeFunc(add.botType, add.task.Identifier())
 
 			id, err := s.cron.AddFunc(add.task.Schedule(), add.fn)
 			if err != nil {

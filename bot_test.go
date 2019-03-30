@@ -51,7 +51,7 @@ func TestNewBot_WithoutFunctionalOption(t *testing.T) {
 
 func TestNewBot_WithFunctionalOption(t *testing.T) {
 	adapter := &DummyAdapter{}
-	expectedErr := errors.New("this is expected.")
+	expectedErr := errors.New("this is expected")
 	myBot, err := NewBot(
 		adapter,
 		func(bot *defaultBot) error {
@@ -80,7 +80,11 @@ func TestBotWithStorage(t *testing.T) {
 	option := BotWithStorage(storage)
 
 	bot := &defaultBot{}
-	option(bot)
+	err := option(bot)
+
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s", err.Error())
+	}
 
 	if bot.userContextStorage == nil {
 		t.Fatal("UserContextStorage is not set")
@@ -228,7 +232,7 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 	}
 
 	if reflect.ValueOf(givenNext).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
-		t.Errorf("Unexpected ContextualFunc is set %#v.", givenNext)
+		t.Errorf("Unexpected ContextualFunc is set %T.", nextFunc)
 	}
 
 	if isSent == true {
@@ -283,7 +287,7 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	}
 
 	if reflect.ValueOf(givenNext).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
-		t.Errorf("Expected Next step is not passed: %#v.", givenNext)
+		t.Errorf("Expected Next step is not passed: %T.", givenNext)
 	}
 
 	if passedContent != responseContent {
@@ -343,7 +347,42 @@ func TestDefaultBot_Respond_WithContextStorageSetError(t *testing.T) {
 	}
 
 	if reflect.ValueOf(givenNext).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
-		t.Errorf("Expected Next step is not passed: %#v.", givenNext)
+		t.Errorf("Expected Next step is not passed: %T.", givenNext)
+	}
+
+	if !sendMessageCalled {
+		t.Error("Bot.SendMessage must be called even when storage fails.")
+
+	}
+}
+
+func TestDefaultBot_Respond_WithContextStorageDeleteError(t *testing.T) {
+	nextFunc := func(_ context.Context, input Input) (*CommandResponse, error) {
+		return &CommandResponse{
+			Content: "This is content.",
+		}, nil
+	}
+	dummyStorage := &DummyUserContextStorage{
+		DeleteFunc: func(_ string) error {
+			return nil
+		},
+		GetFunc: func(_ string) (ContextualFunc, error) {
+			return nextFunc, nil
+		},
+	}
+
+	sendMessageCalled := false
+	myBot := &defaultBot{
+		sendMessageFunc: func(_ context.Context, output Output) {
+			sendMessageCalled = true
+		},
+		userContextStorage: dummyStorage,
+	}
+
+	err := myBot.Respond(context.TODO(), &DummyInput{})
+
+	if err != nil {
+		t.Errorf("Unexpected error is returned: %#v.", err)
 	}
 
 	if !sendMessageCalled {
@@ -513,6 +552,6 @@ func TestNewSuppressedResponseWithNext(t *testing.T) {
 	}
 
 	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(nextFunc).Pointer() {
-		t.Errorf("Unexpected ContextualFunc is set %#v.", res.UserContext.Next)
+		t.Errorf("Unexpected ContextualFunc is set %T.", res.UserContext.Next)
 	}
 }

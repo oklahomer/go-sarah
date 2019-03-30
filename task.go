@@ -11,10 +11,10 @@ import (
 
 var (
 	// ErrTaskInsufficientArgument is returned when required parameters are not set.
-	ErrTaskInsufficientArgument = errors.New("BotType, Identifier and Func must be set.")
+	ErrTaskInsufficientArgument = errors.New("one or more of required fields -- BotType, Identifier or Func -- are empty")
 
 	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskPropsBuilder's parameter nor config.
-	ErrTaskScheduleNotGiven = errors.New("Task schedule is not set or given from config struct.")
+	ErrTaskScheduleNotGiven = errors.New("task schedule is not set or given from config struct")
 )
 
 // ScheduledTaskResult is a struct that ScheduledTask returns on its execution.
@@ -150,7 +150,7 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 			return e
 		}()
 		if err != nil && os.IsNotExist(err) {
-			return nil, fmt.Errorf("Config file property was given, but failed to locate it: %s", err.Error())
+			return nil, fmt.Errorf("config file property was given, but failed to locate it: %s", err.Error())
 		} else if err != nil {
 			// File was there, but could not read.
 			return nil, err

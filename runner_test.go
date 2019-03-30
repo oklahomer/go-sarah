@@ -87,7 +87,7 @@ func TestRunnerOptions_Arg(t *testing.T) {
 		},
 	)
 
-	options.Arg()(&runner{})
+	_ = options.Arg()(&runner{})
 
 	if calledCnt != 2 {
 		t.Fatalf("Options are not properly called. Count: %d.", calledCnt)
@@ -127,7 +127,7 @@ func TestNewRunner(t *testing.T) {
 	}
 
 	if r == nil {
-		t.Fatal("NewRunner reutrned nil.")
+		t.Fatal("NewRunner returned nil.")
 	}
 
 	impl, ok := r.(*runner)
@@ -214,7 +214,7 @@ func TestWithBot(t *testing.T) {
 		bots: []Bot{},
 	}
 
-	WithBot(bot)(r)
+	_ = WithBot(bot)(r)
 
 	registeredBots := r.bots
 	if len(registeredBots) != 1 {
@@ -235,7 +235,7 @@ func TestWithCommandProps(t *testing.T) {
 		commandProps: make(map[BotType][]*CommandProps),
 	}
 
-	WithCommandProps(props)(r)
+	_ = WithCommandProps(props)(r)
 
 	botCmdProps, ok := r.commandProps[botType]
 	if !ok {
@@ -249,7 +249,7 @@ func TestWithCommandProps(t *testing.T) {
 func TestWithWorker(t *testing.T) {
 	worker := &DummyWorker{}
 	r := &runner{}
-	WithWorker(worker)(r)
+	_ = WithWorker(worker)(r)
 
 	if r.worker != worker {
 		t.Fatal("Given worker is not set.")
@@ -259,7 +259,7 @@ func TestWithWorker(t *testing.T) {
 func TestWithWatcher(t *testing.T) {
 	watcher := &DummyWatcher{}
 	r := &runner{}
-	WithWatcher(watcher)(r)
+	_ = WithWatcher(watcher)(r)
 
 	if r.watcher != watcher {
 		t.Fatal("Given watcher is not set.")
@@ -275,7 +275,7 @@ func TestWithScheduledTaskProps(t *testing.T) {
 		scheduledTaskPrps: make(map[BotType][]*ScheduledTaskProps),
 	}
 
-	WithScheduledTaskProps(props)(r)
+	_ = WithScheduledTaskProps(props)(r)
 
 	taskProps, ok := r.scheduledTaskPrps[botType]
 	if !ok {
@@ -293,7 +293,7 @@ func TestWithScheduledTask(t *testing.T) {
 		scheduledTasks: make(map[BotType][]ScheduledTask),
 	}
 
-	WithScheduledTask(botType, task)(r)
+	_ = WithScheduledTask(botType, task)(r)
 
 	tasks, ok := r.scheduledTasks[botType]
 	if !ok {
@@ -310,7 +310,7 @@ func TestWithAlerter(t *testing.T) {
 		alerters: &alerters{},
 	}
 
-	WithAlerter(alerter)(r)
+	_ = WithAlerter(alerter)(r)
 
 	registeredAlerters := r.alerters
 	if len(*registeredAlerters) != 1 {

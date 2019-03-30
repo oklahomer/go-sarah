@@ -116,7 +116,7 @@ func TestNewAdapter_WithPayloadHandler(t *testing.T) {
 	opt := WithPayloadHandler(fnc)
 	adapter := &Adapter{}
 
-	opt(adapter)
+	_ = opt(adapter)
 
 	if adapter.payloadHandler == nil {
 		t.Fatal("PayloadHandler is not set.")

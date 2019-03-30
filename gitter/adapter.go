@@ -73,7 +73,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 			log.Errorf("Destination is not instance of Room. %#v.", output.Destination())
 			return
 		}
-		adapter.apiClient.PostMessage(ctx, room, content)
+		_, _ = adapter.apiClient.PostMessage(ctx, room, content)
 
 	default:
 		log.Warnf("unexpected output %#v", output)
@@ -101,7 +101,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			}
 
 			connErr := receiveMessageRecursive(conn, enqueueInput)
-			conn.Close()
+			_ = conn.Close()
 
 			// TODO: Intentional connection close such as context.cancel also comes here.
 			// It would be nice if we could detect such event to distinguish intentional behaviour and unintentional connection error.
@@ -137,7 +137,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 
 		}
 
-		enqueueInput(message)
+		_ = enqueueInput(message)
 	}
 }
 

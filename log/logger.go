@@ -142,13 +142,13 @@ func (l *defaultLogger) Errorf(format string, args ...interface{}) {
 func (l *defaultLogger) out(level Level, args ...interface{}) {
 	// combine level identifier and given arguments for variadic function call
 	leveledArgs := append([]interface{}{"[" + level.String() + "]"}, args...)
-	l.logger.Output(4, fmt.Sprintln(leveledArgs...))
+	_ = l.logger.Output(4, fmt.Sprintln(leveledArgs...))
 }
 
 func (l *defaultLogger) outf(level Level, format string, args ...interface{}) {
 	// combine level identifier and given arguments for variadic function call
 	leveledArgs := append([]interface{}{level}, args...)
-	l.logger.Output(4, fmt.Sprintf("[%s] "+format, leveledArgs...))
+	_ = l.logger.Output(4, fmt.Sprintf("[%s] "+format, leveledArgs...))
 }
 
 func newDefaultLogger() Logger {
