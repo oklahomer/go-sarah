@@ -287,7 +287,7 @@ func (r *runner) Run(ctx context.Context) {
 		log.Infof("starting %s", botType.String())
 
 		// Each Bot has its own context propagating Runner's lifecycle.
-		botCtx, errNotifier := botSupervisor(ctx, botType, r.alerters)
+		botCtx, errNotifier := superviseBot(ctx, botType, r.alerters)
 
 		// Prepare function that receives Input.
 		receiveInput := setupInputReceiver(botCtx, bot, r.worker)
@@ -559,7 +559,7 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	}
 }
 
-func botSupervisor(runnerCtx context.Context, botType BotType, alerters *alerters) (context.Context, func(error)) {
+func superviseBot(runnerCtx context.Context, botType BotType, alerters *alerters) (context.Context, func(error)) {
 	botCtx, cancel := context.WithCancel(runnerCtx)
 
 	// A function that receives an escalated error from Bot.
