@@ -4,13 +4,13 @@
 		{
 			"importpath": "github.com/fsnotify/fsnotify",
 			"repository": "https://github.com/fsnotify/fsnotify",
-			"revision": "11844c0959f6fff69ba325d097fce35bd85a8e93",
+			"revision": "1485a34d5d5723fea214f5710708e19a831720e4",
 			"branch": "master"
 		},
 		{
 			"importpath": "github.com/gorilla/websocket",
 			"repository": "https://github.com/gorilla/websocket",
-			"revision": "0ec3d1bd7fe50c503d6df98ee649d81f4857c564",
+			"revision": "80c2d40e9b91f2ef7a9c1a403aeec64d1b89a9a6",
 			"branch": "master"
 		},
 		{
@@ -40,7 +40,7 @@
 		{
 			"importpath": "github.com/tidwall/gjson",
 			"repository": "https://github.com/tidwall/gjson",
-			"revision": "181e11634d88481c14eeda620b056fdfaf330af9",
+			"revision": "fb8e539484c9fb2df9f472bc0e3949a74c256f95",
 			"branch": "master"
 		},
 		{
@@ -52,20 +52,20 @@
 		{
 			"importpath": "github.com/tidwall/pretty",
 			"repository": "https://github.com/tidwall/pretty",
-			"revision": "65a9db5fad5105a89e17f38adcc9878685be6d78",
+			"revision": "1166b9ac2b65e46a43d8618d30d1554f4652d49b",
 			"branch": "master"
 		},
 		{
 			"importpath": "golang.org/x/net/context",
 			"repository": "https://go.googlesource.com/net",
-			"revision": "b774fd8d5c0f43f4a07fc5c3dd6cba5c4dc21e77",
+			"revision": "4829fb13d2c62012c17688fa7f629f371014946d",
 			"branch": "master",
 			"path": "/context"
 		},
 		{
 			"importpath": "golang.org/x/sys/unix",
 			"repository": "https://go.googlesource.com/sys",
-			"revision": "10058d7d4faa7dd5ef860cbd31af00903076e7b8",
+			"revision": "a129542de9ae0895210abff9c95d67a1f33cb93d",
 			"branch": "master",
 			"path": "/unix"
 		},
