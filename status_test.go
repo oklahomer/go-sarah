@@ -5,12 +5,59 @@ import (
 	"time"
 )
 
+func TestCurrentStatus(t *testing.T) {
+	// Override the package scoped variable that holds *status instance.
+	// Copy of this status should be returned on CurrentStatus().
+	botType := BotType("dummy")
+	runnerStatus = &status{
+		bots: []*botStatus{
+			{
+				botType:  botType,
+				finished: make(chan struct{}),
+			},
+		},
+	}
+
+	// Check initial state
+	currentStatus := CurrentStatus()
+
+	if currentStatus.Running {
+		t.Error("Status should not be Running at this point.")
+	}
+
+	if len(currentStatus.Bots) != 1 {
+		t.Fatalf("Unexpected number of BotStatus is returned: %d.", len(currentStatus.Bots))
+	}
+
+	if currentStatus.Bots[0].Type != botType {
+		t.Errorf("Expected BotType is not set. %#v", currentStatus.Bots[0])
+	}
+}
+
 func Test_status_start(t *testing.T) {
 	s := &status{}
 	s.start()
 
 	if s.finished == nil {
 		t.Error("A channel to judge running status must be set.")
+	}
+}
+
+func Test_status_running(t *testing.T) {
+	s := &status{}
+
+	if s.running() {
+		t.Error("Status should not be Running at this point.")
+	}
+
+	s.finished = make(chan struct{})
+	if !s.running() {
+		t.Error("Status should be Running at this point.")
+	}
+
+	close(s.finished)
+	if s.running() {
+		t.Error("Status should not be Running at this point.")
 	}
 }
 

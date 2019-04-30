@@ -49,12 +49,6 @@ type Runner interface {
 	// Run starts Bot interaction.
 	// At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
 	Run(context.Context)
-
-	// Status returns the status of Runner and belonging Bots.
-	// The returned Status value represents a snapshot of the status when this method is called,
-	// which means each field value is not subject to update.
-	// To reflect the latest status, this is recommended to call this method whenever the value is needed.
-	Status() Status
 }
 
 type runner struct {
@@ -66,7 +60,6 @@ type runner struct {
 	scheduledTaskPrps map[BotType][]*ScheduledTaskProps
 	scheduledTasks    map[BotType][]ScheduledTask
 	alerters          *alerters
-	status            *status
 }
 
 // NewRunner creates and return new instance that satisfies Runner interface.
@@ -87,7 +80,6 @@ func NewRunner(config *Config, options ...RunnerOption) (Runner, error) {
 		scheduledTaskPrps: make(map[BotType][]*ScheduledTaskProps),
 		scheduledTasks:    make(map[BotType][]ScheduledTask),
 		alerters:          &alerters{},
-		status:            &status{},
 	}
 
 	for _, opt := range options {
@@ -248,12 +240,8 @@ func (r *runner) botScheduledTasks(botType BotType) []ScheduledTask {
 	return []ScheduledTask{}
 }
 
-func (r *runner) Status() Status {
-	return r.status.snapshot()
-}
-
 func (r *runner) Run(ctx context.Context) {
-	r.status.start()
+	runnerStatus.start()
 
 	if r.worker == nil {
 		w, e := workers.Run(ctx, workers.NewConfig())
@@ -294,7 +282,7 @@ func (r *runner) Run(ctx context.Context) {
 
 		// Run Bot
 		go runBot(botCtx, bot, receiveInput, errNotifier)
-		r.status.addBot(bot)
+		runnerStatus.addBot(bot)
 
 		// Setup config directory.
 		var configDir string
@@ -335,13 +323,13 @@ func (r *runner) Run(ctx context.Context) {
 					}
 				}
 
-				r.status.stopBot(b)
+				runnerStatus.stopBot(b)
 			}
 		}(botCtx, bot, configDir)
 	}
 
 	wg.Wait()
-	r.status.stop()
+	runnerStatus.stop()
 }
 
 func (r *runner) configUpdateCallback(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {

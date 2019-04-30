@@ -18,9 +18,13 @@ func TestMain(m *testing.M) {
 	oldLogger := log.GetLogger()
 	defer log.SetLogger(oldLogger)
 
+	// Suppress log output in test by default
 	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
 	logger := log.NewWithStandardLogger(l)
 	log.SetLogger(logger)
+
+	// Initialize package variables
+	runnerStatus = newStatus()
 
 	code := m.Run()
 
@@ -145,10 +149,6 @@ func TestNewRunner(t *testing.T) {
 
 	if impl.scheduledTasks == nil {
 		t.Error("scheduledTasks are not set.")
-	}
-
-	if impl.status == nil {
-		t.Error("status is not set.")
 	}
 }
 
@@ -397,10 +397,9 @@ func TestRunner_Run(t *testing.T) {
 				return nil
 			},
 		},
-		status: &status{},
 	}
 
-	if r.Status().Running {
+	if CurrentStatus().Running {
 		t.Error("Status.Running should be false at this point.")
 	}
 
@@ -414,13 +413,13 @@ func TestRunner_Run(t *testing.T) {
 	}()
 
 	time.Sleep(1 * time.Second)
-	if !r.Status().Running {
+	if !CurrentStatus().Running {
 		t.Error("Status.Running should be true at this point.")
 	}
-	if len(r.Status().Bots) != 1 {
+	if len(CurrentStatus().Bots) != 1 {
 		t.Error("Status of one Bot must be returned.")
 	} else {
-		if !r.Status().Bots[0].Running {
+		if !CurrentStatus().Bots[0].Running {
 			t.Error("Bot's status must be Running.")
 		}
 	}
@@ -447,7 +446,7 @@ func TestRunner_Run(t *testing.T) {
 
 	}
 
-	if r.Status().Running {
+	if CurrentStatus().Running {
 		t.Error("Status.Running should be false at this point.")
 	}
 }
@@ -483,7 +482,6 @@ func TestRunner_Run_WithPluginConfigRoot(t *testing.T) {
 			},
 		},
 		worker: &DummyWorker{},
-		status: &status{},
 	}
 
 	// Let it run
@@ -516,7 +514,6 @@ func TestRunner_Run_Minimal(t *testing.T) {
 		scheduledTasks:    map[BotType][]ScheduledTask{},
 		watcher:           nil,
 		worker:            nil,
-		status:            &status{},
 	}
 
 	// Let it run
@@ -532,19 +529,6 @@ func TestRunner_Run_Minimal(t *testing.T) {
 
 	if r.worker == nil {
 		t.Error("Default worker is not set.")
-	}
-}
-
-func TestRunner_Status(t *testing.T) {
-	r := &runner{status: &status{}}
-	s := r.Status()
-
-	if s.Running {
-		t.Error("Status.Running should be false at this point.")
-	}
-
-	if len(s.Bots) != 0 {
-		t.Error("Status.Bots should be empty at this point.")
 	}
 }
 

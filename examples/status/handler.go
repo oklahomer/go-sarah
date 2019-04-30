@@ -8,15 +8,6 @@ import (
 	"runtime"
 )
 
-// statusGetter defines an interface that returns sarah.Status, which is satisfied by sarah.Runner.
-// While the caller of setStatusHandler passes sarah.Runner directly,
-// setStatusHandler receives it as a statusGetter interface so nothing nasty can be done against sarah.Runner.
-type statusGetter interface {
-	Status() sarah.Status
-}
-
-var _ statusGetter = sarah.Runner(nil)
-
 // setStatusHandler sets an endpoint that returns current status of sarah.Runner, its belonging sarah.Bots and sarah.Worker.
 //
 //	curl -s -XGET   "http://localhost:8080/status" | jq .
@@ -62,9 +53,9 @@ var _ statusGetter = sarah.Runner(nil)
 //	    ]
 //	  }
 //	}
-func setStatusHandler(mux *http.ServeMux, sg statusGetter, ws *workerStats) {
+func setStatusHandler(mux *http.ServeMux, ws *workerStats) {
 	mux.HandleFunc("/status", func(writer http.ResponseWriter, request *http.Request) {
-		runnerStatus := sg.Status()
+		runnerStatus := sarah.CurrentStatus()
 		systemStatus := &botSystemStatus{}
 		systemStatus.Running = runnerStatus.Running
 		for _, b := range runnerStatus.Bots {

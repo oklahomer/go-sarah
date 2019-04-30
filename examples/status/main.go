@@ -68,7 +68,7 @@ func main() {
 	go runner.Run(ctx)
 
 	// Run HTTP server that reports current status
-	server := newServer(runner, workerReporter)
+	server := newServer(workerReporter)
 	go server.Run(ctx)
 
 	// Wait til signal reception
