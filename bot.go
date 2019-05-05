@@ -126,10 +126,10 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	var err error
 	if nextFunc == nil {
 		// If no conversational context is stored, simply search for corresponding command.
-		switch input.(type) {
+		switch in := input.(type) {
 		case *HelpInput:
 			res = &CommandResponse{
-				Content:     bot.commands.Helps(),
+				Content:     bot.commands.Helps(in),
 				UserContext: nil,
 			}
 		default:
@@ -192,5 +192,3 @@ func NewSuppressedResponseWithNext(next ContextualFunc) *CommandResponse {
 		UserContext: NewUserContext(next),
 	}
 }
-
-type botRunner struct{}

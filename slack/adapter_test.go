@@ -572,8 +572,8 @@ func TestAdapter_SendMessage_CommandHelps(t *testing.T) {
 
 	helps := &sarah.CommandHelps{
 		&sarah.CommandHelp{
-			Identifier:   "id",
-			InputExample: ".help",
+			Identifier:  "id",
+			Instruction: ".help",
 		},
 	}
 

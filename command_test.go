@@ -4,6 +4,7 @@ import (
 	"golang.org/x/net/context"
 	"io/ioutil"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -12,11 +13,13 @@ import (
 )
 
 type DummyCommand struct {
-	IdentifierValue  string
-	ExecuteFunc      func(context.Context, Input) (*CommandResponse, error)
-	InputExampleFunc func() string
-	MatchFunc        func(Input) bool
+	IdentifierValue string
+	ExecuteFunc     func(context.Context, Input) (*CommandResponse, error)
+	InstructionFunc func(*HelpInput) string
+	MatchFunc       func(Input) bool
 }
+
+var _ Command = (*DummyCommand)(nil)
 
 func (command *DummyCommand) Identifier() string {
 	return command.IdentifierValue
@@ -26,8 +29,8 @@ func (command *DummyCommand) Execute(ctx context.Context, input Input) (*Command
 	return command.ExecuteFunc(ctx, input)
 }
 
-func (command *DummyCommand) InputExample() string {
-	return command.InputExampleFunc()
+func (command *DummyCommand) Instruction(input *HelpInput) string {
+	return command.InstructionFunc(input)
 }
 
 func (command *DummyCommand) Match(input Input) bool {
@@ -85,7 +88,7 @@ func TestCommandPropsBuilder_Func(t *testing.T) {
 	builder.Func(fnc)
 	_, _ = builder.props.commandFunc(context.TODO(), &DummyInput{})
 	if wrappedFncCalled == false {
-		t.Error("Provided func was not properlly wrapped in builder.")
+		t.Error("Provided func was not properly wrapped in builder.")
 	}
 }
 
@@ -99,13 +102,26 @@ func TestCommandPropsBuilder_Identifier(t *testing.T) {
 	}
 }
 
-func TestCommandPropsBuilder_InputExample(t *testing.T) {
+func TestCommandPropsBuilder_Instruction(t *testing.T) {
 	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	example := ".echo foo"
-	builder.InputExample(example)
+	builder.Instruction(example)
 
-	if builder.props.example != example {
-		t.Error("Provided example is not set.")
+	instruction := builder.props.instructionFunc(&HelpInput{})
+	if instruction != example {
+		t.Error("Provided instruction is not returned.")
+	}
+}
+
+func TestCommandPropsBuilder_InstructionFunc(t *testing.T) {
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
+	fnc := func(_ *HelpInput) string {
+		return "dummy"
+	}
+	builder.InstructionFunc(fnc)
+
+	if reflect.ValueOf(builder.props.instructionFunc).Pointer() != reflect.ValueOf(fnc).Pointer() {
+		t.Error("Passed function is not set.")
 	}
 }
 
@@ -152,7 +168,7 @@ func TestCommandPropsBuilder_Build(t *testing.T) {
 	builder.BotType(botType).
 		Identifier(identifier).
 		MatchPattern(matchPattern).
-		InputExample(example).
+		Instruction(example).
 		ConfigurableFunc(config, fnc)
 
 	props, err := builder.Build()
@@ -176,8 +192,9 @@ func TestCommandPropsBuilder_Build(t *testing.T) {
 		t.Error("Expected match result is not given.")
 	}
 
-	if props.example != example {
-		t.Errorf("Expected example is not set: %s.", props.example)
+	instruction := props.instructionFunc(&HelpInput{})
+	if instruction != example {
+		t.Errorf("Expected example is not returned: %s.", instruction)
 	}
 
 	if props.config != config {
@@ -190,7 +207,7 @@ func TestCommandPropsBuilder_MustBuild(t *testing.T) {
 	builder.BotType("dummyBot").
 		Identifier("dummy").
 		MatchPattern(regexp.MustCompile(`^\.echo`)).
-		InputExample(".echo knock knock")
+		Instruction(".echo knock knock")
 
 	func() {
 		defer func() {
@@ -246,8 +263,10 @@ func Test_buildCommand_WithOutConfig(t *testing.T) {
 		matchFunc: func(_ Input) bool {
 			return false
 		},
-		example: ".foo",
-		config:  nil,
+		instructionFunc: func(_ *HelpInput) string {
+			return ".foo"
+		},
+		config: nil,
 	}
 
 	cmd, err := buildCommand(props, nil)
@@ -271,8 +290,10 @@ func Test_buildCommand_WithOutConfigFile(t *testing.T) {
 		matchFunc: func(_ Input) bool {
 			return false
 		},
-		example: ".foo",
-		config:  struct{}{}, // non-nil
+		instructionFunc: func(_ *HelpInput) string {
+			return ".foo"
+		},
+		config: struct{}{}, // non-nil
 	}
 
 	cmd, err := buildCommand(props, nil)
@@ -405,8 +426,10 @@ func Test_buildCommand_WithUnlocatableConfigFile(t *testing.T) {
 		Token: "presetToken",
 	}
 	props := &CommandProps{
-		identifier:  "fileNotFound",
-		example:     "example",
+		identifier: "fileNotFound",
+		instructionFunc: func(_ *HelpInput) string {
+			return "example"
+		},
 		matchFunc:   func(_ Input) bool { return true },
 		commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
 		config:      config,
@@ -541,21 +564,21 @@ func TestCommands_Append(t *testing.T) {
 func TestCommands_Helps(t *testing.T) {
 	cmd := &DummyCommand{
 		IdentifierValue: "id",
-		InputExampleFunc: func() string {
+		InstructionFunc: func(_ *HelpInput) string {
 			return "example"
 		},
 	}
 	commands := &Commands{collection: []Command{cmd}}
 
-	helps := commands.Helps()
+	helps := commands.Helps(&HelpInput{})
 	if len(*helps) != 1 {
 		t.Fatalf("Expectnig one help to be given, but was %d.", len(*helps))
 	}
 	if (*helps)[0].Identifier != cmd.IdentifierValue {
 		t.Errorf("Expected ID was not returned: %s.", (*helps)[0].Identifier)
 	}
-	if (*helps)[0].InputExample != cmd.InputExampleFunc() {
-		t.Errorf("Expected example was not returned: %s.", (*helps)[0].InputExample)
+	if (*helps)[0].Instruction != cmd.InstructionFunc(&HelpInput{}) {
+		t.Errorf("Expected instruction was not returned: %s.", (*helps)[0].Instruction)
 	}
 }
 
@@ -568,11 +591,15 @@ func TestSimpleCommand_Identifier(t *testing.T) {
 	}
 }
 
-func TestSimpleCommand_InputExample(t *testing.T) {
-	example := "example foo"
-	command := defaultCommand{example: example}
+func TestSimpleCommand_Instruction(t *testing.T) {
+	instruction := "example foo"
+	command := defaultCommand{
+		instructionFunc: func(_ *HelpInput) string {
+			return instruction
+		},
+	}
 
-	if command.InputExample() != example {
+	if command.Instruction(&HelpInput{}) != instruction {
 		t.Errorf("Stored example is not returned: %s.", command.Identifier())
 	}
 }
@@ -627,7 +654,7 @@ func Test_race_commandRebuild(t *testing.T) {
 	}
 	props, err := NewCommandPropsBuilder().
 		Identifier("dummy").
-		InputExample(".dummy").
+		Instruction(".dummy").
 		BotType("dummyBot").
 		ConfigurableFunc(
 			&config{Token: "default"},

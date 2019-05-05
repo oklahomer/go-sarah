@@ -66,8 +66,8 @@ func (cmd *command) Execute(_ context.Context, input sarah.Input) (*sarah.Comman
 	return slack.NewStringResponseWithNext("Please input due date in YYYY-MM-DD format", next), nil
 }
 
-func (cmd *command) InputExample() string {
-	return ".todo buy milk"
+func (cmd *command) Instruction(_ *sarah.HelpInput) string {
+	return `Input ".todo buy milk" to add "buy milk" to your TODO list.`
 }
 
 func (cmd *command) Match(input sarah.Input) bool {

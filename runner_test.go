@@ -463,7 +463,9 @@ func Test_runner_runBot(t *testing.T) {
 			commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
 				return nil, nil
 			},
-			example: ".echo foo",
+			instructionFunc: func(_ *HelpInput) string {
+				return ".echo foo"
+			},
 		}
 
 		// Prepare scheduled task to be configured on the fly
@@ -930,7 +932,9 @@ func Test_updateCommandConfig(t *testing.T) {
 				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
 				matchFunc:   func(_ Input) bool { return true },
 				config:      nil,
-				example:     "exampleInput",
+				instructionFunc: func(_ *HelpInput) string {
+					return "instruction text"
+				},
 			},
 			{
 				identifier:  "dummy",
@@ -938,7 +942,9 @@ func Test_updateCommandConfig(t *testing.T) {
 				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
 				matchFunc:   func(_ Input) bool { return true },
 				config:      c,
-				example:     "exampleInput",
+				instructionFunc: func(_ *HelpInput) string {
+					return "instruction text"
+				},
 			},
 		}
 
@@ -983,7 +989,9 @@ func Test_updateCommandConfig_WithBrokenYaml(t *testing.T) {
 				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
 				matchFunc:   func(_ Input) bool { return true },
 				config:      c,
-				example:     "exampleInput",
+				instructionFunc: func(_ *HelpInput) string {
+					return "instruction text"
+				},
 			},
 		}
 
@@ -1028,7 +1036,9 @@ func Test_updateCommandConfig_WithConfigValue(t *testing.T) {
 				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
 				matchFunc:   func(_ Input) bool { return true },
 				config:      c,
-				example:     "exampleInput",
+				instructionFunc: func(_ *HelpInput) string {
+					return "instruction text"
+				},
 			},
 		}
 

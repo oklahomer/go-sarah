@@ -92,7 +92,7 @@ func main() {
 var GuessProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("guess").
-	InputExample(".guess").
+	Instruction("Input .guess to start a game.").
 	MatchFunc(func(input sarah.Input) bool {
 		return strings.HasPrefix(strings.TrimSpace(input.Message()), ".guess")
 	}).
@@ -144,8 +144,13 @@ func (hello *HelloCommand) Execute(context.Context, sarah.Input) (*sarah.Command
 	return slack.NewStringResponse("Hello!"), nil
 }
 
-func (hello *HelloCommand) InputExample() string {
-	return ".hello"
+func (hello *HelloCommand) Instruction(input *sarah.HelpInput) string {
+	if 12 < input.SentAt().Hour() {
+		// This command is only active in the morning.
+		// Do not show instruction in the afternoon.
+		return ""
+	}
+	return "Input .hello to greet"
 }
 
 func (hello *HelloCommand) Match(input sarah.Input) bool {

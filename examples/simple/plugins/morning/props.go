@@ -18,7 +18,16 @@ import (
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("morning").
-	InputExample(".morning").
+	InstructionFunc(func(input *sarah.HelpInput) string {
+		hour := time.Now().Hour()
+		if 12 < hour {
+			// This command is only active in the morning.
+			// Do not show instruction in the afternoon.
+			return ""
+		}
+
+		return "Input .morning to greet."
+	}).
 	MatchFunc(func(input sarah.Input) bool {
 		// 1. See if the input message starts with ".morning"
 		match := strings.HasPrefix(input.Message(), ".morning")

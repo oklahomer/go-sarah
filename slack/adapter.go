@@ -299,11 +299,11 @@ func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayl
 		trimmed := strings.TrimSpace(input.Message())
 		if config.HelpCommand != "" && trimmed == config.HelpCommand {
 			// Help command
-			help := sarah.NewHelpInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
+			help := sarah.NewHelpInput(input)
 			_ = enqueueInput(help)
 		} else if config.AbortCommand != "" && trimmed == config.AbortCommand {
 			// Abort command
-			abort := sarah.NewAbortInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
+			abort := sarah.NewAbortInput(input)
 			_ = enqueueInput(abort)
 		} else {
 			// Regular input
@@ -369,17 +369,17 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 			return
 		}
 
-		fields := []*webapi.AttachmentField{}
+		var fields []*webapi.AttachmentField
 		for _, commandHelp := range *output.Content().(*sarah.CommandHelps) {
 			fields = append(fields, &webapi.AttachmentField{
 				Title: commandHelp.Identifier,
-				Value: commandHelp.InputExample,
+				Value: commandHelp.Instruction,
 				Short: false,
 			})
 		}
 		attachments := []*webapi.MessageAttachment{
 			{
-				Fallback: "Here are some input examples.", // TODO
+				Fallback: "Here are some input instructions.",
 				Pretext:  "Help:",
 				Title:    "",
 				Fields:   fields,

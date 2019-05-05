@@ -22,7 +22,7 @@ var slackFunc = func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, 
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("hello").
-	InputExample(".hello").
+	Instruction("Input .hello to greet.").
 	MatchPattern(regexp.MustCompile(`\.hello`)).
 	Func(slackFunc).
 	MustBuild()

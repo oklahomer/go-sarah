@@ -24,7 +24,7 @@ import (
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("guess").
-	InputExample(".guess").
+	Instruction("Input .guess to start a game.").
 	MatchFunc(func(input sarah.Input) bool {
 		return strings.HasPrefix(strings.TrimSpace(input.Message()), ".guess")
 	}).

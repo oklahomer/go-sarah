@@ -33,19 +33,28 @@ func TestNewHelpInput(t *testing.T) {
 	message := "Hello, 世界."
 	sentAt := time.Now()
 	dest := "100 N University Dr Edmond, OK"
-	input := NewHelpInput(senderKey, message, sentAt, dest)
+	input := &DummyInput{
+		SenderKeyValue: senderKey,
+		MessageValue:   message,
+		SentAtValue:    sentAt,
+		ReplyToValue:   dest,
+	}
+	helpInput := NewHelpInput(input)
 
-	if input.SenderKey() != senderKey {
+	if helpInput.SenderKey() != senderKey {
 		t.Errorf("Expected sender key was not returned: %s.", senderKey)
 	}
-	if input.Message() != message {
+	if helpInput.Message() != message {
 		t.Errorf("Expected message was not returned: %s.", message)
 	}
-	if input.SentAt() != sentAt {
+	if helpInput.SentAt() != sentAt {
 		t.Errorf("Expected time was not returned: %s.", sentAt.String())
 	}
-	if input.ReplyTo() != dest {
+	if helpInput.ReplyTo() != dest {
 		t.Errorf("Expected reply destination was not returned: %s.", dest)
+	}
+	if helpInput.OriginalInput != input {
+		t.Errorf("Original Input value is not set: %#v", helpInput.OriginalInput)
 	}
 }
 
@@ -54,18 +63,27 @@ func TestNewAbortInput(t *testing.T) {
 	message := "Hello, 世界."
 	sentAt := time.Now()
 	dest := "100 N University Dr Edmond, OK"
-	input := NewAbortInput(senderKey, message, sentAt, dest)
+	input := &DummyInput{
+		SenderKeyValue: senderKey,
+		MessageValue:   message,
+		SentAtValue:    sentAt,
+		ReplyToValue:   dest,
+	}
+	abortInput := NewAbortInput(input)
 
-	if input.SenderKey() != senderKey {
+	if abortInput.SenderKey() != senderKey {
 		t.Errorf("Expected sender key was not returned: %s.", senderKey)
 	}
-	if input.Message() != message {
+	if abortInput.Message() != message {
 		t.Errorf("Expected message was not returned: %s.", message)
 	}
-	if input.SentAt() != sentAt {
+	if abortInput.SentAt() != sentAt {
 		t.Errorf("Expected time was not returned: %s.", sentAt.String())
 	}
-	if input.ReplyTo() != dest {
+	if abortInput.ReplyTo() != dest {
 		t.Errorf("Expected reply destination was not returned: %s.", dest)
+	}
+	if abortInput.OriginalInput != input {
+		t.Errorf("Original Input value is not set: %#v", abortInput.OriginalInput)
 	}
 }

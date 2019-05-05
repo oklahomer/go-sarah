@@ -39,7 +39,7 @@ var globalCounter = &counter{
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("counter").
-	InputExample(".count").
+	Instruction("Input .count to count up").
 	MatchPattern(regexp.MustCompile(`^\.count`)).
 	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
 		return slack.NewStringResponse(fmt.Sprint(globalCounter.increment())), nil
@@ -50,7 +50,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 var GitterProps = sarah.NewCommandPropsBuilder().
 	BotType(gitter.GITTER).
 	Identifier("counter").
-	InputExample(".count").
+	Instruction("Input .count to count up").
 	MatchPattern(regexp.MustCompile(`^\.count`)).
 	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
 		return gitter.NewStringResponse(fmt.Sprint(globalCounter.increment())), nil
