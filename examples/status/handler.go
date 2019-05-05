@@ -8,7 +8,7 @@ import (
 	"runtime"
 )
 
-// setStatusHandler sets an endpoint that returns current status of sarah.Runner, its belonging sarah.Bots and sarah.Worker.
+// setStatusHandler sets an endpoint that returns current status of go-sarah, its belonging sarah.Bot implementations and sarah.Worker.
 //
 //	curl -s -XGET   "http://localhost:8080/status" | jq .
 //	{

@@ -6,20 +6,18 @@ When weather API returns response that indicates input error, this command retur
 so the user's next input will be directly fed to the designated function, which actually is equivalent to second command call in this time.
 To see detailed implementation, read corresponding code where this command is calling slack.NewStringResponseWithNext.
 
-When this sarah.CommandProps is passed to sarah.Runner, sarah.Runner tries to read configuration file and map content to weather.CommandConfig.
+When this sarah.CommandProps is passed to sarah.RegisterCommandProps, go-sarah tries to read configuration file and map content to weather.CommandConfig.
 Setup should be somewhat like below:
 
-  options := sarah.NewRunnerOptions
-
-  options.Append(sarah.WithCommandProps(hello.SlackProps))
-  options.Append(sarah.WithCommandProps(echo.SlackProps))
-  options.Append(sarah.WithCommandProps(worldweather.SlackProps))
+  sarah.RegisterCommandProps(hello.SlackProps)
+  sarah.RegisterCommandProps(echo.SlackProps)
+  sarah.RegisterCommandProps(worldweather.SlackProps)
 
   // Config.PluginConfigRoot must be set to read configuration file for this command.
   // Runner searches for configuration file located at config.PluginConfigRoot + "/slack/weather.(yaml|yml|json)".
   config := sarah.NewConfig()
   config.PluginConfigRoot = "/path/to/config/" // Or do yaml.Unmarshal(fileBuf, config), json.Unmarshal(fileBuf, config)
-  runner, err := sarah.NewRunner(config, options.Arg())
+  err := sarah.Run(context.TODO(), config)
 */
 package worldweather
 

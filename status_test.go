@@ -36,10 +36,24 @@ func TestCurrentStatus(t *testing.T) {
 
 func Test_status_start(t *testing.T) {
 	s := &status{}
-	s.start()
+
+	// Initial call
+	err := s.start()
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
+	}
 
 	if s.finished == nil {
 		t.Error("A channel to judge running status must be set.")
+	}
+
+	// Successive call should return an error
+	err = s.start()
+	if err == nil {
+		t.Fatalf("Expected error is not returned.")
+	}
+	if err != ErrRunnerAlreadyRunning {
+		t.Errorf("Returned error is not the expected one: %s", err.Error())
 	}
 }
 

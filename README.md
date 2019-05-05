@@ -67,32 +67,26 @@ func main() {
 	cacheConfig := sarah.NewCacheConfig()
 	storage := sarah.NewUserContextStorage(cacheConfig)
 
-	// A helper to stash sarah.RunnerOptions for later use.
-	options := sarah.NewRunnerOptions()
-
 	// Setup Bot with slack adapter and default storage.
 	bot, err := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
 	if err != nil {
 		panic(fmt.Errorf("faileld to setup Slack Bot: %s", err.Error()))
 	}
-	options.Append(sarah.WithBot(bot))
+	sarah.RegisterBot(bot)
 
 	// Setup .hello command
 	hello := &HelloCommand{}
 	bot.AppendCommand(hello)
-
+	
 	// Setup properties to setup .guess command on the fly
-	options.Append(sarah.WithCommandProps(GuessProps))
+	sarah.RegisterCommandProps(GuessProps)
 
-	// Setup sarah.Runner.
-	runnerConfig := sarah.NewConfig()
-	runner, err := sarah.NewRunner(runnerConfig, options.Arg())
+	// Run
+	config := sarah.NewConfig()
+	err = sarah.Run(context.TODO(), config)
 	if err != nil {
-		panic(fmt.Errorf("failed to initialize Runner: %s", err.Error()))
+		panic(fmt.Errorf("failed to run: %s", err.Error()))
 	}
-
-	// Run sarah.Runner.
-	runner.Run(context.TODO())
 }
 
 var GuessProps = sarah.NewCommandPropsBuilder().

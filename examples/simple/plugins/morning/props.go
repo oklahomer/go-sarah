@@ -34,3 +34,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 		return slack.NewStringResponse("Good morning."), nil
 	}).
 	MustBuild()
+
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}

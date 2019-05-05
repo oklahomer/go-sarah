@@ -31,3 +31,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 		return slack.NewStringResponse("Hello, 世界"), nil
 	}).
 	MustBuild()
+
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}

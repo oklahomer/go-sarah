@@ -1,11 +1,14 @@
 package sarah
 
 import (
+	"errors"
 	"github.com/oklahomer/go-sarah/log"
 	"sync"
 )
 
-var runnerStatus = newStatus()
+var runnerStatus = &status{}
+
+var ErrRunnerAlreadyRunning = errors.New("go-sarah's process is already running")
 
 func CurrentStatus() Status {
 	return runnerStatus.snapshot()
@@ -21,10 +24,6 @@ type Status struct {
 type BotStatus struct {
 	Type    BotType
 	Running bool
-}
-
-func newStatus() *status {
-	return &status{}
 }
 
 type status struct {
@@ -54,11 +53,16 @@ func (s *status) running() bool {
 	}
 }
 
-func (s *status) start() {
+func (s *status) start() error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if s.finished != nil {
+		return ErrRunnerAlreadyRunning
+	}
+
 	s.finished = make(chan struct{})
+	return nil
 }
 
 func (s *status) addBot(bot Bot) {

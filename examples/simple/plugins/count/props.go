@@ -56,3 +56,8 @@ var GitterProps = sarah.NewCommandPropsBuilder().
 		return gitter.NewStringResponse(fmt.Sprint(globalCounter.increment())), nil
 	}).
 	MustBuild()
+
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+	sarah.RegisterCommandProps(GitterProps)
+}

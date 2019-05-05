@@ -82,12 +82,11 @@ func (w *worker) Enqueue(fnc func()) error {
 }
 
 // Worker is an interface that all Worker implementation must satisfy.
-// Worker implementation can be fed to sarah.Runner via sarah.RunnerOption as below.
+// Worker implementation can be fed to sarah.RegisterWorker() to replace default implementation as below.
+// Given worker is used on sarah.Run() call.
 //
 //   myWorker := NewMyWorkerImpl()
-//   option := sarah.WithWorker(myWorker)
-//
-//   runner, _ := sarah.NewRunner(sarah.NewConfig(), option)
+//   sarah.RegisterWorker(myWorker)
 type Worker interface {
 	Enqueue(func()) error
 }
