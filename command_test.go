@@ -562,22 +562,28 @@ func TestCommands_Append(t *testing.T) {
 }
 
 func TestCommands_Helps(t *testing.T) {
-	cmd := &DummyCommand{
+	cmd1 := &DummyCommand{
 		IdentifierValue: "id",
 		InstructionFunc: func(_ *HelpInput) string {
 			return "example"
 		},
 	}
-	commands := &Commands{collection: []Command{cmd}}
+	cmd2 := &DummyCommand{
+		IdentifierValue: "hiddenCommand",
+		InstructionFunc: func(_ *HelpInput) string {
+			return ""
+		},
+	}
+	commands := &Commands{collection: []Command{cmd1, cmd2}}
 
 	helps := commands.Helps(&HelpInput{})
 	if len(*helps) != 1 {
 		t.Fatalf("Expectnig one help to be given, but was %d.", len(*helps))
 	}
-	if (*helps)[0].Identifier != cmd.IdentifierValue {
+	if (*helps)[0].Identifier != cmd1.IdentifierValue {
 		t.Errorf("Expected ID was not returned: %s.", (*helps)[0].Identifier)
 	}
-	if (*helps)[0].Instruction != cmd.InstructionFunc(&HelpInput{}) {
+	if (*helps)[0].Instruction != cmd1.InstructionFunc(&HelpInput{}) {
 		t.Errorf("Expected instruction was not returned: %s.", (*helps)[0].Instruction)
 	}
 }
