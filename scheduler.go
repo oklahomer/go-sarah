@@ -2,8 +2,8 @@ package sarah
 
 import (
 	"fmt"
-	"github.com/oklahomer/cron"
 	"github.com/oklahomer/go-sarah/log"
+	"github.com/robfig/cron/v3"
 	"golang.org/x/net/context"
 	"time"
 )
@@ -56,7 +56,7 @@ type updatingTask struct {
 }
 
 func runScheduler(ctx context.Context, location *time.Location) scheduler {
-	c := cron.NewWithLocation(location)
+	c := cron.New(cron.WithLocation(location))
 	// TODO set logger
 	//c.ErrorLog = log.New(...)
 

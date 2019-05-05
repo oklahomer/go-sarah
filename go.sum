@@ -4,14 +4,14 @@ github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/gorilla/websocket v1.4.0 h1:WDFjx/TMzVgy9VdMMQi2K2Emtwi2QcUQsztZ/zLaH/Q=
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
-github.com/oklahomer/cron v0.0.0-20170121044010-e6e3d632402c h1:ymz/Zj3ZVuLvtTz9IUdw1Euca5u8tWHGpwGCAuzL5og=
-github.com/oklahomer/cron v0.0.0-20170121044010-e6e3d632402c/go.mod h1:VMHEgU02mAKCPgsqY6QJVTsLYeUIlU8ja0ChfAuh3jU=
 github.com/oklahomer/golack v0.0.0-20180603071311-54f1368ad24f h1:PWS/UcocmCQJh33YIyVjLfpwTUF3PR94D47woGu9aI0=
 github.com/oklahomer/golack v0.0.0-20180603071311-54f1368ad24f/go.mod h1:2Nxv6rB0Xiwta/MLpkSrvvMgvVkf9cmnYsZWQHYj6M4=
 github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/robfig/cron/v3 v3.0.0-rc1 h1:HeC5uLM/r7hA5ZrfT3udvzxRiS6B1/3wjlY0oskmxlw=
+github.com/robfig/cron/v3 v3.0.0-rc1/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0 h1:TivCn/peBQ7UY8ooIcPgZFpTNSz0Q2U6UrFlUfqbe0Q=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
