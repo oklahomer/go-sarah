@@ -1,9 +1,18 @@
 package sarah
 
 import (
+	"errors"
 	"github.com/oklahomer/go-sarah/log"
 	"sync"
 )
+
+var runnerStatus = &status{}
+
+var ErrRunnerAlreadyRunning = errors.New("go-sarah's process is already running")
+
+func CurrentStatus() Status {
+	return runnerStatus.snapshot()
+}
 
 // Status represents the current status of the bot system including Runner and all registered Bots.
 type Status struct {
@@ -44,11 +53,16 @@ func (s *status) running() bool {
 	}
 }
 
-func (s *status) start() {
+func (s *status) start() error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if s.finished != nil {
+		return ErrRunnerAlreadyRunning
+	}
+
 	s.finished = make(chan struct{})
+	return nil
 }
 
 func (s *status) addBot(bot Bot) {
@@ -77,18 +91,18 @@ func (s *status) snapshot() Status {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	snapshot := Status{
-		Running: s.running(),
-	}
+	var bots []BotStatus
 	for _, botStatus := range s.bots {
 		bs := BotStatus{
 			Type:    botStatus.botType,
 			Running: botStatus.running(),
 		}
-		snapshot.Bots = append(snapshot.Bots, bs)
+		bots = append(bots, bs)
 	}
-
-	return snapshot
+	return Status{
+		Running: s.running(),
+		Bots:    bots,
+	}
 }
 
 func (s *status) stop() {

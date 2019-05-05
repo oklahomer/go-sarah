@@ -7,13 +7,13 @@ import (
 	"flag"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/alerter/line"
-	"github.com/oklahomer/go-sarah/examples/simple/plugins/count"
+	_ "github.com/oklahomer/go-sarah/examples/simple/plugins/count"
 	"github.com/oklahomer/go-sarah/examples/simple/plugins/echo"
-	"github.com/oklahomer/go-sarah/examples/simple/plugins/fixedtimer"
-	"github.com/oklahomer/go-sarah/examples/simple/plugins/guess"
-	"github.com/oklahomer/go-sarah/examples/simple/plugins/hello"
-	"github.com/oklahomer/go-sarah/examples/simple/plugins/morning"
-	"github.com/oklahomer/go-sarah/examples/simple/plugins/timer"
+	_ "github.com/oklahomer/go-sarah/examples/simple/plugins/fixedtimer"
+	_ "github.com/oklahomer/go-sarah/examples/simple/plugins/guess"
+	_ "github.com/oklahomer/go-sarah/examples/simple/plugins/hello"
+	_ "github.com/oklahomer/go-sarah/examples/simple/plugins/morning"
+	_ "github.com/oklahomer/go-sarah/examples/simple/plugins/timer"
 	"github.com/oklahomer/go-sarah/examples/simple/plugins/todo"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
@@ -43,7 +43,7 @@ func newMyConfig() *myConfig {
 }
 
 func main() {
-	var path = flag.String("config", "", "apth to apllication configuration file.")
+	var path = flag.String("config", "", "path to application configuration file.")
 	flag.Parse()
 	if *path == "" {
 		panic("./bin/examples -config=/path/to/config/app.yml")
@@ -55,13 +55,9 @@ func main() {
 		panic(err)
 	}
 
-	// A handy helper that holds arbitrary amount of RunnerOptions.
-	runnerOptions := sarah.NewRunnerOptions()
-
 	// When Bot encounters critical states, send alert to LINE.
 	// Any number of Alerter implementation can be registered.
-	alerter := line.New(config.LineAlerter)
-	runnerOptions.Append(sarah.WithAlerter(alerter))
+	sarah.RegisterAlerter(line.New(config.LineAlerter))
 
 	// Setup storage that can be shared among different Bot implementation.
 	storage := sarah.NewUserContextStorage(config.CacheConfig)
@@ -77,44 +73,18 @@ func main() {
 	slackBot.AppendCommand(todoCmd)
 
 	// Register bot to run.
-	runnerOptions.Append(sarah.WithBot(slackBot))
-
-	// Setup some plugins to build on the fly.
-	// Each configuration file, if exists, is subject to supervise.
-	// If updated, Command is re-built with new configuration.
-	runnerOptions.Append(sarah.WithCommandProps(hello.SlackProps))
-	runnerOptions.Append(sarah.WithCommandProps(morning.SlackProps))
-	runnerOptions.Append(sarah.WithCommandProps(count.SlackProps))
-	runnerOptions.Append(sarah.WithCommandProps(guess.SlackProps))
-
-	// Setup scheduled tasks.
-	// Each configuration file, if exists, is subject to supervise.
-	// If updated, Command is re-built with new configuration.
-	runnerOptions.Append(sarah.WithScheduledTaskProps(timer.SlackProps))
-	runnerOptions.Append(sarah.WithScheduledTaskProps(fixedtimer.SlackProps))
+	sarah.RegisterBot(slackBot)
 
 	// Directly add Command to Bot.
 	// This Command is not subject to config file supervision.
 	slackBot.AppendCommand(echo.Command)
 
-	// Setup sarah.Runner.
-	runner, err := sarah.NewRunner(config.Runner, runnerOptions.Arg())
+	// Run
+	ctx, cancel := context.WithCancel(context.Background())
+	err = sarah.Run(ctx, config.Runner)
 	if err != nil {
 		panic(err)
 	}
-
-	// Run sarah.Runner.
-	run(runner)
-}
-
-func run(runner sarah.Runner) {
-	ctx, cancel := context.WithCancel(context.Background())
-	runnerStop := make(chan struct{})
-	go func() {
-		// Blocks til all belonging Bots stop, or context is canceled.
-		runner.Run(ctx)
-		runnerStop <- struct{}{}
-	}()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -124,9 +94,6 @@ func run(runner sarah.Runner) {
 	case <-c:
 		log.Info("Stopping due to signal reception.")
 		cancel()
-
-	case <-runnerStop:
-		log.Error("Runner stopped.")
 
 	}
 }

@@ -36,3 +36,7 @@ var SlackProps = sarah.NewScheduledTaskPropsBuilder().
 	}).
 	Schedule("@every 1m").
 	MustBuild()
+
+func init() {
+	sarah.RegisterScheduledTaskProps(SlackProps)
+}

@@ -62,3 +62,7 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 		return slack.NewStringResponseWithNext("Bigger!", retry), nil
 	}
 }
+
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}

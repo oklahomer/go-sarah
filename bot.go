@@ -5,18 +5,18 @@ import (
 	"golang.org/x/net/context"
 )
 
-// Bot provides interface for each bot implementation.
-// Instance of concrete type can be fed to sarah.Runner to have its lifecycle under control.
-// Multiple Bot implementation may be registered to single Runner.
+// Bot provides an interface that each bot implementation must satisfy.
+// Instance of concrete type can be registered via sarah.RegisterBot() to have its lifecycle under control.
+// Multiple Bot implementation may be registered by multiple sarah.RegisterBot() calls.
 type Bot interface {
 	// BotType represents what this Bot implements. e.g. slack, gitter, cli, etc...
 	// This can be used as a unique ID to distinguish one from another.
 	BotType() BotType
 
-	// Respond receives user input, look for corresponding command, execute it, and send result back to user if possible.
+	// Respond receives user input, look for the corresponding command, execute it, and send the result back to the user if possible.
 	Respond(context.Context, Input) error
 
-	// SendMessage sends message to destination depending on the Bot implementation.
+	// SendMessage sends given message to the destination depending on the Bot implementation.
 	// This is mainly used to send scheduled task's result.
 	// Be advised: this method may be called simultaneously from multiple workers.
 	SendMessage(context.Context, Output)
@@ -24,15 +24,22 @@ type Bot interface {
 	// AppendCommand appends given Command implementation to Bot internal stash.
 	// Stashed commands are checked against user input in Bot.Respond, and if Command.Match returns true, the
 	// Command is considered as "corresponds" to the input, hence its Command.Execute is called and the result is
-	// sent back to user.
+	// sent back to the user.
 	AppendCommand(Command)
 
-	// Run is called on Runner.Run to let this Bot interact with corresponding service provider.
-	// For example, this is where Bot or Bot's corresponding Adapter initiates connection with service provider.
-	// This may run in a blocking manner til given context is canceled since a new goroutine is allocated for this task.
-	// When the service provider sends message to us, convert that message payload to Input and send to Input channel.
-	// Runner will receive the Input instance and proceed to find and execute corresponding command.
-	Run(context.Context, func(Input) error, func(error))
+	// Run is called on sarah.Run() to let this Bot start interacting with corresponding service provider.
+	// When the service provider sends a message to us, convert that message payload to sarah.Input and send to inputReceiver.
+	// An internal worker will receive the Input instance and proceed to find and execute the corresponding command.
+	// The worker is managed by go-sarah's core; Bot/Adapter developers do not have to worry about implementing one.
+	//
+	// sarah.Run() allocates a new goroutine for each bot so this method can block til interaction ends.
+	// When this method returns, the interaction is considered finished.
+	//
+	// The bot lifecycle is entirely managed by go-sarah's core.
+	// On critical situation, notify such event via notifyErr and let go-sarah's core handle the error.
+	// When the bot is indeed in a critical state and cannot proceed further operation, ctx is canceled by go-sarah.
+	// Bot/Adapter developers may listen to this ctx.Done() to clean up its internal resources.
+	Run(ctx context.Context, inputReceiver func(Input) error, notifyErr func(error))
 }
 
 type defaultBot struct {
@@ -185,3 +192,5 @@ func NewSuppressedResponseWithNext(next ContextualFunc) *CommandResponse {
 		UserContext: NewUserContext(next),
 	}
 }
+
+type botRunner struct{}

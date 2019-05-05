@@ -39,3 +39,7 @@ var SlackProps = sarah.NewScheduledTaskPropsBuilder().
 		}, nil
 	}).
 	MustBuild()
+
+func init() {
+	sarah.RegisterScheduledTaskProps(SlackProps)
+}
