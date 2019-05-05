@@ -33,25 +33,32 @@ type Input interface {
 	ReplyTo() OutputDestination
 }
 
-// HelpInput is a common Input implementation that represents user's request for help.
-// When this type is given, each Bot/Adapter implementation should list up registered Commands' input examples,
-// and send them back to user.
-type HelpInput struct {
-	senderKey string
-	message   string
-	sentAt    time.Time
-	replyTo   OutputDestination
-}
-
-// NewHelpInput creates a new HelpInput instance with given arguments and returns it.
-func NewHelpInput(senderKey, message string, sentAt time.Time, replyTo OutputDestination) *HelpInput {
+// NewHelpInput creates a new HelpInput instance with given user input and returns it.
+// This is Bot/Adapter's responsibility to receive an input from user, convert it to sarah.Input and see if the input requests for "help."
+// For example, a slack adapter may check if the given message is equal to :help: emoji.
+// If true, create a HelpInput instant with NewHelpInput and pass it to go-sarah's core.
+func NewHelpInput(input Input) *HelpInput {
 	return &HelpInput{
-		senderKey: senderKey,
-		message:   message,
-		sentAt:    sentAt,
-		replyTo:   replyTo,
+		OriginalInput: input,
+		senderKey:     input.SenderKey(),
+		message:       input.Message(),
+		sentAt:        input.SentAt(),
+		replyTo:       input.ReplyTo(),
 	}
 }
+
+// HelpInput is a common Input implementation that represents user's request for help.
+// When this type is given, each Bot/Adapter implementation should list up registered Commands' instructions
+// and send them back to user.
+type HelpInput struct {
+	OriginalInput Input
+	senderKey     string
+	message       string
+	sentAt        time.Time
+	replyTo       OutputDestination
+}
+
+var _ Input = (*HelpInput)(nil)
 
 // SenderKey returns string representing message sender.
 func (hi *HelpInput) SenderKey() string {
@@ -73,14 +80,29 @@ func (hi *HelpInput) ReplyTo() OutputDestination {
 	return hi.replyTo
 }
 
+// NewAbortInput creates a new AbortInput instance with given input.
+// When this type is given, each Bot/Adapter implementation should cancel the user's conversational context.
+func NewAbortInput(input Input) *AbortInput {
+	return &AbortInput{
+		OriginalInput: input,
+		senderKey:     input.SenderKey(),
+		message:       input.Message(),
+		sentAt:        input.SentAt(),
+		replyTo:       input.ReplyTo(),
+	}
+}
+
 // AbortInput is a common Input implementation that represents user's request for context cancellation.
 // When this type is given, each Bot/Adapter implementation should cancel and remove corresponding user's conversational context.
 type AbortInput struct {
-	senderKey string
-	message   string
-	sentAt    time.Time
-	replyTo   OutputDestination
+	OriginalInput Input
+	senderKey     string
+	message       string
+	sentAt        time.Time
+	replyTo       OutputDestination
 }
+
+var _ Input = (*AbortInput)(nil)
 
 // SenderKey returns string representing message sender.
 func (ai *AbortInput) SenderKey() string {
@@ -100,14 +122,4 @@ func (ai *AbortInput) SentAt() time.Time {
 // ReplyTo returns slack channel to send reply to.
 func (ai *AbortInput) ReplyTo() OutputDestination {
 	return ai.replyTo
-}
-
-// NewAbortInput creates a new AbortInput instance with given arguments and returns it.
-func NewAbortInput(senderKey, message string, sentAt time.Time, replyTo OutputDestination) *AbortInput {
-	return &AbortInput{
-		senderKey: senderKey,
-		message:   message,
-		sentAt:    sentAt,
-		replyTo:   replyTo,
-	}
 }

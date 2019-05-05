@@ -42,7 +42,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("weather").
 	ConfigurableFunc(NewCommandConfig(), SlackCommandFunc).
-	InputExample(".weather tokyo").
+	Instruction(`Input ".weather" followed by city name e.g. ".weather tokyo"`).
 	MatchPattern(MatchPattern).
 	MustBuild()
 

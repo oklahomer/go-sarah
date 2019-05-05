@@ -462,7 +462,7 @@ func TestDefaultBot_Respond_Help(t *testing.T) {
 	example := "e.g."
 	cmd := &DummyCommand{
 		IdentifierValue: commandID,
-		InputExampleFunc: func() string {
+		InstructionFunc: func(_ *HelpInput) string {
 			return example
 		},
 	}
@@ -482,8 +482,14 @@ func TestDefaultBot_Respond_Help(t *testing.T) {
 	}
 
 	dest := "destination"
-	dummyInput := NewHelpInput("sender", "message", time.Now(), dest)
-	err := myBot.Respond(context.TODO(), dummyInput)
+	dummyInput := &DummyInput{
+		SenderKeyValue: "sender",
+		MessageValue:   "message",
+		SentAtValue:    time.Now(),
+		ReplyToValue:   dest,
+	}
+	helpInput := NewHelpInput(dummyInput)
+	err := myBot.Respond(context.TODO(), helpInput)
 	if err != nil {
 		t.Errorf("Unexpected error is returned: %#v.", err)
 	}
@@ -498,8 +504,8 @@ func TestDefaultBot_Respond_Help(t *testing.T) {
 	if (*helps)[0].Identifier != commandID {
 		t.Errorf("Expected ID was not returned: %s.", (*helps)[0].Identifier)
 	}
-	if (*helps)[0].InputExample != example {
-		t.Errorf("Expected example was not returned: %s.", (*helps)[0].InputExample)
+	if (*helps)[0].Instruction != example {
+		t.Errorf("Expected example was not returned: %s.", (*helps)[0].Instruction)
 	}
 }
 

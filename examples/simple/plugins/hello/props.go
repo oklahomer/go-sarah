@@ -23,7 +23,7 @@ import (
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("hello").
-	InputExample(".hello").
+	Instruction("Input .hello to greet").
 	MatchFunc(func(input sarah.Input) bool {
 		return strings.HasPrefix(input.Message(), ".hello")
 	}).
