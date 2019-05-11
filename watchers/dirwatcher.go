@@ -4,17 +4,17 @@ Package watchers provides mechanism to subscribe events under given directory.
 package watchers
 
 import (
-	"errors"
 	"github.com/fsnotify/fsnotify"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"path/filepath"
 )
 
 // ErrWatcherNotRunning is returned when method is called after Watcher context cancellation.
 // This error can safely be ignored when this is returned by Watcher.Unsubscribe
 // because the context and all subscriptions are already cancelled.
-var ErrWatcherNotRunning = errors.New("context is already canceled")
+var ErrWatcherNotRunning = xerrors.New("context is already canceled")
 
 // Watcher defines an interface that all file system watcher must satisfy.
 type Watcher interface {
@@ -97,7 +97,7 @@ func (w *watcher) supervise(ctx context.Context, events <-chan fsnotify.Event, e
 			if err == nil {
 				log.Info("Stop subscribing to file system event due to context cancel.")
 			} else {
-				log.Warnf("Error on subscription cancellation: %s.", err.Error())
+				log.Warnf("Error on subscription cancellation: %+v", err)
 			}
 
 			// Explicitly close unsubscribeGroup to make sure enqueueing does not block forever, but panics instead.
@@ -163,7 +163,7 @@ func (w *watcher) supervise(ctx context.Context, events <-chan fsnotify.Event, e
 			}
 
 		case err := <-errs:
-			log.Errorf("Error on subscribing to directory change: %s.", err.Error())
+			log.Errorf("Error on subscribing to directory change: %+v", err)
 
 		}
 	}

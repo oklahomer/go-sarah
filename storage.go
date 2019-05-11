@@ -1,10 +1,9 @@
 package sarah
 
 import (
-	"errors"
-	"fmt"
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"time"
 )
 
@@ -98,8 +97,10 @@ func (storage *defaultUserContextStorage) Get(key string) (ContextualFunc, error
 	switch v := val.(type) {
 	case *UserContext:
 		return v.Next, nil
+
 	default:
-		return nil, fmt.Errorf("cached value has illegal type of %T", v)
+		return nil, xerrors.Errorf("cached value has illegal type of %T", v)
+
 	}
 }
 
@@ -114,7 +115,7 @@ func (storage *defaultUserContextStorage) Delete(key string) error {
 // Stored context is tied to given key, which represents a particular user.
 func (storage *defaultUserContextStorage) Set(key string, userContext *UserContext) error {
 	if userContext.Next == nil {
-		return errors.New("UserContext.Next is not set. defaultUserContextStorage only supports in-memory ContextualFunc cache.")
+		return xerrors.New("required UserContext.Next is not set. defaultUserContextStorage only supports in-memory ContextualFunc cache.")
 	}
 
 	storage.cache.Set(key, userContext, cache.DefaultExpiration)

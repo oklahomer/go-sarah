@@ -1,10 +1,10 @@
 package sarah
 
 import (
-	"fmt"
 	"github.com/oklahomer/cron"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"time"
 )
 
@@ -78,12 +78,12 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 	removeFunc := func(botType BotType, taskID string) error {
 		botSchedule, ok := schedule[botType]
 		if !ok {
-			return fmt.Errorf("registered task for %s is not found with ID of %s", botType.String(), taskID)
+			return xerrors.Errorf("registered task for %s is not found with ID of %s", botType, taskID)
 		}
 
 		storedID, ok := botSchedule[taskID]
 		if !ok {
-			return fmt.Errorf("task for %s is not found with ID of %s", botType.String(), taskID)
+			return xerrors.Errorf("task for %s is not found with ID of %s", botType, taskID)
 		}
 
 		delete(botSchedule, taskID)
@@ -95,7 +95,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info("stop cron jobs due to context cancel")
+			log.Info("Stop cron jobs due to context cancel.")
 			s.cron.Stop()
 			return
 
@@ -104,7 +104,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 
 		case add := <-s.updatingTask:
 			if add.task.Schedule() == "" {
-				add.err <- fmt.Errorf("empty schedule is given for %s", add.task.Identifier())
+				add.err <- xerrors.Errorf("empty schedule is given for %s", add.task.Identifier())
 				continue
 			}
 

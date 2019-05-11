@@ -2,12 +2,12 @@ package sarah
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/watchers"
 	"github.com/oklahomer/go-sarah/workers"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -156,12 +156,12 @@ func RegisterWorker(worker workers.Worker) {
 func Run(ctx context.Context, config *Config) error {
 	err := runnerStatus.start()
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to start bot process: %w", err)
 	}
 
 	runner, err := newRunner(ctx, config)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to start bot process: %w", err)
 	}
 	go runner.run(ctx)
 
@@ -169,9 +169,9 @@ func Run(ctx context.Context, config *Config) error {
 }
 
 func newRunner(ctx context.Context, config *Config) (*runner, error) {
-	loc, locErr := time.LoadLocation(config.TimeZone)
-	if locErr != nil {
-		return nil, fmt.Errorf("given timezone can't be converted to time.Location: %s", locErr.Error())
+	loc, err := time.LoadLocation(config.TimeZone)
+	if err != nil {
+		return nil, xerrors.Errorf(`given timezone "%s" cannot be converted to time.Location: %w`, config.TimeZone, err)
 	}
 
 	r := &runner{
@@ -185,15 +185,15 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 		scheduler:          runScheduler(ctx, loc),
 	}
 
-	err := options.apply(r)
+	err = options.apply(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to apply option: %s", err.Error())
+		return nil, xerrors.Errorf("failed to apply option: %w", err)
 	}
 
 	if r.worker == nil {
 		w, e := workers.Run(ctx, workers.NewConfig())
 		if e != nil {
-			return nil, fmt.Errorf("worker could not run: %s", e.Error())
+			return nil, xerrors.Errorf("worker could not run: %w", e)
 		}
 
 		r.worker = w
@@ -202,7 +202,7 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 	if r.config.PluginConfigRoot != "" && r.watcher == nil {
 		w, e := watchers.Run(ctx)
 		if e != nil {
-			return nil, fmt.Errorf("watcher could not run: %s", e.Error())
+			return nil, xerrors.Errorf("watcher could not run: %w", e)
 		}
 
 		r.watcher = w
@@ -325,14 +325,14 @@ func (r *runner) runBot(runnerCtx context.Context, bot Bot) {
 func (r *runner) subscribeConfigDir(botCtx context.Context, bot Bot, configDir string) {
 	callback := func(path string) {
 		file, err := plainPathToFile(path)
-		if err == errUnableToDetermineConfigFileFormat {
+		if xerrors.Is(err, errUnableToDetermineConfigFileFormat) {
 			log.Warnf("File under Config.PluginConfigRoot is updated, but file format can not be determined from its extension: %s.", path)
 			return
-		} else if err == errUnsupportedConfigFileFormat {
+		} else if xerrors.Is(err, errUnsupportedConfigFileFormat) {
 			log.Warnf("File under Config.PluginConfigRoot is updated, but file format is not supported: %s.", path)
 			return
 		} else if err != nil {
-			log.Warnf("Failed to locate %s: %s", path, err.Error())
+			log.Warnf("Failed to locate %s: %+v", path, err)
 			return
 		}
 
@@ -342,17 +342,17 @@ func (r *runner) subscribeConfigDir(botCtx context.Context, bot Bot, configDir s
 		// See if that block is critical to watcher implementation.
 		commandProps := r.botCommandProps(bot.BotType())
 		if e := updateCommandConfig(bot, commandProps, file); e != nil {
-			log.Errorf("Failed to update Command config: %s.", e.Error())
+			log.Errorf("Failed to update Command config: %+v", e)
 		}
 
 		taskProps := r.botScheduledTaskProps(bot.BotType())
 		if e := updateScheduledTaskConfig(botCtx, bot, taskProps, r.scheduler, file); e != nil {
-			log.Errorf("Failed to update ScheduledTask config: %s", e.Error())
+			log.Errorf("Failed to update ScheduledTask config: %+v", e)
 		}
 	}
 	err := r.watcher.Subscribe(bot.BotType().String(), configDir, callback)
 	if err != nil {
-		log.Errorf("Failed to watch %s: %s", configDir, err.Error())
+		log.Errorf("Failed to watch %s: %+v", configDir, err)
 		return
 	}
 
@@ -362,7 +362,7 @@ func (r *runner) subscribeConfigDir(botCtx context.Context, bot Bot, configDir s
 	if err != nil {
 		// Probably because Runner context is canceled, and its derived contexts are canceled simultaneously.
 		// In that case this warning is harmless since Watcher itself is canceled at this point.
-		log.Warnf("Failed to unsubscribe %s", err.Error())
+		log.Warnf("Failed to unsubscribe %+v", err)
 	}
 }
 
@@ -371,7 +371,7 @@ func registerScheduledTask(botCtx context.Context, bot Bot, task ScheduledTask, 
 		executeScheduledTask(botCtx, bot, task)
 	})
 	if err != nil {
-		log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
+		log.Errorf("Failed to schedule a task. id: %s: %+v", task.Identifier(), err)
 	}
 }
 
@@ -384,7 +384,7 @@ func registerCommands(bot Bot, props []*CommandProps, configDir string) {
 
 		command, err := buildCommand(p, file)
 		if err != nil {
-			log.Errorf("Failed to configure command. %s. %#v", err.Error(), p)
+			log.Errorf("Failed to configure command %#v: %+v", p, err)
 			continue
 		}
 		bot.AppendCommand(command)
@@ -400,7 +400,7 @@ func registerScheduledTasks(botCtx context.Context, bot Bot, tasks []ScheduledTa
 
 		task, err := buildScheduledTask(p, file)
 		if err != nil {
-			log.Errorf("Failed to configure scheduled task: %s. %#v.", err.Error(), p)
+			log.Errorf("Failed to configure scheduled task %#v: %+v", p, err)
 			continue
 		}
 		tasks = append(tasks, task)
@@ -409,7 +409,7 @@ func registerScheduledTasks(botCtx context.Context, bot Bot, tasks []ScheduledTa
 	for _, task := range tasks {
 		// Make sure schedule is given. Especially those pre-registered tasks.
 		if task.Schedule() == "" {
-			log.Errorf("Failed to schedule a task. id: %s. reason: %s.", task.Identifier(), "No schedule given.")
+			log.Errorf("Failed to schedule a task. ID: %s. Reason: %s.", task.Identifier(), "No schedule given.")
 			continue
 		}
 
@@ -441,7 +441,7 @@ func updateCommandConfig(bot Bot, props []*CommandProps, file *pluginConfigFile)
 				return updatePluginConfig(file, p.config)
 			}()
 			if err != nil {
-				return fmt.Errorf("failed to update config for %s: %s", p.identifier, err.Error())
+				return xerrors.Errorf("failed to read configuration file at %s: %w", file.path, err)
 			}
 		} else {
 			// p.config is not pointer or map, but an actual struct value.
@@ -449,7 +449,7 @@ func updateCommandConfig(bot Bot, props []*CommandProps, file *pluginConfigFile)
 			// Proceed to re-build Command and replace with old one.
 			rebuiltCmd, err := buildCommand(p, file)
 			if err != nil {
-				return fmt.Errorf("failed to rebuild Command for %s: %s", p.identifier, err.Error())
+				return xerrors.Errorf("failed to rebuild Command for %s: %w", p.identifier, err)
 			}
 			bot.AppendCommand(rebuiltCmd) // Replaces the old one.
 		}
@@ -482,10 +482,10 @@ func updateScheduledTaskConfig(botCtx context.Context, bot Bot, taskProps []*Sch
 			// but the props' values and new config do not provide some required settings such as schedule, etc...
 			e := taskScheduler.remove(bot.BotType(), p.identifier)
 			if e != nil {
-				return fmt.Errorf("tried to remove ScheduledTask because rebuild failed, but removal also failed: %s", e.Error())
+				return xerrors.Errorf("tried to remove ScheduledTask because rebuild failed, but removal also failed: %w", e)
 			}
 
-			return fmt.Errorf("failed to re-build scheduled task id: %s error: %s", p.identifier, err.Error())
+			return xerrors.Errorf(`failed to re-build scheduled task "%s": %w`, p.identifier, err)
 		}
 
 		registerScheduledTask(botCtx, bot, task, taskScheduler)
@@ -501,7 +501,7 @@ func updateScheduledTaskConfig(botCtx context.Context, bot Bot, taskProps []*Sch
 func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	results, err := task.Execute(ctx)
 	if err != nil {
-		log.Errorf("error on scheduled task: %s", task.Identifier())
+		log.Errorf("Error on scheduled task: %s", task.Identifier())
 		return
 	} else if results == nil {
 		return
@@ -517,7 +517,7 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 			// e.g. Weather forecast task always sends weather information to #goodmorning room.
 			presetDest := task.DefaultDestination()
 			if presetDest == nil {
-				log.Errorf("task was completed, but destination was not set: %s.", task.Identifier())
+				log.Errorf("Task was completed, but destination was not set: %s.", task.Identifier())
 				continue
 			}
 			dest = presetDest
@@ -537,17 +537,17 @@ func superviseBot(runnerCtx context.Context, botType BotType, alerters *alerters
 	handleError := func(err error) {
 		switch err.(type) {
 		case *BotNonContinuableError:
-			log.Errorf("stop unrecoverable bot. BotType: %s. error: %s.", botType.String(), err.Error())
+			log.Errorf("Stop unrecoverable bot. BotType: %s. Error: %+v", botType, err)
 			cancel()
 
 			go func() {
 				e := alerters.alertAll(runnerCtx, botType, err)
 				if e != nil {
-					log.Errorf("failed to send alert for %s: %s", botType.String(), e.Error())
+					log.Errorf("Failed to send alert for %s: %+v", botType, e)
 				}
 			}()
 
-			log.Infof("stop supervising bot critical error due to context cancellation: %s.", botType.String())
+			log.Infof("Stop supervising bot critical error due to context cancellation: %s.", botType)
 
 		}
 	}
@@ -575,7 +575,7 @@ func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) 
 		err := worker.Enqueue(func() {
 			err := bot.Respond(botCtx, input)
 			if err != nil {
-				log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
+				log.Errorf("Error on message handling. Input: %#v. Error: %+v", input, err)
 			}
 		})
 
@@ -608,7 +608,7 @@ type pluginConfigFile struct {
 func updatePluginConfig(file *pluginConfigFile, configPtr interface{}) error {
 	buf, err := ioutil.ReadFile(file.path)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to read configuration file at %s: %w", file.path, err)
 	}
 
 	switch file.fileType {
@@ -619,14 +619,14 @@ func updatePluginConfig(file *pluginConfigFile, configPtr interface{}) error {
 		return json.Unmarshal(buf, configPtr)
 
 	default:
-		return fmt.Errorf("unsupported file type: %s", file.path)
+		return xerrors.Errorf("unsupported file type: %s", file.path)
 
 	}
 }
 
 var (
-	errUnableToDetermineConfigFileFormat = errors.New("can not determine file format")
-	errUnsupportedConfigFileFormat       = errors.New("unsupported file format")
+	errUnableToDetermineConfigFileFormat = xerrors.New("can not determine file format")
+	errUnsupportedConfigFileFormat       = xerrors.New("unsupported file format")
 	configFileCandidates                 = []struct {
 		ext      string
 		fileType fileType

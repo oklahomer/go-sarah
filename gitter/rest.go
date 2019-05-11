@@ -5,6 +5,7 @@ import (
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
+	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -73,7 +74,7 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 		return err
 	}
 	if err := json.Unmarshal(body, &intf); err != nil {
-		log.Errorf("can not unmarshal given JSON structure: %s", string(body))
+		log.Errorf("Can not unmarshal given JSON structure: %s. Error: %+v", string(body), err)
 		return err
 	}
 
@@ -113,7 +114,7 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 		return err
 	}
 	if err := json.Unmarshal(body, &responsePayload); err != nil {
-		log.Errorf("can not unmarshal given JSON structure: %s", string(body))
+		log.Errorf("Can not unmarshal given JSON structure: %s. Error: %+v", string(body), err)
 		return err
 	}
 
@@ -133,9 +134,9 @@ func (client *RestAPIClient) Rooms(ctx context.Context) (*Rooms, error) {
 // PostMessage sends message to gitter.
 func (client *RestAPIClient) PostMessage(ctx context.Context, room *Room, text string) (*Message, error) {
 	message := &Message{}
-	if err := client.Post(ctx, []string{"rooms", room.ID, "chatMessages"}, &PostingMessage{Text: text}, message); err != nil {
-		log.Error(err)
-		return nil, err
+	err := client.Post(ctx, []string{"rooms", room.ID, "chatMessages"}, &PostingMessage{Text: text}, message)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to post message: %w", err)
 	}
 	return message, nil
 }

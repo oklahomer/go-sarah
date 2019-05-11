@@ -138,7 +138,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	} else {
 		e := bot.userContextStorage.Delete(senderKey)
 		if e != nil {
-			log.Warnf("Failed to delete UserContext: BotType: %s. SenderKey: %s. Error: %s.", bot.BotType(), senderKey, e.Error())
+			log.Warnf("Failed to delete UserContext: BotType: %s. SenderKey: %s. Error: %+v", bot.BotType(), senderKey, e)
 		}
 
 		switch input.(type) {
@@ -162,7 +162,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	// This may damage user experience since user is left in conversational context set by CommandResponse without any sort of notification.
 	if res.UserContext != nil && bot.userContextStorage != nil {
 		if err := bot.userContextStorage.Set(senderKey, res.UserContext); err != nil {
-			log.Errorf("Failed to store UserContext. BotType: %s. SenderKey: %s. UserContext: %#v.", bot.BotType(), senderKey, res.UserContext)
+			log.Errorf("Failed to store UserContext. BotType: %s. SenderKey: %s. UserContext: %#v. Error: %+v", bot.BotType(), senderKey, res.UserContext, err)
 		}
 	}
 	if res.Content != nil {

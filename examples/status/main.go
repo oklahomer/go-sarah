@@ -13,6 +13,7 @@ import (
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/go-sarah/workers"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"os"
 	"os/signal"
 	"time"
@@ -79,11 +80,11 @@ func setupSlackBot(cfg *config) (sarah.Bot, error) {
 	storage := sarah.NewUserContextStorage(cfg.ContextCache)
 	slackAdapter, err := slack.NewAdapter(cfg.Slack)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed to initialize Slack adapter: %w", err)
 	}
 	slackBot, err := sarah.NewBot(slackAdapter, sarah.BotWithStorage(storage))
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed to initialize Bot with given Slack adapter: %w", err)
 	}
 	return slackBot, nil
 }

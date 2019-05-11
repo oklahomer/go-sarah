@@ -1,10 +1,9 @@
 package sarah
 
 import (
-	"errors"
-	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"os"
 	"reflect"
 	"regexp"
@@ -15,7 +14,7 @@ import (
 var (
 	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to CommandProps.
 	// This is returned on CommandProps.Build() inside of runner.Run()
-	ErrCommandInsufficientArgument = errors.New("BotType, Identifier, InstructionFunc, MatchFunc and (Configurable)Func must be set.")
+	ErrCommandInsufficientArgument = xerrors.New("BotType, Identifier, InstructionFunc, MatchFunc and (Configurable)Func must be set.")
 )
 
 // CommandResponse is returned by Command or Task when the execution is finished.
@@ -139,7 +138,7 @@ func buildCommand(props *CommandProps, file *pluginConfigFile) (Command, error) 
 		return e
 	}()
 	if err != nil && os.IsNotExist(err) {
-		return nil, fmt.Errorf("config file property was given, but failed to locate it: %s", err.Error())
+		return nil, xerrors.Errorf("config file property was given, but failed to locate it: %w", err)
 	} else if err != nil {
 		// File was there, but could not read.
 		return nil, err
@@ -394,7 +393,7 @@ func (builder *CommandPropsBuilder) Build() (*CommandProps, error) {
 func (builder *CommandPropsBuilder) MustBuild() *CommandProps {
 	props, err := builder.Build()
 	if err != nil {
-		panic(fmt.Sprintf("Error on building CommandProps: %s", err.Error()))
+		panic(xerrors.Errorf("error on building CommandProps: %w", err))
 	}
 
 	return props

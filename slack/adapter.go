@@ -1,7 +1,6 @@
 package slack
 
 import (
-	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
@@ -11,6 +10,7 @@ import (
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"strings"
 	"time"
 )
@@ -73,7 +73,7 @@ func WithSlackClient(client SlackClient) AdapterOption {
 //      }
 //
 //    default:
-//      log.Debugf("payload given, but no corresponding action is defined. %#v", p)
+//      log.Debugf("Payload given, but no corresponding action is defined. %#v", p)
 //
 //    }
 //  }
@@ -124,7 +124,7 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	// If not, use golack with given configuration.
 	if adapter.client == nil {
 		if config.Token == "" {
-			return nil, errors.New("Slack client must be provided with WithSlackClient option or must be configurable with given *Config.")
+			return nil, xerrors.New("Slack client must be provided with WithSlackClient option or must be configurable with given *Config")
 		}
 
 		golackConfig := golack.NewConfig()
@@ -187,7 +187,7 @@ func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) 
 			return
 		}
 
-		log.Errorf("Will try re-connection due to previous connection's fatal state: %s.", connErr.Error())
+		log.Errorf("Will try re-connection due to previous connection's fatal state: %+v", connErr)
 	}
 }
 
@@ -206,7 +206,7 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 				// while connection status is checked with ping message and optionally reconnect
 				if pingErr := payloadSender.Ping(); pingErr != nil {
 					// Reconnection requested.
-					return fmt.Errorf("error on ping: %s", pingErr.Error())
+					return xerrors.Errorf("error on ping: %w", pingErr)
 				}
 			}
 
@@ -216,7 +216,7 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 		case <-tryPing:
 			log.Debug("Send ping")
 			if err := payloadSender.Ping(); err != nil {
-				return fmt.Errorf("error on ping: %s", err.Error())
+				return xerrors.Errorf("error on ping: %w", err)
 			}
 
 		}
@@ -260,12 +260,12 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 			} else if _, ok := err.(*rtmapi.MalformedPayloadError); ok {
 				// Malformed payload was passed, but there is no programmable way to handle this error.
 				// Leave log and proceed.
-				log.Warnf("Ignore malformed payload: %s.", err.Error())
+				log.Warnf("Ignore malformed payload: %+v", err)
 			} else if _, ok := err.(*rtmapi.UnexpectedMessageTypeError); ok {
-				log.Warnf("Ignore a payload with unexpected message type: %s.", err.Error())
+				log.Warnf("Ignore a payload with unexpected message type: %+v", err)
 			} else if err != nil {
 				// Connection might not be stable or is closed already.
-				log.Debugf("Ping caused by '%s'", err.Error())
+				log.Debugf("Ping caused by error: %+v", err)
 				nonBlockSignal(pingSignalChannelID, tryPing)
 				continue
 			}
@@ -331,7 +331,7 @@ func nonBlockSignal(id string, target chan<- struct{}) {
 
 	default:
 		// couldn't send because no goroutine is receiving channel or is busy.
-		log.Infof("not sending signal to channel: %s", id)
+		log.Debugf("Not sending signal to channel: %s", id)
 
 	}
 }
@@ -359,7 +359,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	case *webapi.PostMessage:
 		message := output.Content().(*webapi.PostMessage)
 		if _, err := adapter.client.PostMessage(ctx, message); err != nil {
-			log.Error("something went wrong with Web API posting", err)
+			log.Error("Something went wrong with Web API posting: %+v", err)
 		}
 
 	case *sarah.CommandHelps:
@@ -388,11 +388,11 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 		postMessage := webapi.NewPostMessageWithAttachments(channelID, "", attachments)
 
 		if _, err := adapter.client.PostMessage(ctx, postMessage); err != nil {
-			log.Error("something went wrong with Web API posting", err)
+			log.Errorf("Something went wrong with Web API posting: %+v", err)
 		}
 
 	default:
-		log.Warnf("unexpected output %#v", output)
+		log.Warnf("Unexpected output %#v", output)
 
 	}
 }

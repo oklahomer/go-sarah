@@ -1,14 +1,14 @@
 package sarah
 
 import (
-	"errors"
 	"github.com/oklahomer/go-sarah/log"
+	"golang.org/x/xerrors"
 	"sync"
 )
 
 var runnerStatus = &status{}
 
-var ErrRunnerAlreadyRunning = errors.New("go-sarah's process is already running")
+var ErrRunnerAlreadyRunning = xerrors.New("go-sarah's process is already running")
 
 func CurrentStatus() Status {
 	return runnerStatus.snapshot()
@@ -112,7 +112,7 @@ func (s *status) stop() {
 			// Comes here when channel is already closed.
 			// stop() is not expected to be called multiple times,
 			// but recover here to avoid panic.
-			log.Warn("Multiple status.stop() call occurred.")
+			log.Warn("Multiple status.stop() calls occurred.")
 		}
 	}()
 
@@ -142,7 +142,7 @@ func (bs *botStatus) stop() {
 			// Comes here when channel is already closed.
 			// stop() is not expected to be called multiple times,
 			// but recover here to avoid panic.
-			log.Warnf("Multiple botStatus.stop() call for %s occurred.", bs.botType)
+			log.Warnf("Multiple botStatus.stop() calls for %s occurred.", bs.botType)
 		}
 	}()
 
