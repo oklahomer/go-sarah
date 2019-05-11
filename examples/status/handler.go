@@ -82,7 +82,7 @@ func setStatusHandler(mux *http.ServeMux, ws *workerStats) {
 			writer.Header().Set("Content-Type", "application/json")
 			_, _ = writer.Write(bytes)
 		} else {
-			log.Errorf("failed to parse json: %s", err.Error())
+			log.Errorf("failed to parse json: %+v", err)
 			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	})

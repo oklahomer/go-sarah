@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -184,11 +185,8 @@ func TestClient_GetRequestError(t *testing.T) {
 		t.Fatal("Expected error is not returned.")
 	}
 
-	if urlErr, ok := err.(*url.Error); ok {
-		if urlErr.Err != expectedErr {
-			t.Errorf("Returned error differs from expectation: %#v, %#v.", err, expectedErr)
-		}
-	} else {
+	var urlErr *url.Error
+	if !xerrors.As(err, &urlErr) {
 		t.Errorf("Unexpected error is returned: %#v.", err)
 	}
 }

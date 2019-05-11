@@ -3,15 +3,34 @@ package slack
 import (
 	"errors"
 	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
+	"io/ioutil"
+	stdLogger "log"
+	"os"
 	"reflect"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	oldLogger := log.GetLogger()
+	defer log.SetLogger(oldLogger)
+
+	// Suppress log output in test by default
+	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
+	logger := log.NewWithStandardLogger(l)
+	log.SetLogger(logger)
+
+	code := m.Run()
+
+	os.Exit(code)
+}
 
 type DummyClient struct {
 	StartRTMSessionFunc func(context.Context) (*webapi.RTMStart, error)
@@ -139,7 +158,7 @@ func TestNewAdapter_WithOptionError(t *testing.T) {
 		t.Fatal("Expected error is not returned.")
 	}
 
-	if err != expectedErr {
+	if !xerrors.Is(err, expectedErr) {
 		t.Errorf("Unexpected error is returned: %s.", err.Error())
 	}
 

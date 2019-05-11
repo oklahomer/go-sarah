@@ -139,7 +139,7 @@ func (cmd *command) inputTime(_ context.Context, input sarah.Input, validDate st
 	due, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", validDate, t))
 	if err != nil {
 		// Should not reach here since previous time parse succeeded.
-		log.Error("Failed to parse due date: %s", err.Error())
+		log.Error("Failed to parse due date: %+v", err)
 		return slack.NewStringResponse("Fatal error occurred."), nil
 	}
 

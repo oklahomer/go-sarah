@@ -6,6 +6,7 @@ import (
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
 	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
@@ -79,7 +80,7 @@ func TestNewAdapter_WithOptionError(t *testing.T) {
 		return expectedErr
 	})
 
-	if err != expectedErr {
+	if !xerrors.Is(err, expectedErr) {
 		t.Errorf("Expected error is not returned: %#v.", err)
 	}
 
