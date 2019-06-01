@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
@@ -9,7 +10,6 @@ import (
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"strings"
 	"time"
@@ -404,7 +404,7 @@ type MessageInput struct {
 
 // SenderKey returns string representing message sender.
 func (message *MessageInput) SenderKey() string {
-	return fmt.Sprintf("%s|%s", message.event.ChannelID.String(), message.event.Sender.String())
+	return fmt.Sprintf("%s|%s", message.event.ChannelID.String(), message.event.SenderID.String())
 }
 
 // Message returns sent message.

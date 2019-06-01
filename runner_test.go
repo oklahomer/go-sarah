@@ -1,9 +1,9 @@
 package sarah
 
 import (
+	"context"
 	"errors"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
 	"io/ioutil"
 	stdLogger "log"
 	"os"

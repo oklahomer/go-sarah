@@ -1,11 +1,11 @@
 package workers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"

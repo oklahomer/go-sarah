@@ -1,9 +1,9 @@
 package worldweather
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"

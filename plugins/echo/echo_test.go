@@ -1,10 +1,10 @@
 package echo
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/gitter"
 	"github.com/oklahomer/golack/slackobject"
-	"golang.org/x/net/context"
 	"testing"
 	"time"
 )

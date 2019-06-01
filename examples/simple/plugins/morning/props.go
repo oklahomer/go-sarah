@@ -7,9 +7,9 @@ but instead provide whole matching function to implement complex matcher.
 package morning
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"strings"
 	"time"
 )

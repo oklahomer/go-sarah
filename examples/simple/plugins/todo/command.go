@@ -7,11 +7,11 @@ On each valid input, given argument is stashed to *args.
 package todo
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 	"strings"
 	"time"

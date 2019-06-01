@@ -4,6 +4,7 @@ Package main provides a simple bot experience using slack.Adapter with multiple 
 package main
 
 import (
+	"context"
 	"flag"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/alerter/line"
@@ -17,7 +18,6 @@ import (
 	"github.com/oklahomer/go-sarah/examples/simple/plugins/todo"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"

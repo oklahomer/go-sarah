@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
 )
 
 type nullBot struct {

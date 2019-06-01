@@ -8,11 +8,11 @@ This illustrates that, when multiple Bots are registered to Runner, same memory 
 package count
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/gitter"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 	"sync"
 )

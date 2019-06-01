@@ -1,8 +1,8 @@
 package sarah
 
 import (
+	"context"
 	"errors"
-	"golang.org/x/net/context"
 	"reflect"
 	"testing"
 	"time"

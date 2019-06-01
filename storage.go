@@ -1,8 +1,8 @@
 package sarah
 
 import (
+	"context"
 	"github.com/patrickmn/go-cache"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"time"
 )

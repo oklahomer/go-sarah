@@ -1,7 +1,7 @@
 package sarah
 
 import (
-	"golang.org/x/net/context"
+	"context"
 	"io/ioutil"
 	"path/filepath"
 	"testing"

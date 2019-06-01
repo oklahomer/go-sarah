@@ -4,9 +4,9 @@ Package workers provides general purpose worker mechanism that outputs stacktrac
 package workers
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"runtime"
 	"strings"

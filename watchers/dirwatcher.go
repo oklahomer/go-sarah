@@ -4,9 +4,9 @@ Package watchers provides mechanism to subscribe events under given directory.
 package watchers
 
 import (
+	"context"
 	"github.com/fsnotify/fsnotify"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"path/filepath"
 )

@@ -22,12 +22,12 @@ Setup should be somewhat like below:
 package worldweather
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/golack/webapi"
-	"golang.org/x/net/context"
 	"regexp"
 	"time"
 )

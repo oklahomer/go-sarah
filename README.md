@@ -44,10 +44,10 @@ For more practical examples, see [./examples](https://github.com/oklahomer/go-sa
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"math/rand"
 	"strconv"
 	"strings"

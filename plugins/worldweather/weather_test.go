@@ -2,13 +2,13 @@ package worldweather
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
-	"golang.org/x/net/context"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
@@ -41,7 +41,7 @@ func TestSlackCommandFunc(t *testing.T) {
 		slack.NewMessageInput(
 			&rtmapi.Message{
 				ChannelID: slackobject.ChannelID("dummy"),
-				Sender:    slackobject.UserID("user"),
+				SenderID:  slackobject.UserID("user"),
 				Text:      ".weather tokyo",
 			},
 		),
@@ -97,7 +97,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			slack.NewMessageInput(
 				&rtmapi.Message{
 					ChannelID: slackobject.ChannelID("dummy"),
-					Sender:    slackobject.UserID("user"),
+					SenderID:  slackobject.UserID("user"),
 					Text:      ".weather tokyo",
 				},
 			),
@@ -141,7 +141,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			slack.NewMessageInput(
 				&rtmapi.Message{
 					ChannelID: slackobject.ChannelID("dummy"),
-					Sender:    slackobject.UserID("user"),
+					SenderID:  slackobject.UserID("user"),
 					Text:      "tokyo",
 				},
 			),

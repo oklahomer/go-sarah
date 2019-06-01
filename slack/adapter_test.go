@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"context"
 	"errors"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
@@ -8,7 +9,6 @@ import (
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
@@ -644,7 +644,7 @@ func TestMessageInput(t *testing.T) {
 			Type: rtmapi.MessageEvent,
 		},
 		ChannelID: slackobject.ChannelID(channelID),
-		Sender:    slackobject.UserID(senderID),
+		SenderID:  slackobject.UserID(senderID),
 		Text:      content,
 		TimeStamp: &rtmapi.TimeStamp{
 			Time:          timestamp,
@@ -772,7 +772,7 @@ func TestNewPostMessageResponse(t *testing.T) {
 				Type: rtmapi.MessageEvent,
 			},
 			ChannelID: channelID,
-			Sender:    slackobject.UserID("who"),
+			SenderID:  slackobject.UserID("who"),
 			Text:      ".echo foo",
 			TimeStamp: &rtmapi.TimeStamp{
 				Time:          time.Now(),
@@ -814,7 +814,7 @@ func TestNewPostMessageResponseWithNext(t *testing.T) {
 				Type: rtmapi.MessageEvent,
 			},
 			ChannelID: channelID,
-			Sender:    slackobject.UserID("who"),
+			SenderID:  slackobject.UserID("who"),
 			Text:      ".echo foo",
 			TimeStamp: &rtmapi.TimeStamp{
 				Time:          time.Now(),
@@ -878,7 +878,7 @@ func Test_handlePayload(t *testing.T) {
 		{
 			payload: &rtmapi.Message{
 				ChannelID: slackobject.ChannelID("abc"),
-				Sender:    slackobject.UserID("cde"),
+				SenderID:  slackobject.UserID("cde"),
 				Text:      helpCommand,
 				TimeStamp: &rtmapi.TimeStamp{
 					Time: time.Now(),
@@ -889,7 +889,7 @@ func Test_handlePayload(t *testing.T) {
 		{
 			payload: &rtmapi.Message{
 				ChannelID: slackobject.ChannelID("abc"),
-				Sender:    slackobject.UserID("cde"),
+				SenderID:  slackobject.UserID("cde"),
 				Text:      abortCommand,
 				TimeStamp: &rtmapi.TimeStamp{
 					Time: time.Now(),
@@ -900,7 +900,7 @@ func Test_handlePayload(t *testing.T) {
 		{
 			payload: &rtmapi.Message{
 				ChannelID: slackobject.ChannelID("abc"),
-				Sender:    slackobject.UserID("cde"),
+				SenderID:  slackobject.UserID("cde"),
 				Text:      "foo",
 				TimeStamp: &rtmapi.TimeStamp{
 					Time: time.Now(),
