@@ -11,9 +11,9 @@ See https://github.com/oklahomer/go-sarah-rediscontext to use external storage.
 package guess
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"math/rand"
 	"strconv"
 	"strings"

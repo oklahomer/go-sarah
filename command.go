@@ -1,8 +1,8 @@
 package sarah
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"os"
 	"reflect"

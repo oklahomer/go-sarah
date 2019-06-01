@@ -1,12 +1,12 @@
 package sarah
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/watchers"
 	"github.com/oklahomer/go-sarah/workers"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"

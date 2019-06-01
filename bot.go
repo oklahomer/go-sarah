@@ -1,8 +1,8 @@
 package sarah
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
 )
 
 // Bot provides an interface that each bot implementation must satisfy.

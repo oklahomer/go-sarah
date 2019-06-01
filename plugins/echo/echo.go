@@ -13,10 +13,10 @@ e.g. ".echo Hey!" becomes "Hey!"
 package echo
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/gitter"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 )
 

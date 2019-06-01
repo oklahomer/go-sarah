@@ -4,10 +4,9 @@ Package line provides sarah.Alerter implementation for LINE Notify.
 package line
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"golang.org/x/xerrors"
 	"net/http"
 	"net/url"
@@ -48,19 +47,20 @@ func New(config *Config) *Client {
 
 // Alert sends alert message to notify critical state of caller.
 func (c *Client) Alert(ctx context.Context, botType sarah.BotType, err error) error {
-	reqCtx, cancel := context.WithTimeout(ctx, c.config.RequestTimeout)
-	defer cancel()
-
 	msg := fmt.Sprintf("Critical error on %s: %s.", botType.String(), err.Error())
 	v := url.Values{"message": {msg}}
-	req, err := http.NewRequest("POST", Endpoint, strings.NewReader(v.Encode()))
+	req, err := http.NewRequest(http.MethodPost, Endpoint, strings.NewReader(v.Encode()))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.config.Token)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := ctxhttp.Do(reqCtx, http.DefaultClient, req)
+	reqCtx, cancel := context.WithTimeout(ctx, c.config.RequestTimeout)
+	defer cancel()
+	req = req.WithContext(reqCtx)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

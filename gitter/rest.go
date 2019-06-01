@@ -1,10 +1,9 @@
 package gitter
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"
@@ -60,8 +59,10 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 	req.Header.Set("Authorization", "Bearer "+client.token)
 	req.Header.Set("Accept", "application/json")
 
+	req = req.WithContext(ctx)
+
 	// Do request
-	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -98,8 +99,9 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 	req.Header.Set("Authorization", "Bearer "+client.token)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(ctx)
 
-	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

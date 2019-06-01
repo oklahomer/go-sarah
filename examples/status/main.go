@@ -7,12 +7,12 @@ See handler.go for Runner.Status() usage.
 package main
 
 import (
+	"context"
 	"flag"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/go-sarah/workers"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"os"
 	"os/signal"

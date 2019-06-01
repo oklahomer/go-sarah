@@ -1,9 +1,9 @@
 package line
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
-	"golang.org/x/net/context"
 	"io/ioutil"
 	"net/http"
 	"strings"

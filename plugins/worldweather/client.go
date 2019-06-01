@@ -1,10 +1,9 @@
 package worldweather
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"
@@ -58,7 +57,12 @@ func (client *Client) buildEndpoint(apiType string, queryParams *url.Values) *ur
 // Get makes HTTP GET request to World Weather API endpoint.
 func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.Values, data interface{}) error {
 	endpoint := client.buildEndpoint(apiType, queryParams)
-	resp, err := ctxhttp.Get(ctx, http.DefaultClient, endpoint.String())
+	req, err := http.NewRequest(http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return xerrors.Errorf("failed to build request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return xerrors.Errorf("failed on GET request for %s: %w", apiType, err)
 	}

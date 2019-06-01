@@ -8,9 +8,9 @@ Developer may import this package and refer to hello.SlackProps to build hello c
 package hello
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 )
 
