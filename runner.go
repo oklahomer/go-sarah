@@ -143,6 +143,28 @@ func RegisterWorker(worker workers.Worker) {
 	})
 }
 
+// RegisterAlertJudge registers given function, judgeFnc, that is called when a Bot raises an error.
+// This function judges if the given error is worth being notified to administrators.
+// If this function returns true, all registered alerters are called to notify such error state to the administrators.
+//
+// Bot/Adapter can raise an error via a function, func(error), that is passed to Run() as a third argument.
+// When BotNonContinuableError is raised, go-sarah's core cancels Bot's context and thus failing Bot and related resources stop working.
+// If one or more sarah.Alerters implementations are registered, such critical error is passed to the alerters and administrators will be notified.
+// When other types of error are raised, the error is passed to the function registered via sarah.RegisterAlertJudge().
+// The function may return true when the error is worth being notified to administrators.
+//
+// Bot/Adapter's implementation should be simple. It should not handle serious errors by itself.
+// Instead, it should simply raise an error and let core takes care of this.
+// So if the calls to alerters should have some kind of rate limit, judgeFnc should internally handle such rate limit.
+// In this way, each Bot/Adapter's implementation can be kept simple.
+// go-sarah's core should always supervise and control its belonging Bots.
+func RegisterAlertJudge(judgeFnc func(error) bool) {
+	options.register(func(r *runner) error {
+		r.alertJudge = judgeFnc
+		return nil
+	})
+}
+
 // Run is a non-blocking function that starts running go-sarah's process with pre-registered options.
 // Workers, schedulers and other required resources for bot interaction starts running on this function call.
 // This returns error when bot interaction cannot start; No error is returned when process starts successfully.
@@ -178,11 +200,13 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 		config:             config,
 		bots:               []Bot{},
 		worker:             nil,
+		watcher:            nil,
 		commandProps:       make(map[BotType][]*CommandProps),
 		scheduledTaskProps: make(map[BotType][]*ScheduledTaskProps),
 		scheduledTasks:     make(map[BotType][]ScheduledTask),
 		alerters:           &alerters{},
 		scheduler:          runScheduler(ctx, loc),
+		alertJudge:         nil,
 	}
 
 	err = options.apply(r)
@@ -221,6 +245,7 @@ type runner struct {
 	scheduledTasks     map[BotType][]ScheduledTask
 	alerters           *alerters
 	scheduler          scheduler
+	alertJudge         func(error) bool
 }
 
 func (r *runner) botCommandProps(botType BotType) []*CommandProps {
@@ -267,7 +292,7 @@ func (r *runner) run(ctx context.Context) {
 // This returns when bot stops.
 func (r *runner) runBot(runnerCtx context.Context, bot Bot) {
 	log.Infof("Starting %s", bot.BotType())
-	botCtx, errNotifier := superviseBot(runnerCtx, bot.BotType(), r.alerters)
+	botCtx, errNotifier := r.superviseBot(runnerCtx, bot.BotType())
 
 	// Setup config directory for this particular Bot.
 	var configDir string
@@ -364,6 +389,54 @@ func (r *runner) subscribeConfigDir(botCtx context.Context, bot Bot, configDir s
 		// In that case this warning is harmless since Watcher itself is canceled at this point.
 		log.Warnf("Failed to unsubscribe %+v", err)
 	}
+}
+
+func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (context.Context, func(error)) {
+	botCtx, cancel := context.WithCancel(runnerCtx)
+
+	sendAlert := func(err error) {
+		e := r.alerters.alertAll(runnerCtx, botType, err)
+		if e != nil {
+			log.Errorf("Failed to send alert for %s: %+v", botType, e)
+		}
+	}
+
+	// A function that receives an escalated error from Bot.
+	// If critical error is sent, this cancels Bot context to finish its lifecycle.
+	// Bot itself MUST NOT kill itself, but the Runner does. Beware that Runner takes care of all related components' lifecycle.
+	handleError := func(err error) {
+		switch err.(type) {
+		case *BotNonContinuableError:
+			log.Errorf("Stop unrecoverable bot. BotType: %s. Error: %+v", botType, err)
+			cancel()
+
+			go sendAlert(err)
+
+			log.Infof("Stop supervising bot critical error due to context cancellation: %s.", botType)
+
+		default:
+			if r.alertJudge != nil && r.alertJudge(err) {
+				go sendAlert(err)
+			}
+
+		}
+	}
+
+	// A function to be exposed to Bot/Adapter developers.
+	// When Bot/Adapter faces a critical state, it can call this function to let Runner judge the severity and stop Bot if necessary.
+	errNotifier := func(err error) {
+		select {
+		case <-botCtx.Done():
+			// Bot context is already canceled by preceding error notification. Do nothing.
+			return
+
+		default:
+			handleError(err)
+
+		}
+	}
+
+	return botCtx, errNotifier
 }
 
 func registerScheduledTask(botCtx context.Context, bot Bot, task ScheduledTask, taskScheduler scheduler) {
@@ -526,47 +599,6 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 		message := NewOutputMessage(dest, res.Content)
 		bot.SendMessage(ctx, message)
 	}
-}
-
-func superviseBot(runnerCtx context.Context, botType BotType, alerters *alerters) (context.Context, func(error)) {
-	botCtx, cancel := context.WithCancel(runnerCtx)
-
-	// A function that receives an escalated error from Bot.
-	// If critical error is sent, this cancels Bot context to finish its lifecycle.
-	// Bot itself MUST NOT kill itself, but the Runner does. Beware that Runner takes care of all related components' lifecycle.
-	handleError := func(err error) {
-		switch err.(type) {
-		case *BotNonContinuableError:
-			log.Errorf("Stop unrecoverable bot. BotType: %s. Error: %+v", botType, err)
-			cancel()
-
-			go func() {
-				e := alerters.alertAll(runnerCtx, botType, err)
-				if e != nil {
-					log.Errorf("Failed to send alert for %s: %+v", botType, e)
-				}
-			}()
-
-			log.Infof("Stop supervising bot critical error due to context cancellation: %s.", botType)
-
-		}
-	}
-
-	// A function to be exposed to Bot/Adapter developers.
-	// When Bot/Adapter faces a critical state, it can call this function to let Runner judge the severity and stop Bot if necessary.
-	errNotifier := func(err error) {
-		select {
-		case <-botCtx.Done():
-			// Bot context is already canceled by preceding error notification. Do nothing.
-			return
-
-		default:
-			handleError(err)
-
-		}
-	}
-
-	return botCtx, errNotifier
 }
 
 func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) func(Input) error {

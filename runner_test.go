@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/oklahomer/go-sarah/log"
+	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
@@ -284,6 +285,31 @@ func TestRegisterWorker(t *testing.T) {
 		}
 		if r.worker != worker {
 			t.Error("Given Worker is not set.")
+		}
+	})
+}
+
+func TestRegisterAlertJudge(t *testing.T) {
+	SetupAndRun(func() {
+		judge := func(e error) bool {
+			return true
+		}
+		RegisterAlertJudge(judge)
+		r := &runner{}
+
+		for _, v := range options.stashed {
+			err := v(r)
+			if err != nil {
+				t.Fatalf("Unexpected error is returned: %s.", err.Error())
+			}
+		}
+
+		if r.alertJudge == nil {
+			t.Fatal("alertJudge is not set.")
+		}
+
+		if reflect.ValueOf(r.alertJudge).Pointer() != reflect.ValueOf(judge).Pointer() {
+			t.Error("Passed function is not set.")
 		}
 	})
 }
@@ -863,6 +889,87 @@ func Test_runner_subscribeConfigDir_WithCallback(t *testing.T) {
 	}
 }
 
+func Test_runner_superviseBot(t *testing.T) {
+	SetupAndRun(func() {
+		rootCxt := context.Background()
+		errs := []error{
+			xerrors.New("first error"),
+			xerrors.New("second error"),
+			NewBotNonContinuableError("third error should stop Bot"),
+		}
+		alertedErr := make(chan error, len(errs))
+		judgeCnt := 0
+		r := runner{
+			alerters: &alerters{
+				&DummyAlerter{
+					AlertFunc: func(_ context.Context, _ BotType, err error) error {
+						panic("Panic should not affect other alerters' behavior.")
+					},
+				},
+				&DummyAlerter{
+					AlertFunc: func(_ context.Context, _ BotType, err error) error {
+						alertedErr <- err
+						return nil
+					},
+				},
+			},
+			alertJudge: func(err error) bool {
+				judgeCnt++
+				return judgeCnt%2 == 0
+			},
+		}
+		botCtx, errSupervisor := r.superviseBot(rootCxt, "DummyBotType")
+
+		select {
+		case <-botCtx.Done():
+			t.Error("Bot context should not be canceled at this point.")
+
+		default:
+			// O.K.
+
+		}
+
+		// Raise all errors
+		for _, v := range errs {
+			errSupervisor(v)
+		}
+
+		// Bot should be canceled
+		select {
+		case <-botCtx.Done():
+			// O.K.
+
+		case <-time.NewTimer(10 * time.Second).C:
+			t.Error("Bot context should be canceled at this point.")
+
+		}
+		if e := botCtx.Err(); e != context.Canceled {
+			t.Errorf("botCtx.Err() must return context.Canceled, but was %#v", e)
+		}
+
+		// Alerters should be called for BotNonContinuableError and the one causes true return value from alertJudge
+		time.Sleep(10 * time.Millisecond)
+		if len(alertedErr) != 2 {
+			t.Errorf("Alerters are not called as many times as expected: %d", len(alertedErr))
+		}
+
+		// See if a succeeding call block
+		nonBlocking := make(chan bool)
+		go func() {
+			errSupervisor(NewBotNonContinuableError("call after context cancellation should not block"))
+			nonBlocking <- true
+		}()
+		select {
+		case <-nonBlocking:
+			// O.K.
+
+		case <-time.NewTimer(10 * time.Second).C:
+			t.Error("Call after context cancellation blocks.")
+
+		}
+	})
+}
+
 func Test_registerCommand(t *testing.T) {
 	SetupAndRun(func() {
 		command := &DummyCommand{}
@@ -1228,64 +1335,6 @@ func Test_executeScheduledTask(t *testing.T) {
 		}
 		if sendingOutput[1].Content() != dummyContent || sendingOutput[1].Destination() != dummyDestination {
 			t.Errorf("Sending output differs from expecting one: %#v.", sendingOutput)
-		}
-	})
-}
-
-func Test_superviseBot(t *testing.T) {
-	SetupAndRun(func() {
-		rootCxt := context.Background()
-		alerted := make(chan bool)
-		alerters := &alerters{
-			&DummyAlerter{
-				AlertFunc: func(_ context.Context, _ BotType, err error) error {
-					panic("Panic should not affect other alerters' behavior.")
-				},
-			},
-			&DummyAlerter{
-				AlertFunc: func(_ context.Context, _ BotType, err error) error {
-					alerted <- true
-					return nil
-				},
-			},
-		}
-		botCtx, errSupervisor := superviseBot(rootCxt, "DummyBotType", alerters)
-
-		select {
-		case <-botCtx.Done():
-			t.Error("Bot context should not be canceled at this point.")
-		default:
-			// O.K.
-		}
-
-		errSupervisor(NewBotNonContinuableError("should stop"))
-
-		select {
-		case <-botCtx.Done():
-			// O.K.
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Bot context should be canceled at this point.")
-		}
-		if e := botCtx.Err(); e != context.Canceled {
-			t.Errorf("botCtx.Err() must return context.Canceled, but was %#v", e)
-		}
-		select {
-		case <-alerted:
-			// O.K.
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Alert should be sent at this point.")
-		}
-
-		nonBlocking := make(chan bool)
-		go func() {
-			errSupervisor(NewBotNonContinuableError("call after context cancellation should not block"))
-			nonBlocking <- true
-		}()
-		select {
-		case <-nonBlocking:
-			// O.K.
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Call after context cancellation blocks.")
 		}
 	})
 }
