@@ -143,24 +143,30 @@ func RegisterWorker(worker workers.Worker) {
 	})
 }
 
-// RegisterAlertJudge registers given function, judgeFnc, that is called when a Bot raises an error.
-// This function judges if the given error is worth being notified to administrators.
-// If this function returns true, all registered alerters are called to notify such error state to the administrators.
+// RegisterBotErrorSupervisor registers a given supervising function that is called when a Bot escalates an error.
+// This function judges if the given error is worth being notified to administrators and if the Bot should stop.
+// A developer may return *SupervisionDirective to tell such order.
+// If the escalated error can simply be ignored, a nil value can be returned.
 //
-// Bot/Adapter can raise an error via a function, func(error), that is passed to Run() as a third argument.
-// When BotNonContinuableError is raised, go-sarah's core cancels Bot's context and thus failing Bot and related resources stop working.
+// Bot/Adapter can escalate an error via a function, func(error), that is passed to Run() as a third argument.
+// When BotNonContinuableError is escalated, go-sarah's core cancels failing Bot's context and thus the Bot and related resources stop working.
 // If one or more sarah.Alerters implementations are registered, such critical error is passed to the alerters and administrators will be notified.
-// When other types of error are raised, the error is passed to the function registered via sarah.RegisterAlertJudge().
-// The function may return true when the error is worth being notified to administrators.
+// When other types of error are escalated, the error is passed to the supervising function registered via sarah.RegisterBotErrorSupervisor().
+// The function may return *SupervisionDirective to tell how go-sarah's core should react.
 //
 // Bot/Adapter's implementation should be simple. It should not handle serious errors by itself.
-// Instead, it should simply raise an error and let core takes care of this.
-// So if the calls to alerters should have some kind of rate limit, judgeFnc should internally handle such rate limit.
-// In this way, each Bot/Adapter's implementation can be kept simple.
+// Instead, it should simply escalate an error every time when a noteworthy error occurs and let core judge how to react.
+// For example, if the bot should stop when three reconnection trial fails in ten seconds, the scenario could be somewhat like below:
+//   1. Bot escalates reconnection error, FooReconnectionFailureError, each time it fails to reconnect
+//   2. Supervising function counts the error and ignores the first two occurrence
+//   3. When the third error comes within ten seconds from the initial error escalation, return *SupervisionDirective with StopBot value of true
+//
+// Similarly, if there should be a rate limiter to limit the calls to alerters, the supervising function should take care of this instead of the failing Bot.
+// Each Bot/Adapter's implementation can be kept simple in this way.
 // go-sarah's core should always supervise and control its belonging Bots.
-func RegisterAlertJudge(judgeFnc func(error) bool) {
+func RegisterBotErrorSupervisor(fnc func(BotType, error) *SupervisionDirective) {
 	options.register(func(r *runner) error {
-		r.alertJudge = judgeFnc
+		r.superviseError = fnc
 		return nil
 	})
 }
@@ -206,7 +212,7 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 		scheduledTasks:     make(map[BotType][]ScheduledTask),
 		alerters:           &alerters{},
 		scheduler:          runScheduler(ctx, loc),
-		alertJudge:         nil,
+		superviseError:     nil,
 	}
 
 	err = options.apply(r)
@@ -245,7 +251,23 @@ type runner struct {
 	scheduledTasks     map[BotType][]ScheduledTask
 	alerters           *alerters
 	scheduler          scheduler
-	alertJudge         func(error) bool
+	superviseError     func(BotType, error) *SupervisionDirective
+}
+
+// SupervisionDirective tells go-sarah's core how to react when a Bot escalates an error.
+// A customized supervisor can be defined and registered via RegisterBotErrorSupervisor().
+type SupervisionDirective struct {
+	// StopBot tells the core to stop the failing Bot and related resources.
+	// When two or more Bots are registered and one or more Bots are to be still running after the failing Bot stops,
+	// internal workers and scheduler keep running.
+	// Directory watcher stops subscribing to corresponding Bot's configuration files' directory,
+	// but it still keeps running until the last Bot stops.
+	//
+	// When all Bots stop, then the core stops all resources.
+	StopBot bool
+	// AlertingErr is sent registered alerters and administrators will be notified.
+	// Set nil when such alert notification is not required.
+	AlertingErr error
 }
 
 func (r *runner) botCommandProps(botType BotType) []*CommandProps {
@@ -401,6 +423,11 @@ func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (conte
 		}
 	}
 
+	stopBot := func() {
+		cancel()
+		log.Infof("Stop supervising bot's critical error due to its context cancellation: %s.", botType)
+	}
+
 	// A function that receives an escalated error from Bot.
 	// If critical error is sent, this cancels Bot context to finish its lifecycle.
 	// Bot itself MUST NOT kill itself, but the Runner does. Beware that Runner takes care of all related components' lifecycle.
@@ -408,15 +435,26 @@ func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (conte
 		switch err.(type) {
 		case *BotNonContinuableError:
 			log.Errorf("Stop unrecoverable bot. BotType: %s. Error: %+v", botType, err)
-			cancel()
+
+			stopBot()
 
 			go sendAlert(err)
 
-			log.Infof("Stop supervising bot critical error due to context cancellation: %s.", botType)
-
 		default:
-			if r.alertJudge != nil && r.alertJudge(err) {
-				go sendAlert(err)
+			if r.superviseError != nil {
+				directive := r.superviseError(botType, err)
+				if directive == nil {
+					return
+				}
+
+				if directive.StopBot {
+					log.Errorf("Stop bot due to given directive. BotType: %s. Reason: %+v", botType, err)
+					stopBot()
+				}
+
+				if directive.AlertingErr != nil {
+					go sendAlert(directive.AlertingErr)
+				}
 			}
 
 		}

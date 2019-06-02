@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -289,12 +290,12 @@ func TestRegisterWorker(t *testing.T) {
 	})
 }
 
-func TestRegisterAlertJudge(t *testing.T) {
+func TestRegisterBotErrorSupervisor(t *testing.T) {
 	SetupAndRun(func() {
-		judge := func(e error) bool {
-			return true
+		supervisor := func(_ BotType, _ error) *SupervisionDirective {
+			return nil
 		}
-		RegisterAlertJudge(judge)
+		RegisterBotErrorSupervisor(supervisor)
 		r := &runner{}
 
 		for _, v := range options.stashed {
@@ -304,11 +305,11 @@ func TestRegisterAlertJudge(t *testing.T) {
 			}
 		}
 
-		if r.alertJudge == nil {
-			t.Fatal("alertJudge is not set.")
+		if r.superviseError == nil {
+			t.Fatal("superviseError is not set.")
 		}
 
-		if reflect.ValueOf(r.alertJudge).Pointer() != reflect.ValueOf(judge).Pointer() {
+		if reflect.ValueOf(r.superviseError).Pointer() != reflect.ValueOf(supervisor).Pointer() {
 			t.Error("Passed function is not set.")
 		}
 	})
@@ -890,6 +891,150 @@ func Test_runner_subscribeConfigDir_WithCallback(t *testing.T) {
 }
 
 func Test_runner_superviseBot(t *testing.T) {
+	tests := []struct {
+		escalated error
+		directive *SupervisionDirective
+		shutdown  bool
+	}{
+		{
+			escalated: NewBotNonContinuableError("this should stop Bot"),
+			shutdown:  true,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: nil,
+			shutdown:  false,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: &SupervisionDirective{
+				AlertingErr: xerrors.New("this is sent via alerter"),
+				StopBot:     true,
+			},
+			shutdown: true,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: &SupervisionDirective{
+				AlertingErr: nil,
+				StopBot:     true,
+			},
+			shutdown: true,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: &SupervisionDirective{
+				AlertingErr: xerrors.New("this is sent via alerter"),
+				StopBot:     false,
+			},
+			shutdown: false,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: &SupervisionDirective{
+				AlertingErr: nil,
+				StopBot:     false,
+			},
+			shutdown: false,
+		},
+	}
+	alerted := make(chan error, 1)
+
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i+1), func(t *testing.T) {
+			r := &runner{
+				alerters: &alerters{
+					&DummyAlerter{
+						AlertFunc: func(_ context.Context, _ BotType, err error) error {
+							panic("Panic should not affect other alerters' behavior.")
+						},
+					},
+					&DummyAlerter{
+						AlertFunc: func(_ context.Context, _ BotType, err error) error {
+							alerted <- err
+							return nil
+						},
+					},
+				},
+				superviseError: func(_ BotType, _ error) *SupervisionDirective {
+					return tt.directive
+				},
+			}
+			rootCxt := context.Background()
+			botCtx, errSupervisor := r.superviseBot(rootCxt, "DummyBotType")
+
+			// Make sure the Bot state is currently active
+			select {
+			case <-botCtx.Done():
+				t.Error("Bot context should not be canceled at this point.")
+
+			default:
+				// O.K.
+
+			}
+
+			// Escalate an error
+			errSupervisor(tt.escalated)
+
+			if tt.shutdown {
+				// Bot should be canceled
+				select {
+				case <-botCtx.Done():
+					// O.K.
+
+				case <-time.NewTimer(1 * time.Second).C:
+					t.Error("Bot context should be canceled at this point.")
+
+				}
+				if e := botCtx.Err(); e != context.Canceled {
+					t.Errorf("botCtx.Err() must return context.Canceled, but was %#v", e)
+				}
+			}
+
+			if _, ok := tt.escalated.(*BotNonContinuableError); ok {
+				// When Bot escalate an non-continuable error, then alerter should be called.
+				select {
+				case e := <-alerted:
+					if e != tt.escalated {
+						t.Errorf("Unexpected error value is passed: %#v", e)
+					}
+
+				case <-time.NewTimer(1 * time.Second).C:
+					t.Error("Alerter is not called.")
+
+				}
+			} else if tt.directive != nil && tt.directive.AlertingErr != nil {
+				select {
+				case e := <-alerted:
+					if e != tt.directive.AlertingErr {
+						t.Errorf("Unexpected error value is passed: %#v", e)
+					}
+
+				case <-time.NewTimer(1 * time.Second).C:
+					t.Error("Alerter is not called.")
+
+				}
+			}
+
+			// See if a succeeding call block
+			nonBlocking := make(chan bool)
+			go func() {
+				errSupervisor(xerrors.New("succeeding calls should never block"))
+				nonBlocking <- true
+			}()
+			select {
+			case <-nonBlocking:
+				// O.K.
+
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Error("Succeeding error escalation blocks.")
+
+			}
+		})
+	}
+}
+
+func Test_runner_superviseBot1(t *testing.T) {
 	SetupAndRun(func() {
 		rootCxt := context.Background()
 		errs := []error{
@@ -898,6 +1043,7 @@ func Test_runner_superviseBot(t *testing.T) {
 			NewBotNonContinuableError("third error should stop Bot"),
 		}
 		alertedErr := make(chan error, len(errs))
+		terminalErr := xerrors.New("this is the end")
 		judgeCnt := 0
 		r := runner{
 			alerters: &alerters{
@@ -913,9 +1059,15 @@ func Test_runner_superviseBot(t *testing.T) {
 					},
 				},
 			},
-			alertJudge: func(err error) bool {
+			superviseError: func(_ BotType, _ error) *SupervisionDirective {
 				judgeCnt++
-				return judgeCnt%2 == 0
+				if judgeCnt%2 == 0 {
+					return &SupervisionDirective{
+						StopBot:     true,
+						AlertingErr: terminalErr,
+					}
+				}
+				return nil
 			},
 		}
 		botCtx, errSupervisor := r.superviseBot(rootCxt, "DummyBotType")
