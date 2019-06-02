@@ -47,7 +47,7 @@ func New(config *Config) *Client {
 
 // Alert sends alert message to notify critical state of caller.
 func (c *Client) Alert(ctx context.Context, botType sarah.BotType, err error) error {
-	msg := fmt.Sprintf("Critical error on %s: %s.", botType.String(), err.Error())
+	msg := fmt.Sprintf("Error on %s: %s.", botType.String(), err.Error())
 	v := url.Values{"message": {msg}}
 	req, err := http.NewRequest(http.MethodPost, Endpoint, strings.NewReader(v.Encode()))
 	if err != nil {

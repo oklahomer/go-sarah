@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"github.com/oklahomer/go-sarah/log"
+	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -284,6 +286,31 @@ func TestRegisterWorker(t *testing.T) {
 		}
 		if r.worker != worker {
 			t.Error("Given Worker is not set.")
+		}
+	})
+}
+
+func TestRegisterBotErrorSupervisor(t *testing.T) {
+	SetupAndRun(func() {
+		supervisor := func(_ BotType, _ error) *SupervisionDirective {
+			return nil
+		}
+		RegisterBotErrorSupervisor(supervisor)
+		r := &runner{}
+
+		for _, v := range options.stashed {
+			err := v(r)
+			if err != nil {
+				t.Fatalf("Unexpected error is returned: %s.", err.Error())
+			}
+		}
+
+		if r.superviseError == nil {
+			t.Fatal("superviseError is not set.")
+		}
+
+		if reflect.ValueOf(r.superviseError).Pointer() != reflect.ValueOf(supervisor).Pointer() {
+			t.Error("Passed function is not set.")
 		}
 	})
 }
@@ -863,6 +890,150 @@ func Test_runner_subscribeConfigDir_WithCallback(t *testing.T) {
 	}
 }
 
+func Test_runner_superviseBot(t *testing.T) {
+	tests := []struct {
+		escalated error
+		directive *SupervisionDirective
+		shutdown  bool
+	}{
+		{
+			escalated: NewBotNonContinuableError("this should stop Bot"),
+			shutdown:  true,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: nil,
+			shutdown:  false,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: &SupervisionDirective{
+				AlertingErr: xerrors.New("this is sent via alerter"),
+				StopBot:     true,
+			},
+			shutdown: true,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: &SupervisionDirective{
+				AlertingErr: nil,
+				StopBot:     true,
+			},
+			shutdown: true,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: &SupervisionDirective{
+				AlertingErr: xerrors.New("this is sent via alerter"),
+				StopBot:     false,
+			},
+			shutdown: false,
+		},
+		{
+			escalated: xerrors.New("plain error"),
+			directive: &SupervisionDirective{
+				AlertingErr: nil,
+				StopBot:     false,
+			},
+			shutdown: false,
+		},
+	}
+	alerted := make(chan error, 1)
+
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i+1), func(t *testing.T) {
+			r := &runner{
+				alerters: &alerters{
+					&DummyAlerter{
+						AlertFunc: func(_ context.Context, _ BotType, err error) error {
+							panic("Panic should not affect other alerters' behavior.")
+						},
+					},
+					&DummyAlerter{
+						AlertFunc: func(_ context.Context, _ BotType, err error) error {
+							alerted <- err
+							return nil
+						},
+					},
+				},
+				superviseError: func(_ BotType, _ error) *SupervisionDirective {
+					return tt.directive
+				},
+			}
+			rootCxt := context.Background()
+			botCtx, errSupervisor := r.superviseBot(rootCxt, "DummyBotType")
+
+			// Make sure the Bot state is currently active
+			select {
+			case <-botCtx.Done():
+				t.Error("Bot context should not be canceled at this point.")
+
+			default:
+				// O.K.
+
+			}
+
+			// Escalate an error
+			errSupervisor(tt.escalated)
+
+			if tt.shutdown {
+				// Bot should be canceled
+				select {
+				case <-botCtx.Done():
+					// O.K.
+
+				case <-time.NewTimer(1 * time.Second).C:
+					t.Error("Bot context should be canceled at this point.")
+
+				}
+				if e := botCtx.Err(); e != context.Canceled {
+					t.Errorf("botCtx.Err() must return context.Canceled, but was %#v", e)
+				}
+			}
+
+			if _, ok := tt.escalated.(*BotNonContinuableError); ok {
+				// When Bot escalate an non-continuable error, then alerter should be called.
+				select {
+				case e := <-alerted:
+					if e != tt.escalated {
+						t.Errorf("Unexpected error value is passed: %#v", e)
+					}
+
+				case <-time.NewTimer(1 * time.Second).C:
+					t.Error("Alerter is not called.")
+
+				}
+			} else if tt.directive != nil && tt.directive.AlertingErr != nil {
+				select {
+				case e := <-alerted:
+					if e != tt.directive.AlertingErr {
+						t.Errorf("Unexpected error value is passed: %#v", e)
+					}
+
+				case <-time.NewTimer(1 * time.Second).C:
+					t.Error("Alerter is not called.")
+
+				}
+			}
+
+			// See if a succeeding call block
+			nonBlocking := make(chan bool)
+			go func() {
+				errSupervisor(xerrors.New("succeeding calls should never block"))
+				nonBlocking <- true
+			}()
+			select {
+			case <-nonBlocking:
+				// O.K.
+
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Error("Succeeding error escalation blocks.")
+
+			}
+		})
+	}
+}
+
 func Test_registerCommand(t *testing.T) {
 	SetupAndRun(func() {
 		command := &DummyCommand{}
@@ -1228,64 +1399,6 @@ func Test_executeScheduledTask(t *testing.T) {
 		}
 		if sendingOutput[1].Content() != dummyContent || sendingOutput[1].Destination() != dummyDestination {
 			t.Errorf("Sending output differs from expecting one: %#v.", sendingOutput)
-		}
-	})
-}
-
-func Test_superviseBot(t *testing.T) {
-	SetupAndRun(func() {
-		rootCxt := context.Background()
-		alerted := make(chan bool)
-		alerters := &alerters{
-			&DummyAlerter{
-				AlertFunc: func(_ context.Context, _ BotType, err error) error {
-					panic("Panic should not affect other alerters' behavior.")
-				},
-			},
-			&DummyAlerter{
-				AlertFunc: func(_ context.Context, _ BotType, err error) error {
-					alerted <- true
-					return nil
-				},
-			},
-		}
-		botCtx, errSupervisor := superviseBot(rootCxt, "DummyBotType", alerters)
-
-		select {
-		case <-botCtx.Done():
-			t.Error("Bot context should not be canceled at this point.")
-		default:
-			// O.K.
-		}
-
-		errSupervisor(NewBotNonContinuableError("should stop"))
-
-		select {
-		case <-botCtx.Done():
-			// O.K.
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Bot context should be canceled at this point.")
-		}
-		if e := botCtx.Err(); e != context.Canceled {
-			t.Errorf("botCtx.Err() must return context.Canceled, but was %#v", e)
-		}
-		select {
-		case <-alerted:
-			// O.K.
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Alert should be sent at this point.")
-		}
-
-		nonBlocking := make(chan bool)
-		go func() {
-			errSupervisor(NewBotNonContinuableError("call after context cancellation should not block"))
-			nonBlocking <- true
-		}()
-		select {
-		case <-nonBlocking:
-			// O.K.
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Call after context cancellation blocks.")
 		}
 	})
 }
