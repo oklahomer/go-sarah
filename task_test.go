@@ -2,10 +2,9 @@ package sarah
 
 import (
 	"context"
-	"io/ioutil"
-	"path/filepath"
+	"golang.org/x/xerrors"
+	"strconv"
 	"testing"
-	"time"
 )
 
 type DummyScheduledTask struct {
@@ -36,11 +35,11 @@ type DummyScheduledTaskConfig struct {
 	DestinationValue OutputDestination
 }
 
-func (config *DummyScheduledTaskConfig) Schedule() string {
+func (config DummyScheduledTaskConfig) Schedule() string {
 	return config.ScheduleValue
 }
 
-func (config *DummyScheduledTaskConfig) DefaultDestination() OutputDestination {
+func (config DummyScheduledTaskConfig) DefaultDestination() OutputDestination {
 	return config.DestinationValue
 }
 
@@ -275,240 +274,290 @@ func TestScheduledTask_Schedule(t *testing.T) {
 	}
 }
 
-func Test_buildScheduledTask_WithOutConfig(t *testing.T) {
-	schedule := "@every 1m"
-	props := &ScheduledTaskProps{
-		botType:            "botType",
-		identifier:         "fileNotFound",
-		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-		schedule:           schedule,
-		defaultDestination: "dummy",
-		config:             nil,
-	}
-
-	task, err := buildScheduledTask(props, nil)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if task.Schedule() != schedule {
-		t.Errorf("Schedule is not properly set: %s.", task.Schedule())
-	}
-}
-
-func Test_buildScheduledTask_WithOutConfigOrSchedule(t *testing.T) {
-	props := &ScheduledTaskProps{
-		botType:            "botType",
-		identifier:         "fileNotFound",
-		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-		schedule:           "",
-		defaultDestination: "dummy",
-		config:             nil,
-	}
-
-	_, err := buildScheduledTask(props, nil)
-
-	if err == nil {
-		t.Fatalf("Expected error is not returned.")
-	}
-}
-
-func Test_buildScheduledTask_WithOutConfigFile(t *testing.T) {
-	config := &struct {
-		Token string
+func Test_buildScheduledTask(t *testing.T) {
+	tests := []struct {
+		props          *ScheduledTaskProps
+		watcher        ConfigWatcher
+		validateConfig func(cfg interface{}) error
+		hasErr         bool
 	}{
-		Token: "presetToken",
-	}
-	props := &ScheduledTaskProps{
-		botType:            "botType",
-		identifier:         "fileNotFound",
-		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-		schedule:           "@every 1m",
-		defaultDestination: "dummy",
-		config:             config,
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "fileNotFound.yaml"),
-		fileType: yamlFile,
+		{
+			// No config or pre-defined schedule
+			props: &ScheduledTaskProps{
+				botType:            "botType",
+				identifier:         "fileNotFound",
+				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+				schedule:           "",
+				defaultDestination: "dummy",
+				config:             nil,
+			},
+			watcher: nil,
+			hasErr:  true,
+		},
+		{
+			// No config, but schedule
+			props: &ScheduledTaskProps{
+				botType:            "botType",
+				identifier:         "fileNotFound",
+				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+				schedule:           "@daily",
+				defaultDestination: "dummy",
+				config:             nil,
+			},
+			watcher: nil,
+			hasErr:  false,
+		},
+		{
+			// No schedule can be fetched from pre-defined value or config
+			props: &ScheduledTaskProps{
+				botType:            "botType",
+				identifier:         "fileNotFound",
+				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+				schedule:           "",
+				defaultDestination: "dummy",
+				config:             &DummyScheduledTaskConfig{},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+					return nil
+				},
+			},
+			validateConfig: func(cfg interface{}) error {
+				config, ok := cfg.(*DummyScheduledTaskConfig)
+				if !ok {
+					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+				}
+
+				if config.ScheduleValue != "" {
+					return xerrors.Errorf("Unexpected value is set: %s", config.ScheduleValue)
+				}
+
+				return nil
+			},
+			hasErr: true,
+		},
+		{
+			props: &ScheduledTaskProps{
+				botType:            "botType",
+				identifier:         "fileNotFound",
+				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+				schedule:           "@daily",
+				defaultDestination: "dummy",
+				config: &DummyScheduledTaskConfig{
+					ScheduleValue:    "",
+					DestinationValue: "",
+				},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg interface{}) error {
+					config, ok := cfg.(*DummyScheduledTaskConfig)
+					if !ok {
+						t.Errorf("Unexpected type is passed: %T.", cfg)
+						return nil
+					}
+
+					config.ScheduleValue = "@every 1m"
+					return nil
+				},
+			},
+			validateConfig: func(cfg interface{}) error {
+				config, ok := cfg.(*DummyScheduledTaskConfig)
+				if !ok {
+					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+				}
+
+				if config.ScheduleValue != "@every 1m" {
+					return xerrors.Errorf("Unexpected value is set: %s", config.ScheduleValue)
+				}
+
+				return nil
+			},
+			hasErr: false,
+		},
+		{
+			props: &ScheduledTaskProps{
+				botType:            "botType",
+				identifier:         "fileNotFound",
+				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+				schedule:           "@daily",
+				defaultDestination: "dummy",
+				config: &DummyScheduledTaskConfig{
+					ScheduleValue:    "",
+					DestinationValue: "",
+				},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, botType BotType, id string, cfg interface{}) error {
+					return &ConfigNotFoundError{
+						BotType: botType,
+						ID:      id,
+					}
+				},
+			},
+			validateConfig: func(cfg interface{}) error {
+				config, ok := cfg.(*DummyScheduledTaskConfig)
+				if !ok {
+					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+				}
+
+				if config.ScheduleValue != "" {
+					return xerrors.Errorf("Unexpected value is set: %s", config.ScheduleValue)
+				}
+
+				return nil
+			},
+			hasErr: false,
+		},
+		{
+			props: &ScheduledTaskProps{
+				botType:            "botType",
+				identifier:         "fileNotFound",
+				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+				schedule:           "",
+				defaultDestination: "dummy",
+				// Not a pointer to the config value, but is well handled
+				config: DummyScheduledTaskConfig{
+					ScheduleValue:    "",
+					DestinationValue: "",
+				},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, botType BotType, id string, cfg interface{}) error {
+					config, ok := cfg.(*DummyScheduledTaskConfig) // Pointer is passed
+					if !ok {
+						t.Errorf("Unexpected type is passed: %T.", cfg)
+						return nil
+					}
+
+					config.ScheduleValue = "@every 1m"
+					return nil
+				},
+			},
+			validateConfig: func(cfg interface{}) error {
+				config, ok := cfg.(DummyScheduledTaskConfig) // Value is passed
+				if !ok {
+					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+				}
+
+				if config.ScheduleValue != "@every 1m" {
+					return xerrors.Errorf("Unexpected value is set: %s", config.ScheduleValue)
+				}
+
+				return nil
+			},
+			hasErr: false,
+		},
+		{
+			props: &ScheduledTaskProps{
+				botType:            "botType",
+				identifier:         "fileNotFound",
+				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
+				schedule:           "",
+				defaultDestination: "dummy",
+				config: &DummyScheduledTaskConfig{
+					ScheduleValue:    "",
+					DestinationValue: "",
+				},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+					return xerrors.New("unacceptable error")
+				},
+			},
+			hasErr: true,
+		},
 	}
 
-	_, err := buildScheduledTask(props, file)
-
-	if err == nil {
-		t.Fatalf("Error should be returned when expecting config file is not located")
-	}
-}
-
-func Test_buildScheduledTask_WithBrokenYaml(t *testing.T) {
-	config := &struct {
-		Token string `yaml:"token"`
-	}{
-		Token: "",
-	}
-	props := &ScheduledTaskProps{
-		identifier:         "broken",
-		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-		schedule:           "@every 1m",
-		defaultDestination: "dummy",
-		config:             config,
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "broken.yaml"),
-		fileType: yamlFile,
-	}
-
-	_, err := buildScheduledTask(props, file)
-
-	if err == nil {
-		t.Fatal("Error must be returned.")
-	}
-}
-
-func Test_buildScheduledTask_WithOutSchedule(t *testing.T) {
-	emptyScheduleConfig := &DummyScheduledTaskConfig{}
-	emptyScheduleProps := &ScheduledTaskProps{
-		identifier:         "fileNotFound",
-		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-		defaultDestination: "dummy",
-		config:             emptyScheduleConfig,
-	}
-
-	_, err := buildScheduledTask(emptyScheduleProps, nil)
-
-	if err == nil {
-		t.Fatal("Epected error is not returned.")
-	}
-
-	if err != ErrTaskScheduleNotGiven {
-		t.Fatalf("Expected error is not returned: %#v.", err.Error())
-	}
-}
-
-func Test_buildScheduledTask_WithDefaultDestinationConfig(t *testing.T) {
-	config := &DummyScheduledTaskConfig{
-		ScheduleValue:    "@every 1m",
-		DestinationValue: "dummy",
-	}
-	props := &ScheduledTaskProps{
-		identifier:         "fileNotFound",
-		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-		schedule:           "",
-		defaultDestination: "",
-		config:             config,
-	}
-
-	task, err := buildScheduledTask(props, nil)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if task.DefaultDestination() != config.DestinationValue {
-		t.Fatalf("Expected default destination is returned: %s.", task.DefaultDestination())
-	}
-}
-
-func Test_buildScheduledTask_WithConfigValue(t *testing.T) {
-	type config struct {
-		Token string
-	}
-	value := config{
-		Token: "presetToken",
-	}
-	props := &ScheduledTaskProps{
-		botType:            "botType",
-		identifier:         "fileNotFound",
-		taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-		schedule:           "@every 1m",
-		defaultDestination: "dummy",
-		config:             value,
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yamlFile,
-	}
-
-	task, err := buildScheduledTask(props, file)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s", err.Error())
-	}
-
-	v := task.(*scheduledTask).configWrapper.value.(config).Token
-	if v != "foobar" {
-		t.Errorf("Newly set config does not reflect value from file: %s.", v)
-	}
-}
-
-// Test_race_commandRebuild is an integration test to detect race condition on Command (re-)build.
-func Test_race_taskRebuild(t *testing.T) {
-	// Prepare TaskConfig
-	type config struct {
-		Token string
-	}
-	props, err := NewScheduledTaskPropsBuilder().
-		Identifier("dummy").
-		BotType("dummyBot").
-		ConfigurableFunc(&config{Token: "default"}, func(_ context.Context, givenConfig TaskConfig) ([]*ScheduledTaskResult, error) {
-			_, _ = ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
-			return nil, nil
-		}).
-		Schedule("@every 1m").
-		DefaultDestination("").
-		Build()
-	if err != nil {
-		t.Fatalf("Error on ScheduledTaskProps preparation: %s.", err.Error())
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yamlFile,
-	}
-
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-
-	task, err := buildScheduledTask(props, file)
-	if err != nil {
-		t.Fatalf("Error on ScheduledTask build: %s.", err.Error())
-	}
-
-	// Continuously read configuration file and re-build Command
-	go func(c context.Context, p *ScheduledTaskProps) {
-		for {
-			select {
-			case <-c.Done():
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			task, err := buildScheduledTask(context.TODO(), tt.props, tt.watcher)
+			if tt.hasErr {
+				if err == nil {
+					t.Error("Expected error is not returned.")
+				}
 				return
+			}
 
-			default:
-				// Write
-				_, err := buildScheduledTask(p, file)
+			if task == nil {
+				t.Fatal("Built task is not returned.")
+			}
+
+			if tt.props.config != nil {
+				typed := task.(*scheduledTask)
+				err = tt.validateConfig(typed.configWrapper.value)
 				if err != nil {
-					t.Errorf("Error on command build: %s.", err.Error())
+					t.Error(err.Error())
 				}
 			}
-		}
-	}(ctx, props)
-
-	// Continuously read config struct's field value by calling ScheduledTask.Execute
-	go func(c context.Context) {
-		for {
-			select {
-			case <-c.Done():
-				return
-
-			default:
-				_, _ = task.Execute(ctx)
-
-			}
-		}
-	}(ctx)
-
-	// Wait till race condition occurs
-	time.Sleep(1 * time.Second)
-	cancel()
+		})
+	}
 }
+
+//// Test_race_commandRebuild is an integration test to detect race condition on Command (re-)build.
+//func Test_race_taskRebuild(t *testing.T) {
+//	// Prepare TaskConfig
+//	type config struct {
+//		Token string
+//	}
+//	props, err := NewScheduledTaskPropsBuilder().
+//		Identifier("dummy").
+//		BotType("dummyBot").
+//		ConfigurableFunc(&config{Token: "default"}, func(_ context.Context, givenConfig TaskConfig) ([]*ScheduledTaskResult, error) {
+//			_, _ = ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
+//			return nil, nil
+//		}).
+//		Schedule("@every 1m").
+//		DefaultDestination("").
+//		Build()
+//	if err != nil {
+//		t.Fatalf("Error on ScheduledTaskProps preparation: %s.", err.Error())
+//	}
+//	file := &pluginConfigFile{
+//		id:       props.identifier,
+//		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+//		fileType: yamlFile,
+//	}
+//
+//	rootCtx := context.Background()
+//	ctx, cancel := context.WithCancel(rootCtx)
+//
+//	task, err := buildScheduledTask(props, file)
+//	if err != nil {
+//		t.Fatalf("Error on ScheduledTask build: %s.", err.Error())
+//	}
+//
+//	// Continuously read configuration file and re-build Command
+//	go func(c context.Context, p *ScheduledTaskProps) {
+//		for {
+//			select {
+//			case <-c.Done():
+//				return
+//
+//			default:
+//				// Write
+//				_, err := buildScheduledTask(p, file)
+//				if err != nil {
+//					t.Errorf("Error on command build: %s.", err.Error())
+//				}
+//			}
+//		}
+//	}(ctx, props)
+//
+//	// Continuously read config struct's field value by calling ScheduledTask.Execute
+//	go func(c context.Context) {
+//		for {
+//			select {
+//			case <-c.Done():
+//				return
+//
+//			default:
+//				_, _ = task.Execute(ctx)
+//
+//			}
+//		}
+//	}(ctx)
+//
+//	// Wait till race condition occurs
+//	time.Sleep(1 * time.Second)
+//	cancel()
+//}

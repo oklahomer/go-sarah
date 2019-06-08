@@ -3,12 +3,12 @@ package sarah
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -39,25 +39,30 @@ func SetupAndRun(fnc func()) {
 	fnc()
 }
 
+type DummyConfigWatcher struct {
+	ReadFunc        func(context.Context, BotType, string, interface{}) error
+	SubscribeFunc   func(BotType, string, func()) error
+	UnsubscribeFunc func(BotType) error
+}
+
+func (w *DummyConfigWatcher) Read(botCtx context.Context, botType BotType, id string, configPtr interface{}) error {
+	return w.ReadFunc(botCtx, botType, id, configPtr)
+}
+
+func (w *DummyConfigWatcher) Subscribe(botType BotType, id string, callback func()) error {
+	return w.SubscribeFunc(botType, id, callback)
+}
+
+func (w *DummyConfigWatcher) Unsubscribe(botType BotType) error {
+	return w.UnsubscribeFunc(botType)
+}
+
 type DummyWorker struct {
 	EnqueueFunc func(func()) error
 }
 
 func (w *DummyWorker) Enqueue(fnc func()) error {
 	return w.EnqueueFunc(fnc)
-}
-
-type DummyWatcher struct {
-	SubscribeFunc   func(string, string, func(string)) error
-	UnsubscribeFunc func(string) error
-}
-
-func (w *DummyWatcher) Subscribe(group string, path string, callback func(string)) error {
-	return w.SubscribeFunc(group, path, callback)
-}
-
-func (w *DummyWatcher) Unsubscribe(group string) error {
-	return w.UnsubscribeFunc(group)
 }
 
 func TestNewConfig(t *testing.T) {
@@ -245,10 +250,10 @@ func TestRegisterScheduledTaskProps(t *testing.T) {
 	})
 }
 
-func TestRegisterWatcher(t *testing.T) {
+func TestRegisterConfigWatcher(t *testing.T) {
 	SetupAndRun(func() {
-		watcher := &DummyWatcher{}
-		RegisterWatcher(watcher)
+		watcher := &DummyConfigWatcher{}
+		RegisterConfigWatcher(watcher)
 		r := &runner{}
 
 		for _, v := range options.stashed {
@@ -258,12 +263,12 @@ func TestRegisterWatcher(t *testing.T) {
 			}
 		}
 
-		if r.watcher == nil {
-			t.Fatal("Watcher is not set")
+		if r.configWatcher == nil {
+			t.Fatal("ConfigWatcher is not set")
 		}
 
-		if r.watcher != watcher {
-			t.Error("Given Watcher is not set.")
+		if r.configWatcher != watcher {
+			t.Error("Given ConfigWatcher is not set.")
 		}
 	})
 }
@@ -351,8 +356,7 @@ func TestRun_WithInvalidConfig(t *testing.T) {
 func Test_newRunner(t *testing.T) {
 	SetupAndRun(func() {
 		config := &Config{
-			TimeZone:         time.UTC.String(),
-			PluginConfigRoot: "/not/empty",
+			TimeZone: time.UTC.String(),
 		}
 
 		r, e := newRunner(context.Background(), config)
@@ -364,8 +368,8 @@ func Test_newRunner(t *testing.T) {
 			t.Fatal("runner instance is not returned.")
 		}
 
-		if r.watcher == nil {
-			t.Error("Default Watcher should be set when PluginConfigRoot is not empty.")
+		if r.configWatcher == nil {
+			t.Error("Default ConfigWatcher should be set when PluginConfigRoot is not empty.")
 		}
 
 		if r.scheduler == nil {
@@ -381,8 +385,7 @@ func Test_newRunner(t *testing.T) {
 func Test_newRunner_WithTimeZoneError(t *testing.T) {
 	SetupAndRun(func() {
 		config := &Config{
-			TimeZone:         "DUMMY",
-			PluginConfigRoot: "/not/empty",
+			TimeZone: "DUMMY",
 		}
 
 		_, e := newRunner(context.Background(), config)
@@ -395,8 +398,7 @@ func Test_newRunner_WithTimeZoneError(t *testing.T) {
 func Test_newRunner_WithOptionError(t *testing.T) {
 	SetupAndRun(func() {
 		config := &Config{
-			TimeZone:         time.UTC.String(),
-			PluginConfigRoot: "/not/empty",
+			TimeZone: time.UTC.String(),
 		}
 		options.stashed = []func(*runner) error{
 			func(_ *runner) error {
@@ -423,8 +425,7 @@ func Test_runner_run(t *testing.T) {
 		}
 
 		config := &Config{
-			PluginConfigRoot: "",
-			TimeZone:         time.Now().Location().String(),
+			TimeZone: time.Now().Location().String(),
 		}
 
 		r := &runner{
@@ -511,8 +512,7 @@ func Test_runner_runBot(t *testing.T) {
 
 		// Configure runner
 		config := &Config{
-			PluginConfigRoot: "dummy/config",
-			TimeZone:         time.Now().Location().String(),
+			TimeZone: time.Now().Location().String(),
 		}
 		alerted := make(chan struct{}, 1)
 		r := &runner{
@@ -534,11 +534,14 @@ func Test_runner_runBot(t *testing.T) {
 					&DummyScheduledTask{ScheduleValue: "@every 1m"},
 				},
 			},
-			watcher: &DummyWatcher{
-				SubscribeFunc: func(_ string, _ string, _ func(string)) error {
+			configWatcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
 					return nil
 				},
-				UnsubscribeFunc: func(_ string) error {
+				SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+					return nil
+				},
+				UnsubscribeFunc: func(_ BotType) error {
 					return nil
 				},
 			},
@@ -551,9 +554,7 @@ func Test_runner_runBot(t *testing.T) {
 				UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
 					return nil
 				},
-				RemoveFunc: func(_ BotType, _ string) error {
-					return nil
-				},
+				RemoveFunc: func(_ BotType, _ string) {},
 			},
 			alerters: &alerters{
 				&DummyAlerter{
@@ -628,8 +629,7 @@ func Test_runner_runBot_WithPanic(t *testing.T) {
 
 		// Configure runner
 		config := &Config{
-			PluginConfigRoot: "",
-			TimeZone:         time.Now().Location().String(),
+			TimeZone: time.Now().Location().String(),
 		}
 		alerted := make(chan struct{}, 1)
 		r := &runner{
@@ -682,212 +682,6 @@ func Test_runner_runBot_WithPanic(t *testing.T) {
 
 		}
 	})
-}
-
-func Test_runner_subscribeConfigDir(t *testing.T) {
-	SetupAndRun(func() {
-		var botType BotType = "myBot"
-		subscribed := make(chan struct {
-			botTypeStr string
-			dir        string
-		})
-		unsubscribed := make(chan string)
-		watcher := &DummyWatcher{
-			SubscribeFunc: func(botTypeStr string, dir string, _ func(string)) error {
-				subscribed <- struct {
-					botTypeStr string
-					dir        string
-				}{
-					botTypeStr: botTypeStr,
-					dir:        dir,
-				}
-				return nil
-			},
-			UnsubscribeFunc: func(botTypeStr string) error {
-				unsubscribed <- botTypeStr
-				return nil
-			},
-		}
-
-		r := &runner{
-			watcher: watcher,
-		}
-
-		rootCtx := context.Background()
-		ctx, cancel := context.WithCancel(rootCtx)
-
-		bot := &DummyBot{
-			BotTypeValue: botType,
-		}
-
-		configDir := "/path/to/config/dir"
-
-		go r.subscribeConfigDir(ctx, bot, configDir)
-
-		select {
-		case s := <-subscribed:
-			if s.botTypeStr != botType.String() {
-				t.Errorf("Unexpected BotType is passed: %s.", s.botTypeStr)
-			}
-			if s.dir != configDir {
-				t.Errorf("Unexpected directory string is passed: %s.", s.dir)
-			}
-
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Fatal("Subscribing directory data should be passed.")
-
-		}
-
-		cancel()
-
-		select {
-		case u := <-unsubscribed:
-			if u != botType.String() {
-				t.Fatalf("Unexpected BotType string is passed: %s.", u)
-			}
-
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Fatal("Unsubscribing directory data should be passed.")
-
-		}
-	})
-}
-
-func Test_runner_subscribeConfigDir_WithSubscriptionError(t *testing.T) {
-	SetupAndRun(func() {
-		var botType BotType = "myBot"
-		subscribed := make(chan struct{}, 1)
-		watcher := &DummyWatcher{
-			SubscribeFunc: func(botTypeStr string, dir string, _ func(string)) error {
-				subscribed <- struct{}{}
-				return errors.New("subscription error")
-			},
-		}
-
-		r := &runner{
-			watcher: watcher,
-		}
-
-		rootCtx := context.Background()
-		ctx, cancel := context.WithCancel(rootCtx)
-		defer cancel()
-
-		bot := &DummyBot{
-			BotTypeValue: botType,
-		}
-
-		configDir := "/path/to/config/dir"
-
-		// Should not block this time
-		r.subscribeConfigDir(ctx, bot, configDir)
-
-		select {
-		case <-subscribed:
-			// O.K.
-
-		default:
-			t.Fatal("Watcher.Subscribe should be called.")
-
-		}
-	})
-}
-
-func Test_runner_subscribeConfigDir_WithUnsubscriptionError(t *testing.T) {
-	SetupAndRun(func() {
-		var botType BotType = "myBot"
-		unsubscribed := make(chan struct{}, 1)
-		watcher := &DummyWatcher{
-			SubscribeFunc: func(botTypeStr string, dir string, _ func(string)) error {
-				return nil
-			},
-			UnsubscribeFunc: func(_ string) error {
-				unsubscribed <- struct{}{}
-				return errors.New("unsubscription error")
-
-			},
-		}
-
-		r := &runner{
-			watcher: watcher,
-		}
-
-		rootCtx := context.Background()
-		ctx, cancel := context.WithCancel(rootCtx)
-
-		bot := &DummyBot{
-			BotTypeValue: botType,
-		}
-
-		configDir := "/path/to/config/dir"
-		go r.subscribeConfigDir(ctx, bot, configDir)
-		time.Sleep(500 * time.Millisecond)
-		cancel()
-
-		select {
-		case <-unsubscribed:
-			// O.K.
-
-		case <-time.NewTimer(500 * time.Millisecond).C:
-			t.Fatal("Watcher.Unsubscribe should be called.")
-
-		}
-	})
-}
-
-func Test_runner_subscribeConfigDir_WithCallback(t *testing.T) {
-	tests := []struct {
-		isErr bool
-		path  string
-	}{
-		{
-			isErr: true,
-			path:  "/invalid/file/extension",
-		},
-		{
-			isErr: true,
-			path:  "/unsupported/file/format.toml",
-		},
-		{
-			isErr: false,
-			path:  filepath.Join("testdata", "command", "dummy.json"),
-		},
-		{
-			isErr: false,
-			path:  filepath.Join("testdata", "command", "dummy.yaml"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			SetupAndRun(func() {
-				var botType BotType = "myBot"
-				callbackCalled := make(chan struct{}, 1)
-				watcher := &DummyWatcher{
-					SubscribeFunc: func(_ string, _ string, callback func(string)) error {
-						callback(tt.path)
-						callbackCalled <- struct{}{}
-						return nil
-					},
-					UnsubscribeFunc: func(_ string) error {
-						return nil
-					},
-				}
-				r := &runner{
-					watcher: watcher,
-				}
-				bot := &DummyBot{
-					BotTypeValue: botType,
-				}
-
-				rootCtx := context.Background()
-				ctx, cancel := context.WithCancel(rootCtx)
-
-				go r.subscribeConfigDir(ctx, bot, "dummy")
-				<-callbackCalled
-				cancel()
-			})
-		})
-	}
 }
 
 func Test_runner_superviseBot(t *testing.T) {
@@ -1034,319 +828,6 @@ func Test_runner_superviseBot(t *testing.T) {
 	}
 }
 
-func Test_registerCommand(t *testing.T) {
-	SetupAndRun(func() {
-		command := &DummyCommand{}
-		var appendedCommand Command
-		bot := &DummyBot{AppendCommandFunc: func(cmd Command) { appendedCommand = cmd }}
-
-		bot.AppendCommand(command)
-
-		if appendedCommand != command {
-			t.Error("Given Command is not appended.")
-		}
-	})
-}
-
-func Test_registerScheduledTask(t *testing.T) {
-	SetupAndRun(func() {
-		called := false
-		callbackCalled := false
-		bot := &DummyBot{}
-		task := &DummyScheduledTask{
-			ExecuteFunc: func(_ context.Context) ([]*ScheduledTaskResult, error) {
-				callbackCalled = true
-				return nil, nil
-			},
-		}
-		scheduler := &DummyScheduler{
-			UpdateFunc: func(_ BotType, _ ScheduledTask, callback func()) error {
-				called = true
-				callback()
-				return nil
-			},
-		}
-
-		registerScheduledTask(context.TODO(), bot, task, scheduler)
-
-		if called == false {
-			t.Error("Scheduler's update func is not called.")
-		}
-
-		if callbackCalled == false {
-			t.Error("Callback function is not called.")
-		}
-	})
-}
-
-func Test_updateCommandConfig(t *testing.T) {
-	SetupAndRun(func() {
-		type config struct {
-			Token string
-		}
-		c := &config{
-			Token: "default",
-		}
-
-		var botType BotType = "dummy"
-		var appendCalled bool
-		bot := &DummyBot{
-			BotTypeValue: botType,
-			AppendCommandFunc: func(_ Command) {
-				appendCalled = true
-			},
-		}
-		props := []*CommandProps{
-			{
-				identifier:  "irrelevant",
-				botType:     botType,
-				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
-				matchFunc:   func(_ Input) bool { return true },
-				config:      nil,
-				instructionFunc: func(_ *HelpInput) string {
-					return "instruction text"
-				},
-			},
-			{
-				identifier:  "dummy",
-				botType:     botType,
-				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
-				matchFunc:   func(_ Input) bool { return true },
-				config:      c,
-				instructionFunc: func(_ *HelpInput) string {
-					return "instruction text"
-				},
-			},
-		}
-
-		file := &pluginConfigFile{
-			id:       "dummy",
-			path:     filepath.Join("testdata", "command", "dummy.yaml"),
-			fileType: yamlFile,
-		}
-		err := updateCommandConfig(bot, props, file)
-
-		if err != nil {
-			t.Errorf("Unexpected error returned: %s.", err.Error())
-		}
-
-		if appendCalled {
-			t.Error("Bot.AppendCommand should not be called when pointer to CommandConfig is given.")
-		}
-
-		if c.Token != "foobar" {
-			t.Errorf("Expected configuration value is not set: %s.", c.Token)
-		}
-	})
-}
-
-func Test_updateCommandConfig_WithBrokenYaml(t *testing.T) {
-	SetupAndRun(func() {
-		type config struct {
-			Token string
-		}
-		c := &config{
-			Token: "default",
-		}
-
-		var botType BotType = "dummy"
-		bot := &DummyBot{
-			BotTypeValue: botType,
-		}
-		props := []*CommandProps{
-			{
-				identifier:  "broken",
-				botType:     botType,
-				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
-				matchFunc:   func(_ Input) bool { return true },
-				config:      c,
-				instructionFunc: func(_ *HelpInput) string {
-					return "instruction text"
-				},
-			},
-		}
-
-		file := &pluginConfigFile{
-			id:       "broken",
-			path:     filepath.Join("testdata", "command", "broken.yaml"),
-			fileType: yamlFile,
-		}
-		err := updateCommandConfig(bot, props, file)
-
-		if err == nil {
-			t.Fatal("Expected error is not returned.")
-		}
-
-		if err == errUnableToDetermineConfigFileFormat || err == errUnsupportedConfigFileFormat {
-			t.Errorf("Unexpected error type was returned: %T", err)
-		}
-	})
-}
-
-func Test_updateCommandConfig_WithConfigValue(t *testing.T) {
-	SetupAndRun(func() {
-		type config struct {
-			Token string
-		}
-		c := config{
-			Token: "default",
-		}
-
-		var botType BotType = "dummy"
-		var newCmd Command
-		bot := &DummyBot{
-			BotTypeValue: botType,
-			AppendCommandFunc: func(cmd Command) {
-				newCmd = cmd
-			},
-		}
-		props := []*CommandProps{
-			{
-				identifier:  "dummy",
-				botType:     botType,
-				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
-				matchFunc:   func(_ Input) bool { return true },
-				config:      c,
-				instructionFunc: func(_ *HelpInput) string {
-					return "instruction text"
-				},
-			},
-		}
-
-		file := &pluginConfigFile{
-			id:       "dummy",
-			path:     filepath.Join("testdata", "command", "dummy.yaml"),
-			fileType: yamlFile,
-		}
-		err := updateCommandConfig(bot, props, file)
-
-		if err != nil {
-			t.Fatalf("Unexpected error is returned: %s.", err.Error())
-		}
-
-		if err == errUnableToDetermineConfigFileFormat || err == errUnsupportedConfigFileFormat {
-			t.Errorf("Unexpected error type was returned: %T.", err)
-		}
-
-		if newCmd == nil {
-			t.Error("Bot.AppendCommand must be called to replace old Command when config value is set instead of pointer.")
-		}
-
-		v := newCmd.(*defaultCommand).configWrapper.value.(config).Token
-		if v != "foobar" {
-			t.Errorf("Newly set config does not reflect value from file: %s.", v)
-		}
-	})
-}
-
-func Test_updateScheduledTaskConfig(t *testing.T) {
-	SetupAndRun(func() {
-		var botType BotType = "dummy"
-		registeredScheduledTask := 0
-		bot := &DummyBot{
-			BotTypeValue: botType,
-		}
-
-		type config struct {
-			Token string
-		}
-		c := &config{
-			Token: "default",
-		}
-
-		props := []*ScheduledTaskProps{
-			{
-				botType:            botType,
-				identifier:         "irrelevant",
-				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-				schedule:           "@every 1m",
-				defaultDestination: "boo",
-				config:             c,
-			},
-			{
-				botType:            botType,
-				identifier:         "dummy",
-				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-				schedule:           "@every 1m",
-				defaultDestination: "dummy",
-				config:             c,
-			},
-		}
-		scheduler := &DummyScheduler{
-			UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
-				registeredScheduledTask++
-				return nil
-			},
-		}
-
-		file := &pluginConfigFile{
-			id:       "dummy",
-			path:     filepath.Join("testdata", "command", "dummy.yaml"),
-			fileType: yamlFile,
-		}
-		err := updateScheduledTaskConfig(context.TODO(), bot, props, scheduler, file)
-
-		if err != nil {
-			t.Fatalf("Unexpected error is returned: %s.", err.Error())
-		}
-
-		if registeredScheduledTask != 1 {
-			t.Errorf("Only one comamnd is expected to be registered: %d.", registeredScheduledTask)
-		}
-	})
-}
-
-func Test_updateScheduledTaskConfig_WithBrokenYaml(t *testing.T) {
-	SetupAndRun(func() {
-		var botType BotType = "dummy"
-		registeredScheduledTask := 0
-		bot := &DummyBot{
-			BotTypeValue: botType,
-		}
-		props := []*ScheduledTaskProps{
-			{
-				botType:            botType,
-				identifier:         "broken",
-				taskFunc:           func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) { return nil, nil },
-				schedule:           "@every 1m",
-				defaultDestination: "boo",
-				config:             &struct{ Token string }{},
-			},
-		}
-
-		var removeCalled bool
-		scheduler := &DummyScheduler{
-			UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
-				registeredScheduledTask++
-				return nil
-			},
-			RemoveFunc: func(_ BotType, _ string) error {
-				removeCalled = true
-				return nil
-			},
-		}
-
-		file := &pluginConfigFile{
-			id:       "broken",
-			path:     filepath.Join("testdata", "command", "broken.yaml"),
-			fileType: yamlFile,
-		}
-		err := updateScheduledTaskConfig(context.TODO(), bot, props, scheduler, file)
-
-		if err == nil {
-			t.Fatal("Expected error is not returned.")
-		}
-
-		if registeredScheduledTask != 0 {
-			t.Errorf("No comamnd is expected to be registered: %d.", registeredScheduledTask)
-		}
-
-		if !removeCalled {
-			t.Error("scheduler.remove should be removed when config update fails.")
-		}
-	})
-}
-
 func Test_executeScheduledTask(t *testing.T) {
 	SetupAndRun(func() {
 		dummyContent := "dummy content"
@@ -1456,102 +937,233 @@ func Test_setupInputReceiver_BlockedInputError(t *testing.T) {
 	})
 }
 
-func Test_plainPathToFile(t *testing.T) {
+func Test_registerCommands(t *testing.T) {
 	SetupAndRun(func() {
 		tests := []struct {
-			input    string
-			id       string
-			path     string
-			fileType fileType
-			err      error
+			configWatcher ConfigWatcher
+			props         []*CommandProps
+			callback      bool
+			regNum        int
 		}{
 			{
-				input:    "./foo/bar.yaml",
-				id:       "bar",
-				path:     func() string { p, _ := filepath.Abs("./foo/bar.yaml"); return p }(),
-				fileType: yamlFile,
+				configWatcher: &DummyConfigWatcher{
+					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+						return nil
+					},
+				},
+				props: []*CommandProps{
+					{},
+				},
+				callback: false,
+				regNum:   1,
 			},
 			{
-				input:    "/abs/foo/bar.yml",
-				id:       "bar",
-				path:     func() string { p, _ := filepath.Abs("/abs/foo/bar.yml"); return p }(),
-				fileType: yamlFile,
+				configWatcher: &DummyConfigWatcher{
+					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+						return xerrors.Errorf("configuration error")
+					},
+					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+						return xerrors.New("subscription error")
+					},
+				},
+				props: []*CommandProps{
+					{
+						config: struct{}{},
+					},
+				},
+				callback: false,
+				regNum:   0,
 			},
 			{
-				input:    "foo/bar.json",
-				id:       "bar",
-				path:     func() string { p, _ := filepath.Abs("foo/bar.json"); return p }(),
-				fileType: jsonFile,
-			},
-			{
-				input: "/abs/foo/undetermined",
-				err:   errUnableToDetermineConfigFileFormat,
-			},
-			{
-				input: "/abs/foo/unsupported.csv",
-				err:   errUnsupportedConfigFileFormat,
+				configWatcher: &DummyConfigWatcher{
+					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+						return nil
+					},
+					SubscribeFunc: func(_ BotType, id string, callback func()) error {
+						callback()
+						return nil
+					},
+				},
+				props: []*CommandProps{
+					{
+						config: struct{}{},
+					},
+				},
+				callback: false,
+				regNum:   2,
 			},
 		}
 
-		for i, test := range tests {
-			testNo := i + 1
-			file, err := plainPathToFile(test.input)
-
-			if test.err == nil {
-				if err != nil {
-					t.Errorf("Unexpected error is retuend on test %d: %s.", testNo, err.Error())
-					continue
+		for i, tt := range tests {
+			t.Run(strconv.Itoa(i), func(t *testing.T) {
+				regNum := 0
+				botType := BotType(fmt.Sprintf("bot%d", i))
+				bot := &DummyBot{
+					BotTypeValue: botType,
+					AppendCommandFunc: func(command Command) {
+						regNum++
+					},
+				}
+				r := &runner{
+					configWatcher: tt.configWatcher,
+					commandProps: map[BotType][]*CommandProps{
+						botType: tt.props,
+					},
 				}
 
-				if file.id != test.id {
-					t.Errorf("Unexpected id is set on test %d: %s.", testNo, file.id)
+				r.registerCommands(context.TODO(), bot)
+
+				if tt.regNum != regNum {
+					t.Errorf("Unexpected number of command registration call: %d.", regNum)
 				}
-
-				if file.path != test.path {
-					t.Errorf("Unexpected path is set on test %d: %s.", testNo, file.path)
-				}
-
-				if file.fileType != test.fileType {
-					t.Errorf("Unexpected fileType is set on test %d: %d.", testNo, file.fileType)
-				}
-
-				continue
-			}
-
-			if err != test.err {
-				t.Errorf("Unexpected error is returned: %#v.", err)
-			}
+			})
 		}
 	})
 }
 
-func Test_findPluginConfigFile(t *testing.T) {
+func Test_registerScheduledTasks(t *testing.T) {
 	SetupAndRun(func() {
 		tests := []struct {
-			configDir string
-			id        string
-			found     bool
+			configWatcher ConfigWatcher
+			props         []*ScheduledTaskProps
+			tasks         []ScheduledTask
+			updateError   bool
+			regNum        int
 		}{
 			{
-				configDir: filepath.Join("testdata", "command"),
-				id:        "dummy",
-				found:     true,
+				tasks: []ScheduledTask{
+					&scheduledTask{
+						schedule: "",
+					},
+				},
+				updateError: false,
+				regNum:      0,
 			},
 			{
-				configDir: filepath.Join("testdata", "nonExistingDir"),
-				id:        "notFound",
-				found:     false,
+				tasks: []ScheduledTask{
+					&scheduledTask{
+						schedule: "@daily",
+					},
+				},
+				updateError: false,
+				regNum:      1,
+			},
+			{
+				tasks: []ScheduledTask{
+					&scheduledTask{
+						schedule: "@daily",
+					},
+				},
+				updateError: true,
+				regNum:      0,
+			},
+			{
+				configWatcher: &DummyConfigWatcher{
+					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+						return nil
+					},
+				},
+				props: []*ScheduledTaskProps{
+					{
+						schedule: "@daily",
+					},
+				},
+				updateError: false,
+				regNum:      1,
+			},
+			{
+				configWatcher: &DummyConfigWatcher{
+					SubscribeFunc: func(_ BotType, id string, callback func()) error {
+						callback()
+						return nil
+					},
+				},
+				props: []*ScheduledTaskProps{
+					{
+						schedule: "@daily",
+					},
+				},
+				updateError: false,
+				regNum:      2,
+			},
+			{
+				configWatcher: &DummyConfigWatcher{
+					SubscribeFunc: func(_ BotType, id string, callback func()) error {
+						callback()
+						return nil
+					},
+				},
+				props: []*ScheduledTaskProps{
+					{
+						schedule: "@daily",
+					},
+				},
+				updateError: true,
+				regNum:      0,
+			},
+			{
+				configWatcher: &DummyConfigWatcher{
+					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+						return nil
+					},
+				},
+				props: []*ScheduledTaskProps{
+					{
+						schedule: "",
+					},
+				},
+				updateError: false,
+				regNum:      0,
+			},
+			{
+				configWatcher: &DummyConfigWatcher{
+					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+						return xerrors.New("subscription error")
+					},
+				},
+				props: []*ScheduledTaskProps{
+					{
+						schedule: "@daily",
+					},
+				},
+				updateError: false,
+				regNum:      1,
 			},
 		}
 
-		for i, test := range tests {
-			testNo := i + 1
-			file := findPluginConfigFile(test.configDir, test.id)
-			if test.found && file == nil {
-				t.Error("Expected *pluginConfigFile is not returned.")
-			} else if !test.found && file != nil {
-				t.Errorf("Unexpected returned value on test %d: %#v.", testNo, file)
-			}
+		for i, tt := range tests {
+			t.Run(strconv.Itoa(i), func(t *testing.T) {
+				regNum := 0
+				botType := BotType(fmt.Sprintf("bot%d", i))
+				bot := &DummyBot{
+					BotTypeValue: botType,
+				}
+				r := &runner{
+					configWatcher: tt.configWatcher,
+					scheduledTaskProps: map[BotType][]*ScheduledTaskProps{
+						botType: tt.props,
+					},
+					scheduledTasks: map[BotType][]ScheduledTask{
+						botType: tt.tasks,
+					},
+					scheduler: &DummyScheduler{
+						UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
+							if tt.updateError {
+								return xerrors.New("update error")
+							}
+							regNum++
+							return nil
+						},
+						RemoveFunc: func(_ BotType, _ string) {},
+					},
+				}
+
+				r.registerScheduledTasks(context.TODO(), bot)
+
+				if tt.regNum != regNum {
+					t.Errorf("Unexpected number of task registration call: %d.", regNum)
+				}
+			})
 		}
 	})
 }
