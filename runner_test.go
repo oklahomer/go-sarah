@@ -168,6 +168,32 @@ func TestRegisterBot(t *testing.T) {
 	})
 }
 
+func TestRegisterCommand(t *testing.T) {
+	SetupAndRun(func() {
+		var botType BotType = "dummy"
+		command := &DummyCommand{}
+		RegisterCommand(botType, command)
+		r := &runner{
+			commands: map[BotType][]Command{},
+		}
+
+		for _, v := range options.stashed {
+			err := v(r)
+			if err != nil {
+				t.Fatalf("Unexpected error is returned: %s.", err.Error())
+			}
+		}
+
+		if len(r.commands[botType]) != 1 {
+			t.Fatalf("Expected number of Command is not registered: %d.", len(r.commandProps[botType]))
+		}
+
+		if r.commands[botType][0] != command {
+			t.Error("Given Command is not registered.")
+		}
+	})
+}
+
 func TestRegisterCommandProps(t *testing.T) {
 	SetupAndRun(func() {
 		var botType BotType = "dummy"
@@ -942,6 +968,7 @@ func Test_registerCommands(t *testing.T) {
 		tests := []struct {
 			configWatcher ConfigWatcher
 			props         []*CommandProps
+			commands      []Command
 			callback      bool
 			regNum        int
 		}{
@@ -992,6 +1019,22 @@ func Test_registerCommands(t *testing.T) {
 				callback: false,
 				regNum:   2,
 			},
+			{
+				configWatcher: &DummyConfigWatcher{
+					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+						t.Error("ConfigWatcher should not be called when pre-built Command is given.")
+						return nil
+					},
+					WatchFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
+						t.Error("ConfigWatcher should not be called when pre-built Command is given.")
+						return nil
+					},
+				},
+				commands: []Command{
+					&DummyCommand{},
+				},
+				regNum: 1,
+			},
 		}
 
 		for i, tt := range tests {
@@ -1006,6 +1049,9 @@ func Test_registerCommands(t *testing.T) {
 				}
 				r := &runner{
 					configWatcher: tt.configWatcher,
+					commands: map[BotType][]Command{
+						botType: tt.commands,
+					},
 					commandProps: map[BotType][]*CommandProps{
 						botType: tt.props,
 					},

@@ -75,6 +75,19 @@ func RegisterBot(bot Bot) {
 	})
 }
 
+// RegisterCommand registers given sarah.Command.
+// On sarah.Run(), Commands are registered to corresponding bot via Bot.AppendCommand().
+func RegisterCommand(botType BotType, command Command) {
+	options.register(func(r *runner) error {
+		commands, ok := r.commands[botType]
+		if !ok {
+			commands = []Command{}
+		}
+		r.commands[botType] = append(commands, command)
+		return nil
+	})
+}
+
 // RegisterCommandProps registers given sarah.CommandProps to build sarah.Command on sarah.Run().
 // This props is re-used when configuration file is updated and a corresponding sarah.Command needs to be re-built.
 func RegisterCommandProps(props *CommandProps) {
@@ -195,9 +208,10 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 		bots:               []Bot{},
 		worker:             nil,
 		configWatcher:      &nullConfigWatcher{},
+		commands:           make(map[BotType][]Command),
 		commandProps:       make(map[BotType][]*CommandProps),
-		scheduledTaskProps: make(map[BotType][]*ScheduledTaskProps),
 		scheduledTasks:     make(map[BotType][]ScheduledTask),
+		scheduledTaskProps: make(map[BotType][]*ScheduledTaskProps),
 		alerters:           &alerters{},
 		scheduler:          runScheduler(ctx, loc),
 		superviseError:     nil,
@@ -225,9 +239,10 @@ type runner struct {
 	bots               []Bot
 	worker             workers.Worker
 	configWatcher      ConfigWatcher
+	commands           map[BotType][]Command
 	commandProps       map[BotType][]*CommandProps
-	scheduledTaskProps map[BotType][]*ScheduledTaskProps
 	scheduledTasks     map[BotType][]ScheduledTask
+	scheduledTaskProps map[BotType][]*ScheduledTaskProps
 	alerters           *alerters
 	scheduler          scheduler
 	superviseError     func(BotType, error) *SupervisionDirective
@@ -245,6 +260,13 @@ type SupervisionDirective struct {
 	// AlertingErr is sent registered alerters and administrators will be notified.
 	// Set nil when such alert notification is not required.
 	AlertingErr error
+}
+
+func (r *runner) botCommands(botType BotType) []Command {
+	if commands, ok := r.commands[botType]; ok {
+		return commands
+	}
+	return []Command{}
 }
 
 func (r *runner) botCommandProps(botType BotType) []*CommandProps {
@@ -435,6 +457,10 @@ func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
 			log.Errorf("Failed to subscribe configuration for command %s: %+v", p.identifier, err)
 			continue
 		}
+	}
+
+	for _, command := range r.botCommands(bot.BotType()) {
+		bot.AppendCommand(command)
 	}
 }
 
