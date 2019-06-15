@@ -31,17 +31,17 @@ func TestNullConfigWatcher_Read(t *testing.T) {
 	}
 }
 
-func TestNullConfigWatcher_Subscribe(t *testing.T) {
+func TestNullConfigWatcher_Watch(t *testing.T) {
 	w := &nullConfigWatcher{}
-	err := w.Subscribe(context.TODO(), "dummy", "id", func() {})
+	err := w.Watch(context.TODO(), "dummy", "id", func() {})
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
 	}
 }
 
-func TestNullConfigWatcher_Unsubscribe(t *testing.T) {
+func TestNullConfigWatcher_Unwatch(t *testing.T) {
 	w := &nullConfigWatcher{}
-	err := w.Unsubscribe("dummy")
+	err := w.Unwatch("dummy")
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
 	}

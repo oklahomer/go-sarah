@@ -116,7 +116,7 @@ func TestFileWatcher_Read(t *testing.T) {
 	}
 }
 
-func TestFileWatcher_Subscribe(t *testing.T) {
+func TestFileWatcher_Watch(t *testing.T) {
 	tests := []struct {
 		err error
 	}{
@@ -149,7 +149,7 @@ func TestFileWatcher_Subscribe(t *testing.T) {
 			}(tt.err)
 
 			callback := func() {}
-			err := w.Subscribe(context.TODO(), botType, "hello", callback)
+			err := w.Watch(context.TODO(), botType, "hello", callback)
 
 			if tt.err == nil && err != nil {
 				t.Errorf("Unexpected error is returned: %s", err.Error())
@@ -163,7 +163,7 @@ func TestFileWatcher_Subscribe(t *testing.T) {
 	}
 }
 
-func TestFileWatcher_Unsubscribe(t *testing.T) {
+func TestFileWatcher_Unwatch(t *testing.T) {
 	tests := []struct {
 		panic bool
 	}{
@@ -188,7 +188,7 @@ func TestFileWatcher_Unsubscribe(t *testing.T) {
 				close(w.unsubscribe)
 			}
 
-			err := w.Unsubscribe(botType)
+			err := w.Unwatch(botType)
 			if tt.panic {
 				if err != sarah.ErrWatcherNotRunning {
 					t.Errorf("Expected error is not returned: %s", err)
@@ -369,7 +369,7 @@ func TestFileWatcher_run(t *testing.T) {
 		Name: filepath.Join(dir, "noSubscribingDir", "invalid.json"),
 	}
 
-	// Unsubscribe
+	// Unwatch
 	w.unsubscribe <- "invalidBotType"
 	w.unsubscribe <- botType
 	select {

@@ -293,7 +293,7 @@ func unsubscribeConfigWatcher(watcher ConfigWatcher, botType BotType) {
 			log.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, r)
 		}
 	}()
-	err := watcher.Unsubscribe(botType)
+	err := watcher.Unwatch(botType)
 	if err != nil {
 		log.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, err)
 	}
@@ -430,7 +430,7 @@ func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
 
 	for _, p := range props {
 		reg(p)
-		err := r.configWatcher.Subscribe(botCtx, bot.BotType(), p.identifier, callback(p))
+		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
 		if err != nil {
 			log.Errorf("Failed to subscribe configuration for command %s: %+v", p.identifier, err)
 			continue
@@ -466,7 +466,7 @@ func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
 
 	for _, p := range r.botScheduledTaskProps(bot.BotType()) {
 		reg(p)
-		err := r.configWatcher.Subscribe(botCtx, bot.BotType(), p.identifier, callback(p))
+		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
 		if err != nil {
 			log.Errorf("Failed to subscribe configuration for scheduled task %s: %+v", p.identifier, err)
 			continue

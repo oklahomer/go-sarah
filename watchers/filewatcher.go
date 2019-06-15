@@ -87,7 +87,7 @@ func (w *fileWatcher) Read(ctx context.Context, botType sarah.BotType, id string
 	}
 }
 
-func (w *fileWatcher) Subscribe(_ context.Context, botType sarah.BotType, id string, callback func()) error {
+func (w *fileWatcher) Watch(_ context.Context, botType sarah.BotType, id string, callback func()) error {
 	configDir := filepath.Join(w.baseDir, botType.String())
 	absDir, err := filepath.Abs(configDir)
 	if err != nil {
@@ -106,7 +106,7 @@ func (w *fileWatcher) Subscribe(_ context.Context, botType sarah.BotType, id str
 	return <-s.initErr
 }
 
-func (w *fileWatcher) Unsubscribe(botType sarah.BotType) (err error) {
+func (w *fileWatcher) Unwatch(botType sarah.BotType) (err error) {
 	defer func() {
 		// Panics if and only if unsubscribeGroup channel is closed due to root context cancellation.
 		if r := recover(); r != nil {
@@ -134,7 +134,7 @@ OP:
 			}
 
 			// Explicitly close unsubscribeGroup to make sure enqueueing does not block forever, but panics instead.
-			// watcher.Unsubscribe MUST recover and return ErrWatcherNotRunning error to caller.
+			// watcher.Unwatch MUST recover and return ErrWatcherNotRunning error to caller.
 			// BEWARE that group unsubscription and root context cancellation can occur simultaneously.
 			close(w.unsubscribe)
 
