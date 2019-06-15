@@ -64,7 +64,7 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 	if err := scheduler.update(storedBotType, task, func() { return }); err != nil {
 		t.Fatalf("Error is returned on valid schedule value: %s", err.Error())
 	}
-
+	time.Sleep(10 * time.Millisecond)
 	jobCnt := len(scheduler.(*taskScheduler).cron.Entries())
 	if jobCnt != 1 {
 		t.Fatalf("1 job is expected: %d.", jobCnt)
@@ -76,6 +76,7 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 
 	// Remove a registered job
 	scheduler.remove(storedBotType, taskID)
+	time.Sleep(10 * time.Millisecond)
 	jobCnt = len(scheduler.(*taskScheduler).cron.Entries())
 	if jobCnt != 0 {
 		t.Fatalf("0 job is expected: %d.", jobCnt)
