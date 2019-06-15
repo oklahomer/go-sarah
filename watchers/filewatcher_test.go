@@ -47,12 +47,12 @@ func (w *dummyFsWatcher) Close() error {
 	return w.CloseFunc()
 }
 
-func TestNewDirWatcher(t *testing.T) {
+func TestNewFileWatcher(t *testing.T) {
 	rootCtx := context.Background()
 	watcherCtx, cancel := context.WithCancel(rootCtx)
 	defer cancel()
 
-	w, err := NewDirWatcher(watcherCtx, "testdata")
+	w, err := NewFileWatcher(watcherCtx, "testdata")
 
 	if err != nil {
 		t.Fatalf("Unexpected error on Run: %s", err.Error())
@@ -63,7 +63,7 @@ func TestNewDirWatcher(t *testing.T) {
 	}
 }
 
-func TestDirWatcher_Read(t *testing.T) {
+func TestFileWatcher_Read(t *testing.T) {
 	tests := []struct {
 		id     string
 		hasErr bool
@@ -91,7 +91,7 @@ func TestDirWatcher_Read(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.id, func(t *testing.T) {
-			w := &dirWatcher{
+			w := &fileWatcher{
 				baseDir: dirName,
 			}
 			configPtr := &helloConfig{}
@@ -116,7 +116,7 @@ func TestDirWatcher_Read(t *testing.T) {
 	}
 }
 
-func TestDirWatcher_Subscribe(t *testing.T) {
+func TestFileWatcher_Subscribe(t *testing.T) {
 	tests := []struct {
 		err error
 	}{
@@ -132,7 +132,7 @@ func TestDirWatcher_Subscribe(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			subscr := make(chan *subscription, 1)
-			w := &dirWatcher{
+			w := &fileWatcher{
 				baseDir:   filepath.Join("path", "to", "dummy", "dir"),
 				subscribe: subscr,
 			}
@@ -163,7 +163,7 @@ func TestDirWatcher_Subscribe(t *testing.T) {
 	}
 }
 
-func TestDirWatcher_Unsubscribe(t *testing.T) {
+func TestFileWatcher_Unsubscribe(t *testing.T) {
 	tests := []struct {
 		panic bool
 	}{
@@ -179,7 +179,7 @@ func TestDirWatcher_Unsubscribe(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			unsubscr := make(chan sarah.BotType, 1)
-			w := &dirWatcher{
+			w := &fileWatcher{
 				unsubscribe: unsubscr,
 			}
 
@@ -203,7 +203,7 @@ func TestDirWatcher_Unsubscribe(t *testing.T) {
 	}
 }
 
-func TestDirWatcher_run(t *testing.T) {
+func TestFileWatcher_run(t *testing.T) {
 	dir, _ := filepath.Abs(filepath.Join("..", "testdata", "config", "dummy"))
 	invalidDir, _ := filepath.Abs(filepath.Join("..", "testdata", "config", "invalid"))
 	validId := "hello"
@@ -255,7 +255,7 @@ func TestDirWatcher_run(t *testing.T) {
 	}
 
 	subscr := make(chan *subscription, 1)
-	w := &dirWatcher{
+	w := &fileWatcher{
 		fsWatcher:   fsWatcher,
 		subscribe:   subscr,
 		unsubscribe: make(chan sarah.BotType, 1),
@@ -384,7 +384,7 @@ func TestDirWatcher_run(t *testing.T) {
 	}
 }
 
-func TestDirWatcher_run_cancel(t *testing.T) {
+func TestFileWatcher_run_cancel(t *testing.T) {
 	tests := []struct {
 		err error
 	}{
@@ -404,7 +404,7 @@ func TestDirWatcher_run_cancel(t *testing.T) {
 					return tt.err
 				},
 			}
-			w := &dirWatcher{
+			w := &fileWatcher{
 				fsWatcher:   dummyWatcher,
 				unsubscribe: make(chan sarah.BotType),
 			}

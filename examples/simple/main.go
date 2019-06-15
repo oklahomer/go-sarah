@@ -86,7 +86,7 @@ func main() {
 
 	// Prepare watcher that reads configuration from filesystem
 	if config.PluginConfigDir != "" {
-		configWatcher, _ := watchers.NewDirWatcher(ctx, config.PluginConfigDir)
+		configWatcher, _ := watchers.NewFileWatcher(ctx, config.PluginConfigDir)
 		sarah.RegisterConfigWatcher(configWatcher)
 	}
 

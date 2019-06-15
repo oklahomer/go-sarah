@@ -31,13 +31,13 @@ type subscription struct {
 	initErr  chan error
 }
 
-func NewDirWatcher(ctx context.Context, baseDir string) (sarah.ConfigWatcher, error) {
+func NewFileWatcher(ctx context.Context, baseDir string) (sarah.ConfigWatcher, error) {
 	fsWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to start file watcher: %w", err)
 	}
 
-	w := &dirWatcher{
+	w := &fileWatcher{
 		fsWatcher:   fsWatcher,
 		subscribe:   make(chan *subscription),
 		unsubscribe: make(chan sarah.BotType),
@@ -48,16 +48,16 @@ func NewDirWatcher(ctx context.Context, baseDir string) (sarah.ConfigWatcher, er
 	return w, nil
 }
 
-type dirWatcher struct {
+type fileWatcher struct {
 	fsWatcher   abstractFsWatcher
 	subscribe   chan *subscription
 	unsubscribe chan sarah.BotType
 	baseDir     string
 }
 
-var _ sarah.ConfigWatcher = (*dirWatcher)(nil)
+var _ sarah.ConfigWatcher = (*fileWatcher)(nil)
 
-func (w *dirWatcher) Read(ctx context.Context, botType sarah.BotType, id string, configPtr interface{}) error {
+func (w *fileWatcher) Read(ctx context.Context, botType sarah.BotType, id string, configPtr interface{}) error {
 	configDir := filepath.Join(w.baseDir, strings.ToLower(botType.String()))
 	file := findPluginConfigFile(configDir, id)
 
@@ -87,7 +87,7 @@ func (w *dirWatcher) Read(ctx context.Context, botType sarah.BotType, id string,
 	}
 }
 
-func (w *dirWatcher) Subscribe(_ context.Context, botType sarah.BotType, id string, callback func()) error {
+func (w *fileWatcher) Subscribe(_ context.Context, botType sarah.BotType, id string, callback func()) error {
 	configDir := filepath.Join(w.baseDir, botType.String())
 	absDir, err := filepath.Abs(configDir)
 	if err != nil {
@@ -106,7 +106,7 @@ func (w *dirWatcher) Subscribe(_ context.Context, botType sarah.BotType, id stri
 	return <-s.initErr
 }
 
-func (w *dirWatcher) Unsubscribe(botType sarah.BotType) (err error) {
+func (w *fileWatcher) Unsubscribe(botType sarah.BotType) (err error) {
 	defer func() {
 		// Panics if and only if unsubscribeGroup channel is closed due to root context cancellation.
 		if r := recover(); r != nil {
@@ -119,7 +119,7 @@ func (w *dirWatcher) Unsubscribe(botType sarah.BotType) (err error) {
 	return
 }
 
-func (w *dirWatcher) run(ctx context.Context, events <-chan fsnotify.Event, errs <-chan error) {
+func (w *fileWatcher) run(ctx context.Context, events <-chan fsnotify.Event, errs <-chan error) {
 	subscriptions := map[string][]*subscription{}
 
 OP:
