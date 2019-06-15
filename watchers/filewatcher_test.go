@@ -149,7 +149,7 @@ func TestDirWatcher_Subscribe(t *testing.T) {
 			}(tt.err)
 
 			callback := func() {}
-			err := w.Subscribe(botType, "hello", callback)
+			err := w.Subscribe(context.TODO(), botType, "hello", callback)
 
 			if tt.err == nil && err != nil {
 				t.Errorf("Unexpected error is returned: %s", err.Error())

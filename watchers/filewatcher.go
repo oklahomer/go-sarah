@@ -87,7 +87,7 @@ func (w *dirWatcher) Read(ctx context.Context, botType sarah.BotType, id string,
 	}
 }
 
-func (w *dirWatcher) Subscribe(botType sarah.BotType, id string, callback func()) error {
+func (w *dirWatcher) Subscribe(_ context.Context, botType sarah.BotType, id string, callback func()) error {
 	configDir := filepath.Join(w.baseDir, botType.String())
 	absDir, err := filepath.Abs(configDir)
 	if err != nil {

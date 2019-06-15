@@ -41,7 +41,7 @@ func SetupAndRun(fnc func()) {
 
 type DummyConfigWatcher struct {
 	ReadFunc        func(context.Context, BotType, string, interface{}) error
-	SubscribeFunc   func(BotType, string, func()) error
+	SubscribeFunc   func(context.Context, BotType, string, func()) error
 	UnsubscribeFunc func(BotType) error
 }
 
@@ -49,8 +49,8 @@ func (w *DummyConfigWatcher) Read(botCtx context.Context, botType BotType, id st
 	return w.ReadFunc(botCtx, botType, id, configPtr)
 }
 
-func (w *DummyConfigWatcher) Subscribe(botType BotType, id string, callback func()) error {
-	return w.SubscribeFunc(botType, id, callback)
+func (w *DummyConfigWatcher) Subscribe(ctx context.Context, botType BotType, id string, callback func()) error {
+	return w.SubscribeFunc(ctx, botType, id, callback)
 }
 
 func (w *DummyConfigWatcher) Unsubscribe(botType BotType) error {
@@ -538,7 +538,7 @@ func Test_runner_runBot(t *testing.T) {
 				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
 					return nil
 				},
-				SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+				SubscribeFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
 					return nil
 				},
 				UnsubscribeFunc: func(_ BotType) error {
@@ -947,7 +947,7 @@ func Test_registerCommands(t *testing.T) {
 		}{
 			{
 				configWatcher: &DummyConfigWatcher{
-					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+					SubscribeFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
 						return nil
 					},
 				},
@@ -962,7 +962,7 @@ func Test_registerCommands(t *testing.T) {
 					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
 						return xerrors.Errorf("configuration error")
 					},
-					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+					SubscribeFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
 						return xerrors.New("subscription error")
 					},
 				},
@@ -979,7 +979,7 @@ func Test_registerCommands(t *testing.T) {
 					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
 						return nil
 					},
-					SubscribeFunc: func(_ BotType, id string, callback func()) error {
+					SubscribeFunc: func(_ context.Context, _ BotType, id string, callback func()) error {
 						callback()
 						return nil
 					},
@@ -1059,7 +1059,7 @@ func Test_registerScheduledTasks(t *testing.T) {
 			},
 			{
 				configWatcher: &DummyConfigWatcher{
-					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+					SubscribeFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
 						return nil
 					},
 				},
@@ -1073,7 +1073,7 @@ func Test_registerScheduledTasks(t *testing.T) {
 			},
 			{
 				configWatcher: &DummyConfigWatcher{
-					SubscribeFunc: func(_ BotType, id string, callback func()) error {
+					SubscribeFunc: func(_ context.Context, _ BotType, id string, callback func()) error {
 						callback()
 						return nil
 					},
@@ -1088,7 +1088,7 @@ func Test_registerScheduledTasks(t *testing.T) {
 			},
 			{
 				configWatcher: &DummyConfigWatcher{
-					SubscribeFunc: func(_ BotType, id string, callback func()) error {
+					SubscribeFunc: func(_ context.Context, _ BotType, id string, callback func()) error {
 						callback()
 						return nil
 					},
@@ -1103,7 +1103,7 @@ func Test_registerScheduledTasks(t *testing.T) {
 			},
 			{
 				configWatcher: &DummyConfigWatcher{
-					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+					SubscribeFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
 						return nil
 					},
 				},
@@ -1117,7 +1117,7 @@ func Test_registerScheduledTasks(t *testing.T) {
 			},
 			{
 				configWatcher: &DummyConfigWatcher{
-					SubscribeFunc: func(_ BotType, _ string, _ func()) error {
+					SubscribeFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
 						return xerrors.New("subscription error")
 					},
 				},

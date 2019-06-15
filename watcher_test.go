@@ -33,7 +33,7 @@ func TestNullConfigWatcher_Read(t *testing.T) {
 
 func TestNullConfigWatcher_Subscribe(t *testing.T) {
 	w := &nullConfigWatcher{}
-	err := w.Subscribe("dummy", "id", func() {})
+	err := w.Subscribe(context.TODO(), "dummy", "id", func() {})
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
 	}

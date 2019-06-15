@@ -23,7 +23,7 @@ var _ error = (*ConfigNotFoundError)(nil)
 
 type ConfigWatcher interface {
 	Read(botCtx context.Context, botType BotType, id string, configPtr interface{}) error
-	Subscribe(botType BotType, id string, callback func()) error
+	Subscribe(botCtx context.Context, botType BotType, id string, callback func()) error
 	Unsubscribe(botType BotType) error
 }
 
@@ -35,7 +35,7 @@ func (*nullConfigWatcher) Read(_ context.Context, _ BotType, _ string, _ interfa
 	return nil
 }
 
-func (*nullConfigWatcher) Subscribe(_ BotType, _ string, _ func()) error {
+func (*nullConfigWatcher) Subscribe(_ context.Context, _ BotType, _ string, _ func()) error {
 	return nil
 }
 
