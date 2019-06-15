@@ -31,6 +31,8 @@ type subscription struct {
 	initErr  chan error
 }
 
+// NewFileWatcher creates and returns new instance of sarah.ConfigWatcher implementation.
+// This subscribes to changes on filesystem.
 func NewFileWatcher(ctx context.Context, baseDir string) (sarah.ConfigWatcher, error) {
 	fsWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
