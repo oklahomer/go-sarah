@@ -2,17 +2,10 @@ package sarah
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
-	"github.com/oklahomer/go-sarah/watchers"
 	"github.com/oklahomer/go-sarah/workers"
 	"golang.org/x/xerrors"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -23,18 +16,14 @@ var options = &optionHolder{}
 
 // Config contains some basic configuration variables for go-sarah.
 type Config struct {
-	PluginConfigRoot string `json:"plugin_config_root" yaml:"plugin_config_root"`
-	TimeZone         string `json:"timezone" yaml:"timezone"`
+	TimeZone string `json:"timezone" yaml:"timezone"`
 }
 
 // NewConfig creates and returns new Config instance with default settings.
 // Use json.Unmarshal, yaml.Unmarshal, or manual manipulation to override default values.
 func NewConfig() *Config {
 	return &Config{
-		// PluginConfigRoot defines the root directory for each Command and ScheduledTask.
-		// File path for each plugin is defined as PluginConfigRoot + "/" + BotType + "/" + (Command|ScheduledTask).Identifier.
-		PluginConfigRoot: "",
-		TimeZone:         time.Now().Location().String(),
+		TimeZone: time.Now().Location().String(),
 	}
 }
 
@@ -125,11 +114,10 @@ func RegisterScheduledTaskProps(props *ScheduledTaskProps) {
 	})
 }
 
-// RegisterWatcher registers given watchers.Watcher implementation.
-// When this is not called but Config.PluginConfigRoot is still set, Sarah creates watcher with default configuration on sarah.Run().
-func RegisterWatcher(watcher watchers.Watcher) {
+// RegisterConfigWatcher registers given ConfigWatcher implementation.
+func RegisterConfigWatcher(watcher ConfigWatcher) {
 	options.register(func(r *runner) error {
-		r.watcher = watcher
+		r.configWatcher = watcher
 		return nil
 	})
 }
@@ -206,7 +194,7 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 		config:             config,
 		bots:               []Bot{},
 		worker:             nil,
-		watcher:            nil,
+		configWatcher:      &nullConfigWatcher{},
 		commandProps:       make(map[BotType][]*CommandProps),
 		scheduledTaskProps: make(map[BotType][]*ScheduledTaskProps),
 		scheduledTasks:     make(map[BotType][]ScheduledTask),
@@ -229,15 +217,6 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 		r.worker = w
 	}
 
-	if r.config.PluginConfigRoot != "" && r.watcher == nil {
-		w, e := watchers.Run(ctx)
-		if e != nil {
-			return nil, xerrors.Errorf("watcher could not run: %w", e)
-		}
-
-		r.watcher = w
-	}
-
 	return r, nil
 }
 
@@ -245,7 +224,7 @@ type runner struct {
 	config             *Config
 	bots               []Bot
 	worker             workers.Worker
-	watcher            watchers.Watcher
+	configWatcher      ConfigWatcher
 	commandProps       map[BotType][]*CommandProps
 	scheduledTaskProps map[BotType][]*ScheduledTaskProps
 	scheduledTasks     map[BotType][]ScheduledTask
@@ -257,11 +236,9 @@ type runner struct {
 // SupervisionDirective tells go-sarah's core how to react when a Bot escalates an error.
 // A customized supervisor can be defined and registered via RegisterBotErrorSupervisor().
 type SupervisionDirective struct {
-	// StopBot tells the core to stop the failing Bot and related resources.
+	// StopBot tells the core to stop the failing Bot and cleanup related resources.
 	// When two or more Bots are registered and one or more Bots are to be still running after the failing Bot stops,
 	// internal workers and scheduler keep running.
-	// Directory watcher stops subscribing to corresponding Bot's configuration files' directory,
-	// but it still keeps running until the last Bot stops.
 	//
 	// When all Bots stop, then the core stops all resources.
 	StopBot bool
@@ -310,30 +287,29 @@ func (r *runner) run(ctx context.Context) {
 	wg.Wait()
 }
 
+func unsubscribeConfigWatcher(watcher ConfigWatcher, botType BotType) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, r)
+		}
+	}()
+	err := watcher.Unwatch(botType)
+	if err != nil {
+		log.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, err)
+	}
+}
+
 // runBot runs given Bot implementation in a blocking manner.
 // This returns when bot stops.
 func (r *runner) runBot(runnerCtx context.Context, bot Bot) {
 	log.Infof("Starting %s", bot.BotType())
 	botCtx, errNotifier := r.superviseBot(runnerCtx, bot.BotType())
 
-	// Setup config directory for this particular Bot.
-	var configDir string
-	if r.config.PluginConfigRoot != "" {
-		configDir = filepath.Join(r.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
-	}
-
 	// Build commands with stashed CommandProps.
-	commandProps := r.botCommandProps(bot.BotType())
-	registerCommands(bot, commandProps, configDir)
+	r.registerCommands(botCtx, bot)
 
 	// Register scheduled tasks.
-	tasks := r.botScheduledTasks(bot.BotType())
-	taskProps := r.botScheduledTaskProps(bot.BotType())
-	registerScheduledTasks(botCtx, bot, tasks, taskProps, r.scheduler, configDir)
-
-	if configDir != "" {
-		go r.subscribeConfigDir(botCtx, bot, configDir)
-	}
+	r.registerScheduledTasks(botCtx, bot)
 
 	inputReceiver := setupInputReceiver(botCtx, bot, r.worker)
 
@@ -364,53 +340,8 @@ func (r *runner) runBot(runnerCtx context.Context, bot Bot) {
 		}()
 
 		bot.Run(botCtx, inputReceiver, errNotifier)
+		unsubscribeConfigWatcher(r.configWatcher, bot.BotType())
 	}()
-}
-
-// subscribeConfigDir listens to changes of configuration files under configDir.
-// When a file is updated, a callback function reads the file content and apply changes to corresponding commands and scheduled tasks.
-func (r *runner) subscribeConfigDir(botCtx context.Context, bot Bot, configDir string) {
-	callback := func(path string) {
-		file, err := plainPathToFile(path)
-		if xerrors.Is(err, errUnableToDetermineConfigFileFormat) {
-			log.Warnf("File under Config.PluginConfigRoot is updated, but file format can not be determined from its extension: %s.", path)
-			return
-		} else if xerrors.Is(err, errUnsupportedConfigFileFormat) {
-			log.Warnf("File under Config.PluginConfigRoot is updated, but file format is not supported: %s.", path)
-			return
-		} else if err != nil {
-			log.Warnf("Failed to locate %s: %+v", path, err)
-			return
-		}
-
-		// TODO Consider wrapping below function calls with goroutine.
-		// A developer may update bunch of files under PluginConfigRoot at once. e.g. rsync all files under the directory.
-		// That makes series of callback function calls while each Command/ScheduledTask blocks config file while its execution.
-		// See if that block is critical to watcher implementation.
-		commandProps := r.botCommandProps(bot.BotType())
-		if e := updateCommandConfig(bot, commandProps, file); e != nil {
-			log.Errorf("Failed to update Command config: %+v", e)
-		}
-
-		taskProps := r.botScheduledTaskProps(bot.BotType())
-		if e := updateScheduledTaskConfig(botCtx, bot, taskProps, r.scheduler, file); e != nil {
-			log.Errorf("Failed to update ScheduledTask config: %+v", e)
-		}
-	}
-	err := r.watcher.Subscribe(bot.BotType().String(), configDir, callback)
-	if err != nil {
-		log.Errorf("Failed to watch %s: %+v", configDir, err)
-		return
-	}
-
-	// When Bot stops, stop subscription for config file changes.
-	<-botCtx.Done()
-	err = r.watcher.Unsubscribe(bot.BotType().String())
-	if err != nil {
-		// Probably because Runner context is canceled, and its derived contexts are canceled simultaneously.
-		// In that case this warning is harmless since Watcher itself is canceled at this point.
-		log.Warnf("Failed to unsubscribe %+v", err)
-	}
 }
 
 func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (context.Context, func(error)) {
@@ -477,136 +408,84 @@ func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (conte
 	return botCtx, errNotifier
 }
 
-func registerScheduledTask(botCtx context.Context, bot Bot, task ScheduledTask, taskScheduler scheduler) {
-	err := taskScheduler.update(bot.BotType(), task, func() {
-		executeScheduledTask(botCtx, bot, task)
-	})
-	if err != nil {
-		log.Errorf("Failed to schedule a task. id: %s: %+v", task.Identifier(), err)
-	}
-}
+func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
+	props := r.botCommandProps(bot.BotType())
 
-func registerCommands(bot Bot, props []*CommandProps, configDir string) {
-	for _, p := range props {
-		var file *pluginConfigFile
-		if configDir != "" && p.config != nil {
-			file = findPluginConfigFile(configDir, p.identifier)
-		}
-
-		command, err := buildCommand(p, file)
+	reg := func(p *CommandProps) {
+		command, err := buildCommand(botCtx, p, r.configWatcher)
 		if err != nil {
-			log.Errorf("Failed to configure command %#v: %+v", p, err)
-			continue
+			log.Errorf("Failed to build command %#v: %+v", p, err)
+			return
 		}
 		bot.AppendCommand(command)
 	}
-}
 
-func registerScheduledTasks(botCtx context.Context, bot Bot, tasks []ScheduledTask, props []*ScheduledTaskProps, taskScheduler scheduler, configDir string) {
-	for _, p := range props {
-		var file *pluginConfigFile
-		if configDir != "" && p.config != nil {
-			file = findPluginConfigFile(configDir, p.identifier)
+	callback := func(p *CommandProps) func() {
+		return func() {
+			log.Infof("Updating command: %s", p.identifier)
+			reg(p)
+			return
 		}
-
-		task, err := buildScheduledTask(p, file)
-		if err != nil {
-			log.Errorf("Failed to configure scheduled task %#v: %+v", p, err)
-			continue
-		}
-		tasks = append(tasks, task)
 	}
 
-	for _, task := range tasks {
-		// Make sure schedule is given. Especially those pre-registered tasks.
+	for _, p := range props {
+		reg(p)
+		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
+		if err != nil {
+			log.Errorf("Failed to subscribe configuration for command %s: %+v", p.identifier, err)
+			continue
+		}
+	}
+}
+
+func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
+	reg := func(p *ScheduledTaskProps) {
+		r.scheduler.remove(bot.BotType(), p.identifier)
+
+		task, err := buildScheduledTask(botCtx, p, r.configWatcher)
+		if err != nil {
+			log.Errorf("Failed to build scheduled task %s: %+v", p.identifier, err)
+			return
+		}
+
+		err = r.scheduler.update(bot.BotType(), task, func() {
+			executeScheduledTask(botCtx, bot, task)
+		})
+		if err != nil {
+			log.Errorf("Failed to schedule a task. ID: %s: %+v", task.Identifier(), err)
+		}
+	}
+
+	callback := func(p *ScheduledTaskProps) func() {
+		return func() {
+			log.Infof("Updating scheduled task: %s", p.identifier)
+			reg(p)
+			return
+		}
+	}
+
+	for _, p := range r.botScheduledTaskProps(bot.BotType()) {
+		reg(p)
+		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
+		if err != nil {
+			log.Errorf("Failed to subscribe configuration for scheduled task %s: %+v", p.identifier, err)
+			continue
+		}
+	}
+
+	for _, task := range r.botScheduledTasks(bot.BotType()) {
 		if task.Schedule() == "" {
 			log.Errorf("Failed to schedule a task. ID: %s. Reason: %s.", task.Identifier(), "No schedule given.")
 			continue
 		}
 
-		registerScheduledTask(botCtx, bot, task, taskScheduler)
-	}
-}
-
-func updateCommandConfig(bot Bot, props []*CommandProps, file *pluginConfigFile) error {
-	for _, p := range props {
-		if p.config == nil {
-			continue
-		}
-
-		if p.identifier != file.id {
-			continue
-		}
-
-		log.Infof("Start updating config due to config file change: %s.", file.id)
-		rv := reflect.ValueOf(p.config)
-		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
-			// p.config is a pointer to config struct or a map
-			// Just update p.config and the same instance is shared by currently registered Command.
-			err := func() error {
-				// https://github.com/oklahomer/go-sarah/issues/44
-				locker := configLocker.get(p.botType, p.identifier)
-				locker.Lock()
-				defer locker.Unlock()
-
-				return updatePluginConfig(file, p.config)
-			}()
-			if err != nil {
-				return xerrors.Errorf("failed to read configuration file at %s: %w", file.path, err)
-			}
-		} else {
-			// p.config is not pointer or map, but an actual struct value.
-			// Simply updating p.config can not update the behaviour of currently registered Command.
-			// Proceed to re-build Command and replace with old one.
-			rebuiltCmd, err := buildCommand(p, file)
-			if err != nil {
-				return xerrors.Errorf("failed to rebuild Command for %s: %w", p.identifier, err)
-			}
-			bot.AppendCommand(rebuiltCmd) // Replaces the old one.
-		}
-		log.Infof("End updating config due to config file change: %s.", file.id)
-
-		return nil
-	}
-
-	return nil
-}
-
-func updateScheduledTaskConfig(botCtx context.Context, bot Bot, taskProps []*ScheduledTaskProps, taskScheduler scheduler, file *pluginConfigFile) error {
-	for _, p := range taskProps {
-		if p.config == nil {
-			continue
-		}
-
-		if p.identifier != file.id {
-			continue
-		}
-
-		// TaskConfig update may involve re-scheduling and other miscellaneous tasks
-		// so no matter config type is a pointer or actual value, always re-build ScheduledTask and register again.
-		// See updateCommandConfig.
-		log.Infof("Start rebuilding scheduled task due to config file change: %s.", file.id)
-		task, err := buildScheduledTask(p, file)
+		err := r.scheduler.update(bot.BotType(), task, func() {
+			executeScheduledTask(botCtx, bot, task)
+		})
 		if err != nil {
-			// When rebuild is failed, unregister corresponding ScheduledTask.
-			// This is to avoid a scenario that config struct itself is successfully updated,
-			// but the props' values and new config do not provide some required settings such as schedule, etc...
-			e := taskScheduler.remove(bot.BotType(), p.identifier)
-			if e != nil {
-				return xerrors.Errorf("tried to remove ScheduledTask because rebuild failed, but removal also failed: %w", e)
-			}
-
-			return xerrors.Errorf(`failed to re-build scheduled task "%s": %w`, p.identifier, err)
+			log.Errorf("Failed to schedule a task. id: %s: %+v", task.Identifier(), err)
 		}
-
-		registerScheduledTask(botCtx, bot, task, taskScheduler)
-
-		log.Infof("End rebuilding scheduled task due to config file change: %s.", file.id)
-
-		return nil
 	}
-
-	return nil
 }
 
 func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
@@ -659,105 +538,4 @@ func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) 
 		// Could not send because probably the workers are too busy or the runner context is already canceled.
 		return NewBlockedInputError(continuousEnqueueErrCnt)
 	}
-}
-
-type fileType uint
-
-const (
-	_ fileType = iota
-	yamlFile
-	jsonFile
-)
-
-type pluginConfigFile struct {
-	id       string
-	path     string
-	fileType fileType
-}
-
-func updatePluginConfig(file *pluginConfigFile, configPtr interface{}) error {
-	buf, err := ioutil.ReadFile(file.path)
-	if err != nil {
-		return xerrors.Errorf("failed to read configuration file at %s: %w", file.path, err)
-	}
-
-	switch file.fileType {
-	case yamlFile:
-		return yaml.Unmarshal(buf, configPtr)
-
-	case jsonFile:
-		return json.Unmarshal(buf, configPtr)
-
-	default:
-		return xerrors.Errorf("unsupported file type: %s", file.path)
-
-	}
-}
-
-var (
-	errUnableToDetermineConfigFileFormat = xerrors.New("can not determine file format")
-	errUnsupportedConfigFileFormat       = xerrors.New("unsupported file format")
-	configFileCandidates                 = []struct {
-		ext      string
-		fileType fileType
-	}{
-		{
-			ext:      ".yaml",
-			fileType: yamlFile,
-		},
-		{
-			ext:      ".yml",
-			fileType: yamlFile,
-		},
-		{
-			ext:      ".json",
-			fileType: jsonFile,
-		},
-	}
-)
-
-func plainPathToFile(path string) (*pluginConfigFile, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-
-	ext := filepath.Ext(path)
-	if ext == "" {
-		return nil, errUnableToDetermineConfigFileFormat
-	}
-
-	_, filename := filepath.Split(path)
-	id := strings.TrimSuffix(filename, ext) // buzz.yaml to buzz
-
-	for _, c := range configFileCandidates {
-		if ext != c.ext {
-			continue
-		}
-
-		return &pluginConfigFile{
-			id:       id,
-			path:     path,
-			fileType: c.fileType,
-		}, nil
-	}
-
-	return nil, errUnsupportedConfigFileFormat
-}
-
-func findPluginConfigFile(configDir, id string) *pluginConfigFile {
-	for _, c := range configFileCandidates {
-		configPath := filepath.Join(configDir, fmt.Sprintf("%s%s", id, c.ext))
-		_, err := os.Stat(configPath)
-		if err == nil {
-			// File exists.
-			return &pluginConfigFile{
-				id:       id,
-				path:     configPath,
-				fileType: c.fileType,
-			}
-		}
-	}
-
-	return nil
 }

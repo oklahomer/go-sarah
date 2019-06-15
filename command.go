@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/xerrors"
-	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -77,7 +76,7 @@ func (command *defaultCommand) Execute(ctx context.Context, input Input) (*Comma
 	return command.commandFunc(ctx, input, wrapper.value)
 }
 
-func buildCommand(props *CommandProps, file *pluginConfigFile) (Command, error) {
+func buildCommand(ctx context.Context, props *CommandProps, watcher ConfigWatcher) (Command, error) {
 	if props.config == nil {
 		return &defaultCommand{
 			identifier:      props.identifier,
@@ -91,57 +90,37 @@ func buildCommand(props *CommandProps, file *pluginConfigFile) (Command, error) 
 	// https://github.com/oklahomer/go-sarah/issues/44
 	locker := configLocker.get(props.botType, props.identifier)
 
-	if file == nil {
-		// Config file is not found so far, but there is a chance that file is created later.
-		// In that case, file watcher may detect the file creation event and trigger config struct's live update.
-		// To avoid the concurrent read/write, locker is still needed.
-		// Until then, assume given CommandConfig is already configured and proceed to build.
-		configWrapper := &commandConfigWrapper{
-			value: props.config,
-			mutex: locker,
-		}
-
-		return &defaultCommand{
-			identifier:      props.identifier,
-			matchFunc:       props.matchFunc,
-			instructionFunc: props.instructionFunc,
-			commandFunc:     props.commandFunc,
-			configWrapper:   configWrapper,
-		}, nil
-	}
-
-	commandConfig := props.config
-
-	// Minimize the scope of mutex with anonymous function for better performance.
+	cfg := props.config
 	err := func() error {
 		locker.Lock()
 		defer locker.Unlock()
 
-		rv := reflect.ValueOf(commandConfig)
+		rv := reflect.ValueOf(cfg)
 		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
-			return updatePluginConfig(file, commandConfig)
+			return watcher.Read(ctx, props.botType, props.identifier, cfg)
 		}
 
 		// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
-		// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
-		n := reflect.New(reflect.TypeOf(commandConfig))
+		// Obtain a pointer to the *underlying type* instead of sarah.CommandConfig.
+		n := reflect.New(reflect.TypeOf(cfg))
 
-		// Copy the current value to newly created instance.
+		// Copy the current field value to newly created instance.
 		// This includes private field values.
 		n.Elem().Set(rv)
 
 		// Pass the pointer to the newly created instance.
-		e := updatePluginConfig(file, n.Interface())
-
-		// Replace the current value with updated value.
-		commandConfig = n.Elem().Interface()
+		e := watcher.Read(ctx, props.botType, props.identifier, n.Interface())
+		if e == nil {
+			// Replace the current value with updated value.
+			cfg = n.Elem().Interface()
+		}
 		return e
 	}()
-	if err != nil && os.IsNotExist(err) {
-		return nil, xerrors.Errorf("config file property was given, but failed to locate it: %w", err)
-	} else if err != nil {
-		// File was there, but could not read.
-		return nil, err
+
+	var notFoundErr *ConfigNotFoundError
+	if err != nil && !xerrors.As(err, &notFoundErr) {
+		// Unacceptable error
+		return nil, xerrors.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
 	}
 
 	return &defaultCommand{
@@ -150,7 +129,7 @@ func buildCommand(props *CommandProps, file *pluginConfigFile) (Command, error) 
 		instructionFunc: props.instructionFunc,
 		commandFunc:     props.commandFunc,
 		configWrapper: &commandConfigWrapper{
-			value: commandConfig,
+			value: cfg,
 			mutex: locker,
 		},
 	}, nil

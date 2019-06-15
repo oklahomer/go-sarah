@@ -9,7 +9,7 @@ import (
 )
 
 type scheduler interface {
-	remove(BotType, string) error
+	remove(BotType, string)
 	update(BotType, ScheduledTask, func()) error
 }
 
@@ -19,15 +19,12 @@ type taskScheduler struct {
 	updatingTask chan *updatingTask
 }
 
-func (s *taskScheduler) remove(botType BotType, taskID string) error {
+func (s *taskScheduler) remove(botType BotType, taskID string) {
 	remove := &removingTask{
 		botType: botType,
 		taskID:  taskID,
-		err:     make(chan error, 1),
 	}
 	s.removingTask <- remove
-
-	return <-remove.err
 }
 
 func (s *taskScheduler) update(botType BotType, task ScheduledTask, fn func()) error {
@@ -45,7 +42,6 @@ func (s *taskScheduler) update(botType BotType, task ScheduledTask, fn func()) e
 type removingTask struct {
 	botType BotType
 	taskID  string
-	err     chan error
 }
 
 type updatingTask struct {
@@ -75,21 +71,21 @@ func runScheduler(ctx context.Context, location *time.Location) scheduler {
 
 func (s *taskScheduler) receiveEvent(ctx context.Context) {
 	schedule := make(map[BotType]map[string]cron.EntryID)
-	removeFunc := func(botType BotType, taskID string) error {
+	removeFunc := func(botType BotType, taskID string) {
 		botSchedule, ok := schedule[botType]
 		if !ok {
-			return xerrors.Errorf("registered task for %s is not found with ID of %s", botType, taskID)
+			// Task is not registered for the given bot
+			return
 		}
 
 		storedID, ok := botSchedule[taskID]
 		if !ok {
-			return xerrors.Errorf("task for %s is not found with ID of %s", botType, taskID)
+			// Given task is not registered
+			return
 		}
 
 		delete(botSchedule, taskID)
 		s.cron.Remove(storedID)
-
-		return nil
 	}
 
 	for {
@@ -100,7 +96,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 			return
 
 		case remove := <-s.removingTask:
-			remove.err <- removeFunc(remove.botType, remove.taskID)
+			removeFunc(remove.botType, remove.taskID)
 
 		case add := <-s.updatingTask:
 			if add.task.Schedule() == "" {
@@ -108,7 +104,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 				continue
 			}
 
-			_ = removeFunc(add.botType, add.task.Identifier())
+			removeFunc(add.botType, add.task.Identifier())
 
 			id, err := s.cron.AddFunc(add.task.Schedule(), add.fn)
 			if err != nil {

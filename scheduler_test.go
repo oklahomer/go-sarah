@@ -7,12 +7,12 @@ import (
 )
 
 type DummyScheduler struct {
-	RemoveFunc func(BotType, string) error
+	RemoveFunc func(BotType, string)
 	UpdateFunc func(BotType, ScheduledTask, func()) error
 }
 
-func (s *DummyScheduler) remove(botType BotType, taskID string) error {
-	return s.RemoveFunc(botType, taskID)
+func (s *DummyScheduler) remove(botType BotType, taskID string) {
+	s.RemoveFunc(botType, taskID)
 }
 
 func (s *DummyScheduler) update(botType BotType, task ScheduledTask, fn func()) error {
@@ -64,24 +64,19 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 	if err := scheduler.update(storedBotType, task, func() { return }); err != nil {
 		t.Fatalf("Error is returned on valid schedule value: %s", err.Error())
 	}
-
+	time.Sleep(10 * time.Millisecond)
 	jobCnt := len(scheduler.(*taskScheduler).cron.Entries())
 	if jobCnt != 1 {
 		t.Fatalf("1 job is expected: %d.", jobCnt)
 	}
 
-	if err := scheduler.remove("irrelevantBotType", taskID); err == nil {
-		t.Fatal("Error should be returned for irrelevant removal.")
-	}
+	// Irrelevant call cause no trouble
+	scheduler.remove("irrelevantBotType", taskID)
+	scheduler.remove(storedBotType, "irrelevantID")
 
-	if err := scheduler.remove(storedBotType, "irrelevantID"); err == nil {
-		t.Fatal("Error should be returned for irrelevant removal.")
-	}
-
-	if err := scheduler.remove(storedBotType, taskID); err != nil {
-		t.Fatalf("Error should not be returned for actual removal: %s.", err.Error())
-	}
-
+	// Remove a registered job
+	scheduler.remove(storedBotType, taskID)
+	time.Sleep(10 * time.Millisecond)
 	jobCnt = len(scheduler.(*taskScheduler).cron.Entries())
 	if jobCnt != 0 {
 		t.Fatalf("0 job is expected: %d.", jobCnt)

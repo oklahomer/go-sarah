@@ -18,6 +18,7 @@ import (
 	"github.com/oklahomer/go-sarah/examples/simple/plugins/todo"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/go-sarah/watchers"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -26,10 +27,11 @@ import (
 )
 
 type myConfig struct {
-	CacheConfig *sarah.CacheConfig `yaml:"cache"`
-	Slack       *slack.Config      `yaml:"slack"`
-	Runner      *sarah.Config      `yaml:"runner"`
-	LineAlerter *line.Config       `yaml:"line_alerter"`
+	CacheConfig     *sarah.CacheConfig `yaml:"cache"`
+	Slack           *slack.Config      `yaml:"slack"`
+	Runner          *sarah.Config      `yaml:"runner"`
+	LineAlerter     *line.Config       `yaml:"line_alerter"`
+	PluginConfigDir string             `yaml:"plugin_config_dir"`
 }
 
 func newMyConfig() *myConfig {
@@ -79,8 +81,16 @@ func main() {
 	// This Command is not subject to config file supervision.
 	slackBot.AppendCommand(echo.Command)
 
-	// Run
+	// Prepare go-sarah's core context
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Prepare watcher that reads configuration from filesystem
+	if config.PluginConfigDir != "" {
+		configWatcher, _ := watchers.NewFileWatcher(ctx, config.PluginConfigDir)
+		sarah.RegisterConfigWatcher(configWatcher)
+	}
+
+	// Run
 	err = sarah.Run(ctx, config.Runner)
 	if err != nil {
 		panic(err)
