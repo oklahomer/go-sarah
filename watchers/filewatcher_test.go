@@ -281,6 +281,10 @@ func TestFileWatcher_run(t *testing.T) {
 					// O.K.
 
 				case <-time.NewTimer(100 * time.Millisecond).C:
+					if ctx.Err() == context.Canceled {
+						// This is acceptable. errs simply stack because watcher stopped.
+						return
+					}
 					t.Error("Error sending should not block")
 
 				}
