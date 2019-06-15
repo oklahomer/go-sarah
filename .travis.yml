@@ -13,11 +13,20 @@ go:
 before_install:
   - export PATH=$HOME/gopath/bin:$PATH
   - go get github.com/mattn/goveralls
+  - go get github.com/modocache/gover
 
 script:
   - go test -race ./...
-  - go test -coverprofile=coverage.out ./...
-  - goveralls -coverprofile=coverage.out -service=travis-ci -ignore=examples/*/*.go,examples/*/*/*.go,examples/*/*/*/*.go
+  - go test -coverprofile=sarah.coverprofile .
+  - go test -coverprofile=alerter.line.coverprofile ./alerter/line
+  - go test -coverprofile=gitter.coverprofile ./gitter
+  - go test -coverprofile=log.coverprofile ./log
+  - go test -coverprofile=retry.coverprofile ./retry
+  - go test -coverprofile=slack.coverprofile ./slack
+  - go test -coverprofile=watchers.coverprofile ./watchers
+  - go test -coverprofile=workers.coverprofile ./workers
+  - gover
+  - goveralls -coverprofile=gover.coverprofile -service=travis-ci -ignore=examples/*/*.go,examples/*/*/*.go,examples/*/*/*/*.go
 
 matrix:
   allow_failures:
