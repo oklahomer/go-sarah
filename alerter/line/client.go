@@ -33,16 +33,34 @@ func NewConfig() *Config {
 	}
 }
 
+// Option defines a function signature that New()'s functional options must satisfy.
+type Option func(*Client)
+
+// WithHTTPClient creates an Option that replaces http.DefaultClient with preferred one.
+func WithHTTPClient(httpClient *http.Client) Option {
+	return func(c *Client) {
+		c.httpClient = httpClient
+	}
+}
+
 // Client is an API client for LINE notification.
 type Client struct {
-	config *Config
+	config     *Config
+	httpClient *http.Client
 }
 
 // New creates and returns new Client instant.
-func New(config *Config) *Client {
-	return &Client{
-		config: config,
+func New(config *Config, options ...Option) *Client {
+	c := &Client{
+		config:     config,
+		httpClient: http.DefaultClient,
 	}
+
+	for _, opt := range options {
+		opt(c)
+	}
+
+	return c
 }
 
 // Alert sends alert message to notify critical state of caller.
@@ -60,7 +78,7 @@ func (c *Client) Alert(ctx context.Context, botType sarah.BotType, err error) er
 	defer cancel()
 	req = req.WithContext(reqCtx)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
