@@ -12,6 +12,31 @@ const (
 	StreamingAPIEndpointFormat = "https://stream.gitter.im/%s/rooms/%s/chatMessages"
 )
 
+// StreamingAPIConfig represents configuration value for Rest API.
+type StreamingAPIConfig struct {
+	Token      string `json:"token" yaml:"token"`
+	APIVersion string `json:"api_version" yaml:"api_version"`
+}
+
+// NewStreamingAPIConfig returns initialized configuration struct with default settings.
+// Token is empty at this point. Token can be set by feeding this instance to json.Unmarshal/yaml.Unmarshal
+// or by direct assignment.
+func NewStreamingAPIConfig() *StreamingAPIConfig {
+	return &StreamingAPIConfig{
+		APIVersion: "v1",
+	}
+}
+
+// StreamingClientOption defines function signature that StreamingAPIClient's functional option must satisfy.
+type StreamingClientOption func(*StreamingAPIClient)
+
+// StreamingClientWithHTTPClient replaces the http.DefaultClient with customized one.
+func StreamingClientWithHTTPClient(httpClient *http.Client) StreamingClientOption {
+	return func(client *StreamingAPIClient) {
+		client.httpClient = httpClient
+	}
+}
+
 // StreamConnector defines an interface that connects to given gitter room
 type StreamConnector interface {
 	Connect(context.Context, *Room) (Connection, error)
@@ -19,26 +44,27 @@ type StreamConnector interface {
 
 // StreamingAPIClient utilizes gitter streaming API.
 type StreamingAPIClient struct {
-	token      string
-	apiVersion string
-}
-
-// NewVersionSpecificStreamingAPIClient creates and returns API client instance.
-func NewVersionSpecificStreamingAPIClient(apiVersion string, token string) *StreamingAPIClient {
-	return &StreamingAPIClient{
-		token:      token,
-		apiVersion: apiVersion,
-	}
+	config     *StreamingAPIConfig
+	httpClient *http.Client
 }
 
 // NewStreamingAPIClient creates and returns API client instance.
 // API version is fixed to v1.
-func NewStreamingAPIClient(token string) *StreamingAPIClient {
-	return NewVersionSpecificStreamingAPIClient("v1", token)
+func NewStreamingAPIClient(config *StreamingAPIConfig, options ...StreamingClientOption) *StreamingAPIClient {
+	client := &StreamingAPIClient{
+		config:     config,
+		httpClient: http.DefaultClient,
+	}
+
+	for _, opt := range options {
+		opt(client)
+	}
+
+	return client
 }
 
 func (client *StreamingAPIClient) buildEndpoint(room *Room) *url.URL {
-	endpoint, _ := url.Parse(fmt.Sprintf(StreamingAPIEndpointFormat, client.apiVersion, room.ID))
+	endpoint, _ := url.Parse(fmt.Sprintf(StreamingAPIEndpointFormat, client.config.APIVersion, room.ID))
 	return endpoint
 }
 
@@ -51,12 +77,12 @@ func (client *StreamingAPIClient) Connect(ctx context.Context, room *Room) (Conn
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+client.token)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.config.Token))
 	req.Header.Set("Accept", "application/json")
 	req = req.WithContext(ctx)
 
 	// Do request
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.httpClient.Do(req)
 
 	if err != nil {
 		return nil, err

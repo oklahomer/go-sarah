@@ -6,6 +6,8 @@ import (
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
 	"golang.org/x/xerrors"
+	"net/http"
+	"time"
 )
 
 const (
@@ -13,12 +15,57 @@ const (
 	GITTER sarah.BotType = "gitter"
 )
 
+// Config contains some configuration variables for gitter Adapter.
+type Config struct {
+	Token       string        `json:"token" yaml:"token"`
+	RetryPolicy *retry.Policy `json:"retry_policy" yaml:"retry_policy"`
+}
+
+// NewConfig returns initialized Config struct with default settings.
+// Token is empty at this point. Token can be set by feeding this instance to json.Unmarshal/yaml.Unmarshal,
+// or direct assignment.
+func NewConfig() *Config {
+	return &Config{
+		Token: "",
+		RetryPolicy: &retry.Policy{
+			Trial:    10,
+			Interval: 500 * time.Millisecond,
+		},
+	}
+}
+
 // AdapterOption defines function signature that Adapter's functional option must satisfy.
 type AdapterOption func(adapter *Adapter) error
+
+// WithAPIClient replaces the default REST API client with customized one.
+func WithAPIClient(c APIClient) AdapterOption {
+	return func(adapter *Adapter) error {
+		adapter.apiClient = c
+		return nil
+	}
+}
+
+// WithStreamingConnector replaces the default StreamConnector with customized one.
+func WithStreamingConnector(s StreamConnector) AdapterOption {
+	return func(adapter *Adapter) error {
+		adapter.streamingClient = s
+		return nil
+	}
+}
+
+// WithHTTPClient replaces defautl HTTP client with customized one.
+// This is used to construct APIClient and StreamConnector.
+func WithHTTPClient(httpClient *http.Client) AdapterOption {
+	return func(adapter *Adapter) error {
+		adapter.httpClient = httpClient
+		return nil
+	}
+}
 
 // Adapter stores REST/Streaming API clients' instances to let users interact with gitter.
 type Adapter struct {
 	config          *Config
+	httpClient      *http.Client
 	apiClient       APIClient
 	streamingClient StreamingClient
 }
@@ -26,9 +73,8 @@ type Adapter struct {
 // NewAdapter creates and returns new Adapter instance.
 func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	adapter := &Adapter{
-		config:          config,
-		apiClient:       NewRestAPIClient(config.Token),
-		streamingClient: NewStreamingAPIClient(config.Token),
+		config:     config,
+		httpClient: http.DefaultClient,
 	}
 
 	for _, opt := range options {
@@ -36,6 +82,18 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 		if err != nil {
 			return nil, xerrors.Errorf("failed to apply options: %w", err)
 		}
+	}
+
+	if adapter.apiClient == nil {
+		restAPIConfig := NewRestAPIConfig()
+		restAPIConfig.Token = config.Token
+		adapter.apiClient = NewRestAPIClient(restAPIConfig, APIClientWithHTTPClient(adapter.httpClient))
+	}
+
+	if adapter.streamingClient == nil {
+		streamingAPIConfig := NewStreamingAPIConfig()
+		streamingAPIConfig.Token = config.Token
+		adapter.streamingClient = NewStreamingAPIClient(streamingAPIConfig, StreamingClientWithHTTPClient(adapter.httpClient))
 	}
 
 	return adapter, nil

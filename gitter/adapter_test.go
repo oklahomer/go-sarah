@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
+	"net/http"
 	"os"
 	"reflect"
 	"testing"
@@ -62,15 +63,83 @@ func (c *DummyConnection) Close() error {
 	return c.CloseFunc()
 }
 
-func TestNewAdapter(t *testing.T) {
+func TestNewConfig(t *testing.T) {
 	config := NewConfig()
-	adapter, err := NewAdapter(config)
+	if config == nil {
+		t.Fatal("Config is not returned.")
+	}
+
+	if config.RetryPolicy == nil {
+		t.Error("Default RetryPolicy is not set.")
+	}
+}
+
+func TestWithAPIClient(t *testing.T) {
+	apiClient := &RestAPIClient{}
+	option := WithAPIClient(apiClient)
+	adapter := &Adapter{}
+
+	err := option(adapter)
+
+	if err != nil {
+		t.Fatal("Failed to apply given RestAPIClient.")
+	}
+
+	if adapter.apiClient != apiClient {
+		t.Error("Passed RestAPIClient is not set.")
+	}
+}
+
+func TestWithStreamingConnector(t *testing.T) {
+	connector := &StreamingAPIClient{}
+	option := WithStreamingConnector(connector)
+	adapter := &Adapter{}
+
+	err := option(adapter)
+
+	if err != nil {
+		t.Fatal("Failed to apply given StreamConnector.")
+	}
+
+	if adapter.streamingClient != connector {
+		t.Error("Passed StreamConnector is not set.")
+	}
+}
+
+func TestWithHTTPClient(t *testing.T) {
+	httpClient := &http.Client{}
+	option := WithHTTPClient(httpClient)
+	adapter := &Adapter{}
+
+	err := option(adapter)
+
+	if err != nil {
+		t.Fatal("Failed to apply given HTTP client.")
+	}
+
+	if adapter.httpClient != httpClient {
+		t.Error("Passed HTTP client is not set.")
+	}
+}
+
+func TestNewAdapter(t *testing.T) {
+	httpClient := &http.Client{}
+	config := NewConfig()
+	adapter, err := NewAdapter(config, WithHTTPClient(httpClient))
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
 
 	if adapter.config != config {
-		t.Fatal("Supplied config is not set.")
+		t.Error("Supplied config is not set.")
+	}
+
+	if adapter.streamingClient.(*StreamingAPIClient).httpClient != httpClient {
+		t.Error("Passed HTTP client is not used to construct StreamingConnector.")
+	}
+
+	if adapter.apiClient.(*RestAPIClient).httpClient != httpClient {
+		t.Error("Passed HTTP client is not used to construct APIClient.")
 	}
 }
 

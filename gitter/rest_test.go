@@ -6,46 +6,75 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 )
 
-func TestNewRestAPIClient(t *testing.T) {
-	token := "dummy"
-	client := NewRestAPIClient(token)
-
-	if client == nil {
-		t.Fatalf("Client is not returned.")
+func TestNewRestAPIConfig(t *testing.T) {
+	config := NewRestAPIConfig()
+	if config == nil {
+		t.Fatal("RestAPIConfig is not returned.")
 	}
 
-	if client.token != token {
-		t.Errorf("Supplied token is not set: %s.", client.token)
+	if config.APIVersion == "" {
+		t.Error("Default API version is not set.")
 	}
 }
 
-func TestNewVersionSpecificRestAPIClient(t *testing.T) {
-	token := "dummy"
-	version := "v2"
+func TestAPIClientWithHTTPClient(t *testing.T) {
+	httpClient := &http.Client{}
+	option := APIClientWithHTTPClient(httpClient)
+	client := &RestAPIClient{}
 
-	client := NewVersionSpecificRestAPIClient(token, version)
+	option(client)
 
-	if client == nil {
-		t.Fatalf("Client is not returned.")
+	if client.httpClient != httpClient {
+		t.Error("Passed HTTP client is not set.")
+	}
+}
+
+func TestNewRestAPIClient(t *testing.T) {
+	tests := []struct {
+		config  *RestAPIConfig
+		options []APIClientOption
+	}{
+		{
+			config:  &RestAPIConfig{},
+			options: []APIClientOption{},
+		},
+		{
+			config: &RestAPIConfig{},
+			options: []APIClientOption{
+				APIClientWithHTTPClient(&http.Client{}),
+			},
+		},
 	}
 
-	if client.token != token {
-		t.Errorf("Supplied token is not set: %s.", client.token)
-	}
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			client := NewRestAPIClient(tt.config, tt.options...)
+			if client == nil {
+				t.Fatal("RestAPIClient is not returned.")
+			}
 
-	if client.apiVersion != version {
-		t.Errorf("Supplied version is not set: %s.", client.apiVersion)
+			if client.httpClient == nil {
+				t.Error("HTTP client is not set.")
+			}
+
+			if client.config != tt.config {
+				t.Error("Passed RestAPIConfig is not set.")
+			}
+		})
 	}
 }
 
 func TestRestAPIClient_buildEndPoint(t *testing.T) {
 	version := "v1"
 	client := &RestAPIClient{
-		apiVersion: "v1",
+		config: &RestAPIConfig{
+			APIVersion: "v1",
+		},
 	}
 
 	endpoint := client.buildEndpoint([]string{"path"})
@@ -79,8 +108,11 @@ func TestRestAPIClient_Get(t *testing.T) {
 	defer resetClient()
 
 	client := &RestAPIClient{
-		token:      "buzz",
-		apiVersion: "v1",
+		config: &RestAPIConfig{
+			Token:      "buzz",
+			APIVersion: "v1",
+		},
+		httpClient: http.DefaultClient,
 	}
 	returned := &GetResponseDummy{}
 	err := client.Get(context.TODO(), []string{"bar"}, returned)
@@ -108,8 +140,11 @@ func TestClient_Get_StatusError(t *testing.T) {
 	defer resetClient()
 
 	client := &RestAPIClient{
-		token:      "buzz",
-		apiVersion: "v1",
+		config: &RestAPIConfig{
+			Token:      "buzz",
+			APIVersion: "v1",
+		},
+		httpClient: http.DefaultClient,
 	}
 	returned := struct{}{}
 	err := client.Get(context.TODO(), []string{"foo"}, returned)
@@ -142,8 +177,11 @@ func TestRestAPIClient_Post(t *testing.T) {
 	defer resetClient()
 
 	client := &RestAPIClient{
-		token:      "bar",
-		apiVersion: "v1",
+		config: &RestAPIConfig{
+			Token:      "bar",
+			APIVersion: "v1",
+		},
+		httpClient: http.DefaultClient,
 	}
 	returned := &PostResponseDummy{}
 	err := client.Post(context.TODO(), []string{"bar"}, url.Values{}, returned)
@@ -184,8 +222,11 @@ func TestRestAPIClient_Rooms(t *testing.T) {
 	defer resetClient()
 
 	client := &RestAPIClient{
-		token:      "buzz",
-		apiVersion: "v1",
+		config: &RestAPIConfig{
+			Token:      "buzz",
+			APIVersion: "v1",
+		},
+		httpClient: http.DefaultClient,
 	}
 	rooms, err := client.Rooms(context.TODO())
 
@@ -226,8 +267,11 @@ func TestRestAPIClient_PostMessage(t *testing.T) {
 	defer resetClient()
 
 	client := &RestAPIClient{
-		token:      "bar",
-		apiVersion: "v1",
+		config: &RestAPIConfig{
+			Token:      "bar",
+			APIVersion: "v1",
+		},
+		httpClient: http.DefaultClient,
 	}
 
 	room := &Room{

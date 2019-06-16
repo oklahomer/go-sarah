@@ -4,39 +4,75 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 )
 
-func TestNewStreamingAPIClient(t *testing.T) {
-	token := "token"
+func TestNewStreamingAPIConfig(t *testing.T) {
+	config := NewStreamingAPIConfig()
+	if config == nil {
+		t.Fatal("StreamingAPIConfig is not returned.")
+	}
 
-	client := NewStreamingAPIClient(token)
-
-	if client.token != token {
-		t.Errorf("Supplied token is not set: %s.", client.token)
+	if config.APIVersion == "" {
+		t.Error("Default API version is not set.")
 	}
 }
 
-func TestNewVersionSpecificStreamingAPIClient(t *testing.T) {
-	token := "token"
-	version := "v2"
+func TestStreamingClientWithHTTPClient(t *testing.T) {
+	httpClient := &http.Client{}
+	option := StreamingClientWithHTTPClient(httpClient)
+	c := &StreamingAPIClient{}
 
-	client := NewVersionSpecificStreamingAPIClient(version, token)
+	option(c)
 
-	if client.token != token {
-		t.Errorf("Supplied token is not set: %s.", client.token)
+	if c.httpClient != httpClient {
+		t.Error("Passed HTTP client is not set.")
+	}
+}
+
+func TestNewStreamingAPIClient(t *testing.T) {
+	tests := []struct {
+		config  *StreamingAPIConfig
+		options []StreamingClientOption
+	}{
+		{
+			config:  &StreamingAPIConfig{},
+			options: []StreamingClientOption{},
+		},
+		{
+			config: &StreamingAPIConfig{},
+			options: []StreamingClientOption{
+				StreamingClientWithHTTPClient(&http.Client{}),
+			},
+		},
 	}
 
-	if client.apiVersion != version {
-		t.Errorf("Supplied version is not set: %s.", client.token)
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			client := NewStreamingAPIClient(tt.config, tt.options...)
+			if client == nil {
+				t.Fatal("StreamingAPIClient is not returned.")
+			}
+
+			if client.httpClient == nil {
+				t.Error("HTTP client is not set.")
+			}
+
+			if client.config != tt.config {
+				t.Error("Passed RestAPIConfig is not set.")
+			}
+		})
 	}
 }
 
 func TestStreamingAPIClient_buildEndPoint(t *testing.T) {
 	version := "v1"
 	client := &StreamingAPIClient{
-		apiVersion: "v1",
+		config: &StreamingAPIConfig{
+			APIVersion: version,
+		},
 	}
 
 	room := &Room{
@@ -63,8 +99,11 @@ func TestStreamingAPIClient_Connect(t *testing.T) {
 	defer resetClient()
 
 	client := &StreamingAPIClient{
-		apiVersion: "v1",
-		token:      "dummy",
+		config: &StreamingAPIConfig{
+			APIVersion: "v1",
+			Token:      "dummy",
+		},
+		httpClient: http.DefaultClient,
 	}
 
 	room := &Room{

@@ -3,6 +3,7 @@ package gitter
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/xerrors"
 	"io/ioutil"
@@ -17,6 +18,21 @@ const (
 	RestAPIEndpoint = "https://api.gitter.im/"
 )
 
+// RestAPIConfig represents configuration value for Rest API.
+type RestAPIConfig struct {
+	Token      string `json:"token" yaml:"token"`
+	APIVersion string `json:"api_version" yaml:"api_version"`
+}
+
+// NewRestAPIConfig returns initialized configuration struct with default settings.
+// Token is empty at this point. Token can be set by feeding this instance to json.Unmarshal/yaml.Unmarshal
+// or by direct assignment.
+func NewRestAPIConfig() *RestAPIConfig {
+	return &RestAPIConfig{
+		APIVersion: "v1",
+	}
+}
+
 // RoomsFetcher defines interface that fetch gitter rooms.
 type RoomsFetcher interface {
 	Rooms(context.Context) (*Rooms, error)
@@ -24,26 +40,37 @@ type RoomsFetcher interface {
 
 // RestAPIClient utilizes gitter REST API.
 type RestAPIClient struct {
-	token      string
-	apiVersion string
+	config     *RestAPIConfig
+	httpClient *http.Client
 }
 
-// NewVersionSpecificRestAPIClient creates API client instance with given API version.
-func NewVersionSpecificRestAPIClient(token string, apiVersion string) *RestAPIClient {
-	return &RestAPIClient{
-		token:      token,
-		apiVersion: apiVersion,
+// APIClientOption defines function signature that RestAPIClient's functional option must satisfy.
+type APIClientOption func(*RestAPIClient)
+
+// WithAPIClient replaces the http.DefaultClient with customized one.
+func APIClientWithHTTPClient(httpClient *http.Client) APIClientOption {
+	return func(c *RestAPIClient) {
+		c.httpClient = httpClient
 	}
 }
 
-// NewRestAPIClient creates and returns API client instance. Version is fixed to v1.
-func NewRestAPIClient(token string) *RestAPIClient {
-	return NewVersionSpecificRestAPIClient(token, "v1")
+// NewRestAPIClient creates and returns API client instance.
+func NewRestAPIClient(config *RestAPIConfig, options ...APIClientOption) *RestAPIClient {
+	client := &RestAPIClient{
+		config:     config,
+		httpClient: http.DefaultClient,
+	}
+
+	for _, opt := range options {
+		opt(client)
+	}
+
+	return client
 }
 
 func (client *RestAPIClient) buildEndpoint(resourceFragments []string) *url.URL {
 	endpoint, _ := url.Parse(RestAPIEndpoint)
-	fragments := append([]string{endpoint.Path, client.apiVersion}, resourceFragments...)
+	fragments := append([]string{endpoint.Path, client.config.APIVersion}, resourceFragments...)
 	endpoint.Path = path.Join(fragments...)
 	return endpoint
 }
@@ -56,13 +83,13 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+client.token)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.config.Token))
 	req.Header.Set("Accept", "application/json")
 
 	req = req.WithContext(ctx)
 
 	// Do request
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -96,12 +123,12 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+client.token)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.config.Token))
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(ctx)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
