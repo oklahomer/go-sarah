@@ -49,12 +49,12 @@ func (conn *connWrapper) Receive() (*RoomMessage, error) {
 	reader := bufio.NewReader(conn.readCloser)
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed to read payload from connection: %w", err)
 	}
 
 	message, err := decodePayload(line)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed to deserialize payload %s: %w", line, err)
 	}
 
 	return NewRoomMessage(conn.Room, message), nil

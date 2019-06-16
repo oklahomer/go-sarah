@@ -1,6 +1,7 @@
 package gitter
 
 import (
+	"golang.org/x/xerrors"
 	"time"
 )
 
@@ -23,7 +24,7 @@ func (timeStamp *TimeStamp) UnmarshalText(b []byte) error {
 
 	t, err := time.Parse(TimeFormat, str)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to parse timestamp %s: %w", str, err)
 	}
 	timeStamp.Time = t
 

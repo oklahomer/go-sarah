@@ -73,7 +73,7 @@ func TestRestAPIClient_buildEndPoint(t *testing.T) {
 	version := "v1"
 	client := &RestAPIClient{
 		config: &RestAPIConfig{
-			APIVersion: "v1",
+			APIVersion: version,
 		},
 	}
 

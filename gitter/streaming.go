@@ -3,6 +3,7 @@ package gitter
 import (
 	"context"
 	"fmt"
+	"golang.org/x/xerrors"
 	"net/http"
 	"net/url"
 )
@@ -75,7 +76,7 @@ func (client *StreamingAPIClient) Connect(ctx context.Context, room *Room) (Conn
 	// Set up sending request
 	req, err := http.NewRequest("GET", requestURL.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed creating new request: %w", err)
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.config.Token))
 	req.Header.Set("Accept", "application/json")
@@ -83,9 +84,8 @@ func (client *StreamingAPIClient) Connect(ctx context.Context, room *Room) (Conn
 
 	// Do request
 	resp, err := client.httpClient.Do(req)
-
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed sending HTTP request: %w", err)
 	}
 
 	return newConnWrapper(room, resp.Body), nil
