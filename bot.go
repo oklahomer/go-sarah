@@ -1,8 +1,8 @@
 package sarah
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
 )
 
 // Bot provides an interface that each bot implementation must satisfy.
@@ -126,10 +126,10 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	var err error
 	if nextFunc == nil {
 		// If no conversational context is stored, simply search for corresponding command.
-		switch input.(type) {
+		switch in := input.(type) {
 		case *HelpInput:
 			res = &CommandResponse{
-				Content:     bot.commands.Helps(),
+				Content:     bot.commands.Helps(in),
 				UserContext: nil,
 			}
 		default:
@@ -138,7 +138,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	} else {
 		e := bot.userContextStorage.Delete(senderKey)
 		if e != nil {
-			log.Warnf("Failed to delete UserContext: BotType: %s. SenderKey: %s. Error: %s.", bot.BotType(), senderKey, e.Error())
+			log.Warnf("Failed to delete UserContext: BotType: %s. SenderKey: %s. Error: %+v", bot.BotType(), senderKey, e)
 		}
 
 		switch input.(type) {
@@ -162,7 +162,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	// This may damage user experience since user is left in conversational context set by CommandResponse without any sort of notification.
 	if res.UserContext != nil && bot.userContextStorage != nil {
 		if err := bot.userContextStorage.Set(senderKey, res.UserContext); err != nil {
-			log.Errorf("Failed to store UserContext. BotType: %s. SenderKey: %s. UserContext: %#v.", bot.BotType(), senderKey, res.UserContext)
+			log.Errorf("Failed to store UserContext. BotType: %s. SenderKey: %s. UserContext: %#v. Error: %+v", bot.BotType(), senderKey, res.UserContext, err)
 		}
 	}
 	if res.Content != nil {
@@ -192,5 +192,3 @@ func NewSuppressedResponseWithNext(next ContextualFunc) *CommandResponse {
 		UserContext: NewUserContext(next),
 	}
 }
-
-type botRunner struct{}

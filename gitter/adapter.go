@@ -1,10 +1,11 @@
 package gitter
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
-	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -33,7 +34,7 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	for _, opt := range options {
 		err := opt(adapter)
 		if err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("failed to apply options: %w", err)
 		}
 	}
 
@@ -73,10 +74,11 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 			log.Errorf("Destination is not instance of Room. %#v.", output.Destination())
 			return
 		}
-		_, _ = adapter.apiClient.PostMessage(ctx, room, content)
+		_, err := adapter.apiClient.PostMessage(ctx, room, content)
+		log.Errorf("Failed posting message to %s: %+v", room.ID, err)
 
 	default:
-		log.Warnf("unexpected output %#v", output)
+		log.Warnf("Unexpected output %#v", output)
 
 	}
 }
@@ -88,7 +90,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			return
 
 		default:
-			log.Infof("connecting to room: %s", room.ID)
+			log.Infof("Connecting to room: %s", room.ID)
 
 			var conn Connection
 			err := retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
@@ -96,7 +98,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 				return e
 			})
 			if err != nil {
-				log.Warnf("could not connect to room: %s. error: %s.", room.ID, err.Error())
+				log.Warnf("Could not connect to room: %s. Error: %+v", room.ID, err)
 				return
 			}
 
@@ -108,32 +110,33 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			// But, the truth is, given error is just a privately defined error instance given by http package.
 			// var errRequestCanceled = errors.New("net/http: request canceled")
 			// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
-			log.Error(connErr.Error())
+			log.Errorf("Disconnected from room %s: %+v", room.ID, connErr)
 
 		}
 	}
 }
 
 func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(sarah.Input) error) error {
-	log.Infof("start receiving message")
+	log.Infof("Start receiving message")
 	for {
 		message, err := messageReceiver.Receive()
 
-		if err == ErrEmptyPayload {
+		var malformedErr *MalformedPayloadError
+		if xerrors.Is(err, ErrEmptyPayload) {
 			// https://developer.gitter.im/docs/streaming-api
 			// Parsers must be tolerant of occasional extra newline characters placed between messages.
 			// These characters are sent as periodic "keep-alive" messages to tell clients and NAT firewalls
 			// that the connection is still alive during low message volume periods.
 			continue
 
-		} else if malformedErr, ok := err.(*MalformedPayloadError); ok {
-			log.Warnf("skipping malformed input: %s", malformedErr)
+		} else if xerrors.As(err, &malformedErr) {
+			log.Warnf("Skipping malformed input: %+v", err)
 			continue
 
 		} else if err != nil {
 			// At this point, assume connection is unstable or is closed.
 			// Let caller proceed to reconnect or quit.
-			return err
+			return xerrors.Errorf("failed to receive input: %w", err)
 
 		}
 

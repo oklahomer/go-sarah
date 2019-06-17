@@ -1,11 +1,9 @@
 package sarah
 
 import (
-	"errors"
-	"fmt"
+	"context"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
-	"os"
+	"golang.org/x/xerrors"
 	"reflect"
 	"regexp"
 	"strings"
@@ -15,7 +13,7 @@ import (
 var (
 	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to CommandProps.
 	// This is returned on CommandProps.Build() inside of runner.Run()
-	ErrCommandInsufficientArgument = errors.New("BotType, Identifier, InputExample, MatchFunc, and (Configurable)Func must be set.")
+	ErrCommandInsufficientArgument = xerrors.New("BotType, Identifier, InstructionFunc, MatchFunc and (Configurable)Func must be set.")
 )
 
 // CommandResponse is returned by Command or Task when the execution is finished.
@@ -32,8 +30,8 @@ type Command interface {
 	// Execute receives input from user and returns response.
 	Execute(context.Context, Input) (*CommandResponse, error)
 
-	// InputExample returns example of user input. This should be used to provide command usage for end users.
-	InputExample() string
+	// Instruction returns example of user input. This should be used to provide command usage for end users.
+	Instruction(input *HelpInput) string
 
 	// Match is used to judge if this command corresponds to given user input.
 	// If this returns true, Bot implementation should proceed to Execute with current user input.
@@ -46,19 +44,19 @@ type commandConfigWrapper struct {
 }
 
 type defaultCommand struct {
-	identifier    string
-	example       string
-	matchFunc     func(Input) bool
-	commandFunc   commandFunc
-	configWrapper *commandConfigWrapper
+	identifier      string
+	matchFunc       func(Input) bool
+	instructionFunc func(*HelpInput) string
+	commandFunc     commandFunc
+	configWrapper   *commandConfigWrapper
 }
 
 func (command *defaultCommand) Identifier() string {
 	return command.identifier
 }
 
-func (command *defaultCommand) InputExample() string {
-	return command.example
+func (command *defaultCommand) Instruction(input *HelpInput) string {
+	return command.instructionFunc(input)
 }
 
 func (command *defaultCommand) Match(input Input) bool {
@@ -78,80 +76,60 @@ func (command *defaultCommand) Execute(ctx context.Context, input Input) (*Comma
 	return command.commandFunc(ctx, input, wrapper.value)
 }
 
-func buildCommand(props *CommandProps, file *pluginConfigFile) (Command, error) {
+func buildCommand(ctx context.Context, props *CommandProps, watcher ConfigWatcher) (Command, error) {
 	if props.config == nil {
 		return &defaultCommand{
-			identifier:    props.identifier,
-			example:       props.example,
-			matchFunc:     props.matchFunc,
-			commandFunc:   props.commandFunc,
-			configWrapper: nil,
+			identifier:      props.identifier,
+			matchFunc:       props.matchFunc,
+			instructionFunc: props.instructionFunc,
+			commandFunc:     props.commandFunc,
+			configWrapper:   nil,
 		}, nil
 	}
 
 	// https://github.com/oklahomer/go-sarah/issues/44
 	locker := configLocker.get(props.botType, props.identifier)
 
-	if file == nil {
-		// Config file is not found so far, but there is a chance that file is created later.
-		// In that case, file watcher may detect the file creation event and trigger config struct's live update.
-		// To avoid the concurrent read/write, locker is still needed.
-		// Until then, assume given CommandConfig is already configured and proceed to build.
-		configWrapper := &commandConfigWrapper{
-			value: props.config,
-			mutex: locker,
-		}
-
-		return &defaultCommand{
-			identifier:    props.identifier,
-			example:       props.example,
-			matchFunc:     props.matchFunc,
-			commandFunc:   props.commandFunc,
-			configWrapper: configWrapper,
-		}, nil
-	}
-
-	commandConfig := props.config
-
-	// Minimize the scope of mutex with anonymous function for better performance.
+	cfg := props.config
 	err := func() error {
 		locker.Lock()
 		defer locker.Unlock()
 
-		rv := reflect.ValueOf(commandConfig)
+		rv := reflect.ValueOf(cfg)
 		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
-			return updatePluginConfig(file, commandConfig)
+			return watcher.Read(ctx, props.botType, props.identifier, cfg)
 		}
 
 		// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
-		// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
-		n := reflect.New(reflect.TypeOf(commandConfig))
+		// Obtain a pointer to the *underlying type* instead of sarah.CommandConfig.
+		n := reflect.New(reflect.TypeOf(cfg))
 
-		// Copy the current value to newly created instance.
+		// Copy the current field value to newly created instance.
 		// This includes private field values.
 		n.Elem().Set(rv)
 
 		// Pass the pointer to the newly created instance.
-		e := updatePluginConfig(file, n.Interface())
-
-		// Replace the current value with updated value.
-		commandConfig = n.Elem().Interface()
+		e := watcher.Read(ctx, props.botType, props.identifier, n.Interface())
+		if e == nil {
+			// Replace the current value with updated value.
+			cfg = n.Elem().Interface()
+		}
 		return e
 	}()
-	if err != nil && os.IsNotExist(err) {
-		return nil, fmt.Errorf("config file property was given, but failed to locate it: %s", err.Error())
-	} else if err != nil {
-		// File was there, but could not read.
-		return nil, err
+
+	var notFoundErr *ConfigNotFoundError
+	if err != nil && !xerrors.As(err, &notFoundErr) {
+		// Unacceptable error
+		return nil, xerrors.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
 	}
 
 	return &defaultCommand{
-		identifier:  props.identifier,
-		example:     props.example,
-		matchFunc:   props.matchFunc,
-		commandFunc: props.commandFunc,
+		identifier:      props.identifier,
+		matchFunc:       props.matchFunc,
+		instructionFunc: props.instructionFunc,
+		commandFunc:     props.commandFunc,
 		configWrapper: &commandConfigWrapper{
-			value: commandConfig,
+			value: cfg,
 			mutex: locker,
 		},
 	}, nil
@@ -227,15 +205,20 @@ func (commands *Commands) ExecuteFirstMatched(ctx context.Context, input Input) 
 }
 
 // Helps returns underlying commands help messages in a form of *CommandHelps.
-func (commands *Commands) Helps() *CommandHelps {
+func (commands *Commands) Helps(input *HelpInput) *CommandHelps {
 	commands.mutex.RLock()
 	defer commands.mutex.RUnlock()
 
 	helps := &CommandHelps{}
 	for _, command := range commands.collection {
+		instruction := command.Instruction(input)
+		if instruction == "" {
+			continue
+		}
+
 		h := &CommandHelp{
-			Identifier:   command.Identifier(),
-			InputExample: command.InputExample(),
+			Identifier:  command.Identifier(),
+			Instruction: instruction,
 		}
 		*helps = append(*helps, h)
 	}
@@ -247,8 +230,8 @@ type CommandHelps []*CommandHelp
 
 // CommandHelp represents help messages for corresponding Command.
 type CommandHelp struct {
-	Identifier   string
-	InputExample string
+	Identifier  string
+	Instruction string
 }
 
 // CommandConfig provides an interface that every command configuration must satisfy, which actually means empty.
@@ -266,12 +249,12 @@ func NewCommandPropsBuilder() *CommandPropsBuilder {
 // CommandProps is a designated non-serializable configuration struct to be used in Command construction.
 // This holds relatively complex set of Command construction arguments that should be treated as one in logical term.
 type CommandProps struct {
-	botType     BotType
-	identifier  string
-	config      CommandConfig
-	commandFunc commandFunc
-	matchFunc   func(Input) bool
-	example     string
+	botType         BotType
+	identifier      string
+	config          CommandConfig
+	commandFunc     commandFunc
+	matchFunc       func(Input) bool
+	instructionFunc func(*HelpInput) string
 }
 
 // CommandPropsBuilder helps to construct CommandProps.
@@ -299,7 +282,17 @@ func (builder *CommandPropsBuilder) Identifier(id string) *CommandPropsBuilder {
 // Use MatchFunc to set more customizable matching logic.
 func (builder *CommandPropsBuilder) MatchPattern(pattern *regexp.Regexp) *CommandPropsBuilder {
 	builder.props.matchFunc = func(input Input) bool {
+		// Copy regexp pattern
 		// https://golang.org/doc/go1.6#minor_library_changes
+		// Some high-concurrency servers using the same Regexp from many goroutines have seen degraded performance due to contention on that mutex.
+		// To help such servers, Regexp now has a Copy method, which makes a copy of a Regexp that shares most of the structure of the original
+		// but has its own scratch space cache.
+		//
+		// Copy() employed in above context is no longer required as of Golang 1.12.
+		// TODO Consider removing Copy() call when minimum supported version becomes 1.12 or most users switch to 1.12.
+		// https://golang.org/doc/go1.12#regexp
+		// Copy is no longer necessary to avoid lock contention, so it has been given a partial deprecation comment.
+		// Copy may still be appropriate if the reason for its use is to make two copies with different Longest settings.
 		return pattern.Copy().MatchString(input.Message())
 	}
 	return builder
@@ -338,9 +331,25 @@ func (builder *CommandPropsBuilder) ConfigurableFunc(config CommandConfig, fn fu
 	return builder
 }
 
-// InputExample is a setter to provide example of command execution. This should be used to provide command usage for end users.
-func (builder *CommandPropsBuilder) InputExample(example string) *CommandPropsBuilder {
-	builder.props.example = example
+// Instruction is a setter to provide an instruction of command execution.
+// This should be used to provide command usage for end users.
+func (builder *CommandPropsBuilder) Instruction(instruction string) *CommandPropsBuilder {
+	builder.props.instructionFunc = func(input *HelpInput) string {
+		return instruction
+	}
+	return builder
+}
+
+// InstructionFunc is a setter to provide a function that receives user input and returns instruction.
+// Use Instruction() when a simple text instruction can always be returned.
+// If the instruction has to be customized per user or the instruction has to be hidden in a certain group or from a certain user,
+// use InstructionFunc().
+// Use receiving *HelpInput and judge if an instruction should be returned.
+// e.g. .reboot command is only supported for administrator users in admin group so this command should be hidden in other groups.
+//
+// Also see MatchFunc() for such authentication mechanism.
+func (builder *CommandPropsBuilder) InstructionFunc(fnc func(input *HelpInput) string) *CommandPropsBuilder {
+	builder.props.instructionFunc = fnc
 	return builder
 }
 
@@ -348,7 +357,7 @@ func (builder *CommandPropsBuilder) InputExample(example string) *CommandPropsBu
 func (builder *CommandPropsBuilder) Build() (*CommandProps, error) {
 	if builder.props.botType == "" ||
 		builder.props.identifier == "" ||
-		builder.props.example == "" ||
+		builder.props.instructionFunc == nil ||
 		builder.props.matchFunc == nil ||
 		builder.props.commandFunc == nil {
 
@@ -363,7 +372,7 @@ func (builder *CommandPropsBuilder) Build() (*CommandProps, error) {
 func (builder *CommandPropsBuilder) MustBuild() *CommandProps {
 	props, err := builder.Build()
 	if err != nil {
-		panic(fmt.Sprintf("Error on building CommandProps: %s", err.Error()))
+		panic(xerrors.Errorf("error on building CommandProps: %w", err))
 	}
 
 	return props

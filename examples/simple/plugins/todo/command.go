@@ -7,11 +7,11 @@ On each valid input, given argument is stashed to *args.
 package todo
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 	"strings"
 	"time"
@@ -66,8 +66,8 @@ func (cmd *command) Execute(_ context.Context, input sarah.Input) (*sarah.Comman
 	return slack.NewStringResponseWithNext("Please input due date in YYYY-MM-DD format", next), nil
 }
 
-func (cmd *command) InputExample() string {
-	return ".todo buy milk"
+func (cmd *command) Instruction(_ *sarah.HelpInput) string {
+	return `Input ".todo buy milk" to add "buy milk" to your TODO list.`
 }
 
 func (cmd *command) Match(input sarah.Input) bool {
@@ -139,7 +139,7 @@ func (cmd *command) inputTime(_ context.Context, input sarah.Input, validDate st
 	due, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", validDate, t))
 	if err != nil {
 		// Should not reach here since previous time parse succeeded.
-		log.Error("Failed to parse due date: %s", err.Error())
+		log.Error("Failed to parse due date: %+v", err)
 		return slack.NewStringResponse("Fatal error occurred."), nil
 	}
 

@@ -1,6 +1,6 @@
 package sarah
 
-import "golang.org/x/net/context"
+import "context"
 
 // Adapter defines interface that each bot adapter implementation has to satisfy.
 // Instance of its concrete struct and series of sarah.DefaultBotOptions can be fed to defaultBot via sarah.NewBot() to have sarah.Bot.

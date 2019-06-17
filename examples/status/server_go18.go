@@ -28,6 +28,6 @@ func (s *server) Run(ctx context.Context) {
 	<-ctx.Done()
 	err := s.sv.Shutdown(ctx)
 	if err != nil {
-		log.Errorf("Failed to stop HTTP server: %s.", err.Error())
+		log.Errorf("Failed to stop HTTP server: %+v", err)
 	}
 }

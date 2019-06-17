@@ -4,10 +4,10 @@ Package workers provides general purpose worker mechanism that outputs stacktrac
 package workers
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"runtime"
 	"strings"
 	"time"
@@ -15,10 +15,10 @@ import (
 
 var (
 	// ErrEnqueueAfterWorkerShutdown is returned when job is given after worker context cancellation.
-	ErrEnqueueAfterWorkerShutdown = errors.New("job can not be enqueued after worker shutdown")
+	ErrEnqueueAfterWorkerShutdown = xerrors.New("job can not be enqueued after worker shutdown")
 
 	// ErrQueueOverflow is returned when job is given, but all workers are busy and queue is full.
-	ErrQueueOverflow = errors.New("queue is full")
+	ErrQueueOverflow = xerrors.New("queue is full")
 )
 
 // Config contains some configuration variables.

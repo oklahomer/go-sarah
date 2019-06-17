@@ -8,9 +8,9 @@ Developer may import this package and refer to hello.SlackProps to build hello c
 package hello
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 )
 
@@ -22,7 +22,7 @@ var slackFunc = func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, 
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("hello").
-	InputExample(".hello").
+	Instruction("Input .hello to greet.").
 	MatchPattern(regexp.MustCompile(`\.hello`)).
 	Func(slackFunc).
 	MustBuild()

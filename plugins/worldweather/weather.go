@@ -22,12 +22,12 @@ Setup should be somewhat like below:
 package worldweather
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/golack/webapi"
-	"golang.org/x/net/context"
 	"regexp"
 	"time"
 )
@@ -42,7 +42,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("weather").
 	ConfigurableFunc(NewCommandConfig(), SlackCommandFunc).
-	InputExample(".weather tokyo").
+	Instruction(`Input ".weather" followed by city name e.g. ".weather tokyo"`).
 	MatchPattern(MatchPattern).
 	MustBuild()
 
@@ -71,7 +71,7 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 
 	// If error is returned with HTTP request level, just let it know and quit.
 	if err != nil {
-		log.Errorf("Error on weather api reqeust: %s.", err.Error())
+		log.Errorf("Error on weather api request: %+v", err)
 		return slack.NewStringResponse("Something went wrong with weather api request."), nil
 	}
 	// If status code of 200 is returned, which means successful API request, but still the content contains error message,

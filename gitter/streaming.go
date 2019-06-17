@@ -1,9 +1,8 @@
 package gitter
 
 import (
+	"context"
 	"fmt"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"net/http"
 	"net/url"
 )
@@ -54,13 +53,14 @@ func (client *StreamingAPIClient) Connect(ctx context.Context, room *Room) (Conn
 	}
 	req.Header.Set("Authorization", "Bearer "+client.token)
 	req.Header.Set("Accept", "application/json")
+	req = req.WithContext(ctx)
 
 	// Do request
-	response, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	resp, err := http.DefaultClient.Do(req)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return newConnWrapper(room, response.Body), nil
+	return newConnWrapper(room, resp.Body), nil
 }

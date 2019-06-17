@@ -13,10 +13,10 @@ e.g. ".echo Hey!" becomes "Hey!"
 package echo
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/gitter"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 )
 
@@ -45,7 +45,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 	Identifier(identifier).
 	MatchPattern(matchPattern).
 	Func(SlackCommandFunc).
-	InputExample(".echo knock knock").
+	Instruction(".echo knock knock").
 	MustBuild()
 
 // GitterProps is a pre-built echo command properties for Slack.
@@ -54,5 +54,5 @@ var GitterProps = sarah.NewCommandPropsBuilder().
 	Identifier(identifier).
 	MatchPattern(matchPattern).
 	Func(GitterCommandFunc).
-	InputExample(".echo knock knock").
+	Instruction(".echo knock knock").
 	MustBuild()
