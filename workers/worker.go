@@ -62,13 +62,12 @@ func (*reporter) Report(_ context.Context, stats *Stats) {
 }
 
 // WorkerOption defines function that worker's functional option must satisfy.
-type WorkerOption func(*worker) error
+type WorkerOption func(*worker)
 
 // WithReporter creates and returns WorkerOption to set preferred Reporter implementation.
 func WithReporter(reporter Reporter) WorkerOption {
-	return func(w *worker) error {
+	return func(w *worker) {
 		w.reporter = reporter
-		return nil
 	}
 }
 
@@ -118,10 +117,7 @@ func Run(ctx context.Context, config *Config, options ...WorkerOption) (Worker, 
 	}
 
 	for _, opt := range options {
-		err := opt(w)
-		if err != nil {
-			return nil, err
-		}
+		opt(w)
 	}
 
 	log.Infof("Start spawning %d workers.", config.WorkerNum)

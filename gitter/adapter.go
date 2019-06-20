@@ -14,7 +14,7 @@ const (
 )
 
 // AdapterOption defines function signature that Adapter's functional option must satisfy.
-type AdapterOption func(adapter *Adapter) error
+type AdapterOption func(adapter *Adapter)
 
 // Adapter stores REST/Streaming API clients' instances to let users interact with gitter.
 type Adapter struct {
@@ -32,10 +32,7 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	}
 
 	for _, opt := range options {
-		err := opt(adapter)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to apply options: %w", err)
-		}
+		opt(adapter)
 	}
 
 	return adapter, nil

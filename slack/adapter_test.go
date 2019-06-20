@@ -9,7 +9,6 @@ import (
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
-	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
@@ -135,7 +134,7 @@ func TestNewAdapter_WithPayloadHandler(t *testing.T) {
 	opt := WithPayloadHandler(fnc)
 	adapter := &Adapter{}
 
-	_ = opt(adapter)
+	opt(adapter)
 
 	if adapter.payloadHandler == nil {
 		t.Fatal("PayloadHandler is not set.")
@@ -143,27 +142,6 @@ func TestNewAdapter_WithPayloadHandler(t *testing.T) {
 
 	if reflect.ValueOf(adapter.payloadHandler).Pointer() != reflect.ValueOf(fnc).Pointer() {
 		t.Fatal("Provided function is not set.")
-	}
-}
-
-func TestNewAdapter_WithOptionError(t *testing.T) {
-	config := &Config{}
-	expectedErr := errors.New("dummy")
-
-	adapter, err := NewAdapter(config, func(_ *Adapter) error {
-		return expectedErr
-	})
-
-	if err == nil {
-		t.Fatal("Expected error is not returned.")
-	}
-
-	if !xerrors.Is(err, expectedErr) {
-		t.Errorf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if adapter != nil {
-		t.Error("Adapter should not be returned.")
 	}
 }
 
@@ -653,10 +631,6 @@ func TestMessageInput(t *testing.T) {
 	}
 
 	input := &MessageInput{event: rtmMessage}
-
-	if input == nil {
-		t.Fatal("MessageInput instance is not returned.")
-	}
 
 	if input.SenderKey() != channelID+"|"+senderID {
 		t.Errorf("Unexpected SenderKey is retuned: %s.", input.SenderKey())

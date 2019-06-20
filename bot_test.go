@@ -36,62 +36,26 @@ func (bot *DummyBot) Run(ctx context.Context, enqueueInput func(Input) error, no
 	bot.RunFunc(ctx, enqueueInput, notifyErr)
 }
 
-func TestNewBot_WithoutFunctionalOption(t *testing.T) {
+func TestNewBot(t *testing.T) {
 	adapter := &DummyAdapter{}
-	myBot, err := NewBot(adapter)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %#v.", err)
-	}
-
-	if _, ok := myBot.(*defaultBot); !ok {
-		t.Errorf("NewBot did not return bot instance: %#v.", myBot)
-	}
-}
-
-func TestNewBot_WithFunctionalOption(t *testing.T) {
-	adapter := &DummyAdapter{}
-	expectedErr := errors.New("this is expected")
-	myBot, err := NewBot(
-		adapter,
-		func(bot *defaultBot) error {
-			return nil
-		},
-		func(bot *defaultBot) error {
-			return expectedErr
-		},
-	)
-
-	if err == nil {
-		t.Fatal("Expected error is not returned")
-	}
-
-	if err != expectedErr {
-		t.Fatalf("Unexpected error is returned: %#v.", err)
-	}
-
-	if myBot != nil {
-		t.Fatalf("Bot should not be returned: %#v.", myBot)
-	}
-}
-
-func TestBotWithStorage(t *testing.T) {
 	storage := &DummyUserContextStorage{}
 	option := BotWithStorage(storage)
-
-	bot := &defaultBot{}
-	err := option(bot)
+	myBot, err := NewBot(
+		adapter,
+		option,
+	)
 
 	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s", err.Error())
+		t.Fatalf("Unexpected error is returned: %#v.", err)
 	}
 
-	if bot.userContextStorage == nil {
-		t.Fatal("UserContextStorage is not set")
+	typedBot, ok := myBot.(*defaultBot)
+	if !ok {
+		t.Errorf("NewBot did not return defaultBot instance: %#v.", myBot)
 	}
 
-	if bot.userContextStorage != storage {
-		t.Fatalf("Expected UserContextStorage implementation is not set: %#v", bot.userContextStorage)
+	if typedBot.userContextStorage != storage {
+		t.Fatalf("Expected UserContextStorage implementation is not set: %#v", typedBot.userContextStorage)
 	}
 }
 

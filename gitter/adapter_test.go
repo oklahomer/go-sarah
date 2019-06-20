@@ -6,7 +6,6 @@ import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
-	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
@@ -64,28 +63,13 @@ func (c *DummyConnection) Close() error {
 
 func TestNewAdapter(t *testing.T) {
 	config := NewConfig()
-	adapter, err := NewAdapter(config)
+	adapter, err := NewAdapter(config, func(_ *Adapter) {})
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
 
 	if adapter.config != config {
 		t.Fatal("Supplied config is not set.")
-	}
-}
-
-func TestNewAdapter_WithOptionError(t *testing.T) {
-	expectedErr := errors.New("dummy")
-	adapter, err := NewAdapter(NewConfig(), func(_ *Adapter) error {
-		return expectedErr
-	})
-
-	if !xerrors.Is(err, expectedErr) {
-		t.Errorf("Expected error is not returned: %#v.", err)
-	}
-
-	if adapter != nil {
-		t.Error("Adapter instance should not be returned on error.")
 	}
 }
 

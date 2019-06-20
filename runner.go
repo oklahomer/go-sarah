@@ -32,36 +32,30 @@ func NewConfig() *Config {
 // Calls to its methods are thread-safe.
 type optionHolder struct {
 	mutex   sync.RWMutex
-	stashed []func(*runner) error
+	stashed []func(*runner)
 }
 
-func (o *optionHolder) register(opt func(*runner) error) {
+func (o *optionHolder) register(opt func(*runner)) {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
 	o.stashed = append(o.stashed, opt)
 }
 
-func (o *optionHolder) apply(r *runner) error {
+func (o *optionHolder) apply(r *runner) {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
 	for _, v := range o.stashed {
-		e := v(r)
-		if e != nil {
-			return e
-		}
+		v(r)
 	}
-
-	return nil
 }
 
 // RegisterAlerter registers given sarah.Alerter implementation.
 // When registered sarah.Bot implementation encounters critical state, given alerter is called to notify such state.
 func RegisterAlerter(alerter Alerter) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		r.alerters.appendAlerter(alerter)
-		return nil
 	})
 }
 
@@ -69,78 +63,71 @@ func RegisterAlerter(alerter Alerter) {
 // This may be called multiple times to register as many bot instances as wanted.
 // When a Bot with same sarah.BotType is already registered, this returns error on sarah.Run().
 func RegisterBot(bot Bot) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		r.bots = append(r.bots, bot)
-		return nil
 	})
 }
 
 // RegisterCommand registers given sarah.Command.
 // On sarah.Run(), Commands are registered to corresponding bot via Bot.AppendCommand().
 func RegisterCommand(botType BotType, command Command) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		commands, ok := r.commands[botType]
 		if !ok {
 			commands = []Command{}
 		}
 		r.commands[botType] = append(commands, command)
-		return nil
 	})
 }
 
 // RegisterCommandProps registers given sarah.CommandProps to build sarah.Command on sarah.Run().
 // This props is re-used when configuration file is updated and a corresponding sarah.Command needs to be re-built.
 func RegisterCommandProps(props *CommandProps) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		stashed, ok := r.commandProps[props.botType]
 		if !ok {
 			stashed = []*CommandProps{}
 		}
 		r.commandProps[props.botType] = append(stashed, props)
-		return nil
 	})
 }
 
 // RegisterScheduledTask registers given sarah.ScheduledTask.
 // On sarah.Run(), schedule is set for this task.
 func RegisterScheduledTask(botType BotType, task ScheduledTask) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		tasks, ok := r.scheduledTasks[botType]
 		if !ok {
 			tasks = []ScheduledTask{}
 		}
 		r.scheduledTasks[botType] = append(tasks, task)
-		return nil
 	})
 }
 
 // RegisterScheduledTaskProps registers given sarah.ScheduledTaskProps to build sarah.ScheduledTask on sarah.Run().
 // This props is re-used when configuration file is updated and a corresponding sarah.ScheduledTask needs to be re-built.
 func RegisterScheduledTaskProps(props *ScheduledTaskProps) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		stashed, ok := r.scheduledTaskProps[props.botType]
 		if !ok {
 			stashed = []*ScheduledTaskProps{}
 		}
 		r.scheduledTaskProps[props.botType] = append(stashed, props)
-		return nil
 	})
 }
 
 // RegisterConfigWatcher registers given ConfigWatcher implementation.
 func RegisterConfigWatcher(watcher ConfigWatcher) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		r.configWatcher = watcher
-		return nil
 	})
 }
 
 // RegisterWorker registers given workers.Worker implementation.
 // When this is not called, a worker instance with default setting is used.
 func RegisterWorker(worker workers.Worker) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		r.worker = worker
-		return nil
 	})
 }
 
@@ -166,9 +153,8 @@ func RegisterWorker(worker workers.Worker) {
 // Each Bot/Adapter's implementation can be kept simple in this way.
 // go-sarah's core should always supervise and control its belonging Bots.
 func RegisterBotErrorSupervisor(fnc func(BotType, error) *SupervisionDirective) {
-	options.register(func(r *runner) error {
+	options.register(func(r *runner) {
 		r.superviseError = fnc
-		return nil
 	})
 }
 
@@ -217,10 +203,7 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 		superviseError:     nil,
 	}
 
-	err = options.apply(r)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to apply option: %w", err)
-	}
+	options.apply(r)
 
 	if r.worker == nil {
 		w, e := workers.Run(ctx, workers.NewConfig())
