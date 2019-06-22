@@ -73,9 +73,7 @@ func TestNewConfig(t *testing.T) {
 }
 
 func Test_optionHolder_register(t *testing.T) {
-	opt := func(_ *runner) error {
-		return nil
-	}
+	opt := func(_ *runner) {}
 	holder := &optionHolder{}
 	holder.register(opt)
 
@@ -90,28 +88,18 @@ func Test_optionHolder_register(t *testing.T) {
 
 func Test_optionHandler_apply(t *testing.T) {
 	called := 0
-	expectedErr := errors.New("option application error")
 	holder := &optionHolder{}
-	holder.stashed = []func(*runner) error{
-		func(_ *runner) error {
+	holder.stashed = []func(*runner){
+		func(_ *runner) {
 			called++
-			return nil
 		},
-		func(_ *runner) error {
+		func(_ *runner) {
 			called++
-			return expectedErr
 		},
 	}
 	r := &runner{}
 
-	err := holder.apply(r)
-
-	if err == nil {
-		t.Fatal("Expected error is not returned.")
-	}
-	if err != expectedErr {
-		t.Errorf("Unexpected error is not returned: %s.", err.Error())
-	}
+	holder.apply(r)
 
 	if called != 2 {
 		t.Errorf("Unexpected number of options are applied: %d.", called)
@@ -127,10 +115,7 @@ func TestRegisterAlerter(t *testing.T) {
 		}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if len(*r.alerters) != 1 {
@@ -152,10 +137,7 @@ func TestRegisterBot(t *testing.T) {
 		}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if len(r.bots) != 1 {
@@ -178,10 +160,7 @@ func TestRegisterCommand(t *testing.T) {
 		}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if len(r.commands[botType]) != 1 {
@@ -206,10 +185,7 @@ func TestRegisterCommandProps(t *testing.T) {
 		}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if len(r.commandProps[botType]) != 1 {
@@ -232,10 +208,7 @@ func TestRegisterScheduledTask(t *testing.T) {
 		}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if len(r.scheduledTasks[botType]) != 1 {
@@ -260,10 +233,7 @@ func TestRegisterScheduledTaskProps(t *testing.T) {
 		}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if len(r.scheduledTaskProps[botType]) != 1 {
@@ -283,10 +253,7 @@ func TestRegisterConfigWatcher(t *testing.T) {
 		r := &runner{}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if r.configWatcher == nil {
@@ -306,10 +273,7 @@ func TestRegisterWorker(t *testing.T) {
 		r := &runner{}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if r.worker == nil {
@@ -330,10 +294,7 @@ func TestRegisterBotErrorSupervisor(t *testing.T) {
 		r := &runner{}
 
 		for _, v := range options.stashed {
-			err := v(r)
-			if err != nil {
-				t.Fatalf("Unexpected error is returned: %s.", err.Error())
-			}
+			v(r)
 		}
 
 		if r.superviseError == nil {
@@ -412,24 +373,6 @@ func Test_newRunner_WithTimeZoneError(t *testing.T) {
 	SetupAndRun(func() {
 		config := &Config{
 			TimeZone: "DUMMY",
-		}
-
-		_, e := newRunner(context.Background(), config)
-		if e == nil {
-			t.Fatal("Expected error is not returned.")
-		}
-	})
-}
-
-func Test_newRunner_WithOptionError(t *testing.T) {
-	SetupAndRun(func() {
-		config := &Config{
-			TimeZone: time.UTC.String(),
-		}
-		options.stashed = []func(*runner) error{
-			func(_ *runner) error {
-				return errors.New("dummy")
-			},
 		}
 
 		_, e := newRunner(context.Background(), config)

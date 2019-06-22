@@ -23,14 +23,13 @@ const (
 var pingSignalChannelID = "ping"
 
 // AdapterOption defines function signature that Adapter's functional option must satisfy.
-type AdapterOption func(adapter *Adapter) error
+type AdapterOption func(adapter *Adapter)
 
 // WithSlackClient creates AdapterOption with given SlackClient implementation.
 // If this option is not given, NewAdapter() tries to create golack instance with given Config.
 func WithSlackClient(client SlackClient) AdapterOption {
-	return func(adapter *Adapter) error {
+	return func(adapter *Adapter) {
 		adapter.client = client
-		return nil
 	}
 }
 
@@ -81,9 +80,8 @@ func WithSlackClient(client SlackClient) AdapterOption {
 //  slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithSlackClient(slackClient), slack.WithPayloadHandler(payloadHandler))
 //  slackBot, _ := sarah.NewBot(slackAdapter)
 func WithPayloadHandler(fnc func(context.Context, *Config, rtmapi.DecodedPayload, func(sarah.Input) error)) AdapterOption {
-	return func(adapter *Adapter) error {
+	return func(adapter *Adapter) {
 		adapter.payloadHandler = fnc
-		return nil
 	}
 }
 
@@ -114,10 +112,7 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	}
 
 	for _, opt := range options {
-		err := opt(adapter)
-		if err != nil {
-			return nil, err
-		}
+		opt(adapter)
 	}
 
 	// See if client is set by WithSlackClient option.

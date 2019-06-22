@@ -79,17 +79,14 @@ func NewBot(adapter Adapter, options ...DefaultBotOption) (Bot, error) {
 	}
 
 	for _, opt := range options {
-		err := opt(bot)
-		if err != nil {
-			return nil, err
-		}
+		opt(bot)
 	}
 
 	return bot, nil
 }
 
 // DefaultBotOption defines function that defaultBot's functional option must satisfy.
-type DefaultBotOption func(bot *defaultBot) error
+type DefaultBotOption func(bot *defaultBot)
 
 // BotWithStorage creates and returns DefaultBotOption to set preferred UserContextStorage implementation.
 // Below example utilizes pre-defined in-memory storage.
@@ -99,9 +96,8 @@ type DefaultBotOption func(bot *defaultBot) error
 //  yaml.Unmarshal(configBuf, config)
 //  bot, err := sarah.NewBot(myAdapter, storage)
 func BotWithStorage(storage UserContextStorage) DefaultBotOption {
-	return func(bot *defaultBot) error {
+	return func(bot *defaultBot) {
 		bot.userContextStorage = storage
-		return nil
 	}
 }
 

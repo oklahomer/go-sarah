@@ -3,7 +3,6 @@ package workers
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
 	"golang.org/x/xerrors"
@@ -105,11 +104,7 @@ func TestWithReporter(t *testing.T) {
 	option := WithReporter(reporter)
 
 	worker := &worker{}
-	err := option(worker)
-
-	if err != nil {
-		t.Fatalf("Unexpected error occurred: %s.", err.Error())
-	}
+	option(worker)
 
 	if worker.reporter == nil {
 		t.Error("Given reporter is not set.")
@@ -209,15 +204,9 @@ func TestRun_WorkerOption(t *testing.T) {
 	defer cancelWorker()
 
 	var cnt int
-	expectedErr := errors.New("expected error")
 	opts := []WorkerOption{
-		func(*worker) error {
+		func(*worker) {
 			cnt++
-			return nil
-		},
-		func(*worker) error {
-			cnt++
-			return expectedErr
 		},
 	}
 	_, err := Run(workerCtx, &Config{}, opts...)
@@ -226,12 +215,8 @@ func TestRun_WorkerOption(t *testing.T) {
 		t.Fatalf("%d WorkerOptions are given, but executed %d time(s).", len(opts), cnt)
 	}
 
-	if err == nil {
-		t.Fatal("Error is not returned.")
-	}
-
-	if err != expectedErr {
-		t.Fatalf("Expected error is not returned: %s.", err.Error())
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s", err.Error())
 	}
 }
 
