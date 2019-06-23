@@ -27,7 +27,7 @@ func (c *command) Identifier() string {
 
 // Execute receives user input and returns results of this Command.
 func (c *command) Execute(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-	return slack.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
+	return slack.NewResponse(input, sarah.StripMessage(matchPattern, input.Message()))
 }
 
 // Instruction provides input instruction for user.

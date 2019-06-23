@@ -54,7 +54,7 @@ func (cmd *command) Execute(_ context.Context, input sarah.Input) (*sarah.Comman
 	stripped := sarah.StripMessage(matchPattern, input.Message())
 	if stripped == "" {
 		// If description is not given, let user proceed to input one.
-		return slack.NewStringResponseWithNext("Please input thing to do", cmd.inputDesc), nil
+		return slack.NewResponse(input, "Please input a thing to do.", slack.RespWithNext(cmd.inputDesc))
 	}
 
 	args := &args{
@@ -63,7 +63,8 @@ func (cmd *command) Execute(_ context.Context, input sarah.Input) (*sarah.Comman
 	next := func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 		return cmd.inputDate(c, i, args)
 	}
-	return slack.NewStringResponseWithNext("Please input due date in YYYY-MM-DD format", next), nil
+
+	return slack.NewResponse(input, "Please input the due date in YYYY-MM-DD format.", slack.RespWithNext(next))
 }
 
 func (cmd *command) Instruction(_ *sarah.HelpInput) string {
@@ -81,7 +82,7 @@ func (cmd *command) inputDesc(_ context.Context, input sarah.Input) (*sarah.Comm
 		next := func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 			return cmd.inputDesc(c, i)
 		}
-		return slack.NewStringResponseWithNext("Please input thing to do.", next), nil
+		return slack.NewResponse(input, "Please input a thing to do.", slack.RespWithNext(next))
 	}
 
 	// Let user proceed to next step to input due date.
@@ -91,7 +92,7 @@ func (cmd *command) inputDesc(_ context.Context, input sarah.Input) (*sarah.Comm
 		}
 		return cmd.inputDate(c, i, args)
 	}
-	return slack.NewStringResponseWithNext("Input due date. YYYY-MM-DD", next), nil
+	return slack.NewResponse(input, "Input the due date in YYYY-MM-DD format.", slack.RespWithNext(next))
 }
 
 func (cmd *command) inputDate(_ context.Context, input sarah.Input, args *args) (*sarah.CommandResponse, error) {
@@ -102,18 +103,18 @@ func (cmd *command) inputDate(_ context.Context, input sarah.Input, args *args) 
 	}
 	if date == "" {
 		// If no due date is provided, let user input.
-		return slack.NewStringResponseWithNext("Please input due date.", reinput), nil
+		return slack.NewResponse(input, "Please input the due date in YYYY-MM-DD format.", slack.RespWithNext(reinput))
 	}
 
 	_, err := time.Parse("2006-01-02", date)
 	if err != nil {
-		return slack.NewStringResponseWithNext("Please input valid date. YYYY-MM-DD", reinput), nil
+		return slack.NewResponse(input, "Please input valid date in YYYY-MM-DD format.", slack.RespWithNext(reinput))
 	}
 
 	next := func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 		return cmd.inputTime(c, i, date, args)
 	}
-	return slack.NewStringResponseWithNext("Input due time in HH:MM format. N if not specified.", next), nil
+	return slack.NewResponse(input, "Input the due time in HH:MM format. N if not specified.", slack.RespWithNext(next))
 }
 
 func (cmd *command) inputTime(_ context.Context, input sarah.Input, validDate string, args *args) (*sarah.CommandResponse, error) {
@@ -123,7 +124,7 @@ func (cmd *command) inputTime(_ context.Context, input sarah.Input, validDate st
 		return cmd.inputTime(c, i, validDate, args)
 	}
 	if t == "" {
-		return slack.NewStringResponseWithNext("Please input due time.", reinput), nil
+		return slack.NewResponse(input, "Please input the due time in HH:MM format.")
 	}
 
 	if strings.ToLower(t) == "n" {
@@ -133,14 +134,14 @@ func (cmd *command) inputTime(_ context.Context, input sarah.Input, validDate st
 
 	_, err := time.Parse("15:04", t)
 	if err != nil {
-		return slack.NewStringResponseWithNext("Please input valid due time in HH:MM format.", reinput), nil
+		return slack.NewResponse(input, "Please input a valid due time in HH:MM format.", slack.RespWithNext(reinput))
 	}
 
 	due, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", validDate, t))
 	if err != nil {
 		// Should not reach here since previous time parse succeeded.
 		log.Error("Failed to parse due date: %+v", err)
-		return slack.NewStringResponse("Fatal error occurred."), nil
+		return slack.NewResponse(input, "Fatal error occurred")
 	}
 
 	args.due = due
@@ -148,7 +149,7 @@ func (cmd *command) inputTime(_ context.Context, input sarah.Input, validDate st
 		return cmd.confirm(c, i, args)
 	}
 	confirmMessage := fmt.Sprintf("TODO: %s. Due is %s\nIs this O.K.? Y/N", args.description, args.due.Format("2006-01-02 15:04"))
-	return slack.NewStringResponseWithNext(confirmMessage, next), nil
+	return slack.NewResponse(input, confirmMessage, slack.RespWithNext(next))
 }
 
 func (cmd *command) confirm(_ context.Context, input sarah.Input, args *args) (*sarah.CommandResponse, error) {
@@ -159,15 +160,15 @@ func (cmd *command) confirm(_ context.Context, input sarah.Input, args *args) (*
 
 	if msg == "y" {
 		cmd.storage.Save(input.SenderKey(), args.description, args.due)
-		return slack.NewStringResponse("Saved."), nil
+		return slack.NewResponse(input, "Saved.")
 	}
 
 	if msg == "n" {
-		return slack.NewStringResponse("Aborted."), nil
+		return slack.NewResponse(input, "Aborted.")
 	}
 
 	reinput := func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 		return cmd.confirm(c, i, args)
 	}
-	return slack.NewStringResponseWithNext("Please input Y or N.", reinput), nil
+	return slack.NewResponse(input, "Please input Y or N.", slack.RespWithNext(reinput))
 }

@@ -72,18 +72,19 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 	// If error is returned with HTTP request level, just let it know and quit.
 	if err != nil {
 		log.Errorf("Error on weather api request: %+v", err)
-		return slack.NewStringResponse("Something went wrong with weather api request."), nil
+		return slack.NewResponse(input, "Something went wrong with weather API request.")
 	}
 	// If status code of 200 is returned, which means successful API request, but still the content contains error message,
 	// notify the user and put him in "the middle of conversation" for further communication.
 	if resp.Data.HasError() {
 		errorDescription := resp.Data.Error[0].Message
-		return slack.NewStringResponseWithNext(
+		return slack.NewResponse(
+			input,
 			fmt.Sprintf("Error was returned: %s.\nInput location name to retry, please.", errorDescription),
-			func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+			slack.RespWithNext(func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 				return SlackCommandFunc(c, i, config)
-			},
-		), nil
+			}),
+		)
 	}
 
 	request := resp.Data.Request[0]
@@ -205,5 +206,5 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 		})
 	}
 
-	return slack.NewPostMessageResponse(input, "", attachments), nil
+	return slack.NewResponse(input, "", slack.RespWithAttachments(attachments))
 }

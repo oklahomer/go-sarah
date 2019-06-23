@@ -41,8 +41,8 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 	Identifier("counter").
 	Instruction("Input .count to count up").
 	MatchPattern(regexp.MustCompile(`^\.count`)).
-	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return slack.NewStringResponse(fmt.Sprint(globalCounter.increment())), nil
+	Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+		return slack.NewResponse(input, fmt.Sprint(globalCounter.increment()))
 	}).
 	MustBuild()
 
