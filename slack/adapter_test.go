@@ -948,6 +948,22 @@ func TestRespWithNext(t *testing.T) {
 	}
 }
 
+func TestRespWithNextSerializable(t *testing.T) {
+	options := &respOptions{}
+	arg := &sarah.SerializableArgument{}
+	opt := RespWithNextSerializable(arg)
+
+	opt(options)
+
+	if options.userContext == nil {
+		t.Fatal("Passed UserContext is not set.")
+	}
+
+	if options.userContext.Serializable != arg {
+		t.Error("Passed UserContext argument is not set.")
+	}
+}
+
 func TestRespWithParse(t *testing.T) {
 	options := &respOptions{}
 	mode := webapi.ParseModeFull

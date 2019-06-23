@@ -168,6 +168,17 @@ func RespWithNext(fnc sarah.ContextualFunc) RespOption {
 	}
 }
 
+// RespWithNextSerializable sets given arg as part of the response's *sarah.UserContext.
+// The next input from the same user will be passed to the function defined in the arg.
+// See sarah.UserContextStorage must be present or otherwise, arg will be ignored.
+func RespWithNextSerializable(arg *sarah.SerializableArgument) RespOption {
+	return func(options *respOptions) {
+		options.userContext = &sarah.UserContext{
+			Serializable: arg,
+		}
+	}
+}
+
 // RespOptions defines function signature that NewResponse's functional option must satisfy.
 type RespOption func(*respOptions)
 
