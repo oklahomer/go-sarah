@@ -718,12 +718,33 @@ func Test_handlePayload(t *testing.T) {
 		inputType reflect.Type
 	}{
 		{
+			payload: &rtmapi.WebSocketOKReply{
+				WebSocketReply: rtmapi.WebSocketReply{
+					ReplyTo: 1,
+					OK:      true,
+				},
+				Text: "OK",
+			},
+			inputType: nil,
+		},
+		{
 			payload: &rtmapi.WebSocketNGReply{
 				WebSocketReply: rtmapi.WebSocketReply{
 					ReplyTo: 1,
 					OK:      false,
 				},
+				ErrorReason: struct {
+					Code    int    `json:"code"`
+					Message string `json:"msg"`
+				}{
+					Code:    404,
+					Message: "Not Found",
+				},
 			},
+			inputType: nil,
+		},
+		{
+			payload:   &rtmapi.Pong{},
 			inputType: nil,
 		},
 		{
