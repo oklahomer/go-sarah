@@ -141,20 +141,38 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 	}
 }
 
-// NewStringResponse creates new sarah.CommandResponse instance with given string.
-func NewStringResponse(responseContent string) *sarah.CommandResponse {
+// NewResponse creates *sarah.CommandResponse with given arguments.
+func NewResponse(content string, options ...RespOption) (*sarah.CommandResponse, error) {
+	stash := &respOptions{
+		userContext: nil,
+	}
+
+	for _, opt := range options {
+		opt(stash)
+	}
+
 	return &sarah.CommandResponse{
-		Content:     responseContent,
-		UserContext: nil,
+		Content:     content,
+		UserContext: stash.userContext,
+	}, nil
+}
+
+// RespWithNext sets given fnc as part of the response's *sarah.UserContext.
+// The next input from the same user will be passed to this fnc.
+// See sarah.UserContextStorage must be present or otherwise, fnc will be ignored.
+func RespWithNext(fnc sarah.ContextualFunc) RespOption {
+	return func(options *respOptions) {
+		options.userContext = &sarah.UserContext{
+			Next: fnc,
+		}
 	}
 }
 
-// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
-func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
-	return &sarah.CommandResponse{
-		Content:     responseContent,
-		UserContext: sarah.NewUserContext(next),
-	}
+// RespOptions defines function signature that NewResponse's functional option must satisfy.
+type RespOption func(*respOptions)
+
+type respOptions struct {
+	userContext *sarah.UserContext
 }
 
 // APIClient is an interface that Rest API client must satisfy.

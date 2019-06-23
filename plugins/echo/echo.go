@@ -36,7 +36,7 @@ func SlackCommandFunc(_ context.Context, input sarah.Input) (*sarah.CommandRespo
 
 // GitterCommandFunc is a sarah.CommandFunc especially designed for gitter adapter.
 func GitterCommandFunc(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-	return gitter.NewStringResponse(commandFnc(input)), nil
+	return gitter.NewResponse(commandFnc(input))
 }
 
 // SlackProps is a pre-built echo command properties for Slack.

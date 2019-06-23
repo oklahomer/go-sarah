@@ -53,7 +53,7 @@ var GitterProps = sarah.NewCommandPropsBuilder().
 	Instruction("Input .count to count up").
 	MatchPattern(regexp.MustCompile(`^\.count`)).
 	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return gitter.NewStringResponse(fmt.Sprint(globalCounter.increment())), nil
+		return gitter.NewResponse(fmt.Sprint(globalCounter.increment()))
 	}).
 	MustBuild()
 
