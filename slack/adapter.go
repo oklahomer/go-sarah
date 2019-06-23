@@ -380,7 +380,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 				Fields:   fields,
 			},
 		}
-		postMessage := webapi.NewPostMessageWithAttachments(channelID, "", attachments)
+		postMessage := webapi.NewPostMessage(channelID, "").WithAttachments(attachments)
 
 		if _, err := adapter.client.PostMessage(ctx, postMessage); err != nil {
 			log.Errorf("Something went wrong with Web API posting: %+v", err)
@@ -424,46 +424,124 @@ func NewMessageInput(message *rtmapi.Message) *MessageInput {
 	}
 }
 
-// NewStringResponse creates new sarah.CommandResponse instance with given string.
-func NewStringResponse(responseContent string) *sarah.CommandResponse {
-	return &sarah.CommandResponse{
-		Content:     responseContent,
-		UserContext: nil,
+// NewResponse creates *sarah.CommandResponse with given arguments.
+// Simply pass given sarah.Input instance and a text string to send string message as a reply.
+// To send a more complicated reply message, pass as many options created by ResponseWith* function as required.
+func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.CommandResponse, error) {
+	stash := &respOptions{
+		attachments: []*webapi.MessageAttachment{},
+		userContext: nil,
+		linkNames:   1, // Linkify channel names and usernames. ref. https://api.slack.com/docs/message-formatting#parsing_modes
+		parseMode:   webapi.ParseModeFull,
+		unfurlLinks: true,
+		unfurlMedia: true,
+	}
+
+	for _, opt := range options {
+		opt(stash)
+	}
+
+	// Return a simple text response.
+	// This will be sent over WebSocket connection.
+	if len(stash.attachments) == 0 {
+		return &sarah.CommandResponse{
+			Content:     msg,
+			UserContext: stash.userContext,
+		}, nil
+	}
+
+	switch typed := input.(type) {
+	case *MessageInput:
+		postMessage := webapi.NewPostMessage(typed.event.ChannelID, msg).
+			WithAttachments(stash.attachments).
+			WithLinkNames(stash.linkNames).
+			WithParse(stash.parseMode).
+			WithUnfurlLinks(stash.unfurlLinks).
+			WithUnfurlMedia(stash.unfurlMedia)
+		return &sarah.CommandResponse{
+			Content:     postMessage,
+			UserContext: stash.userContext,
+		}, nil
+
+	default:
+		// TODO cover all possible incoming events
+		return nil, xerrors.Errorf("%T is not currently supported to automatically generate response", input)
+
 	}
 }
 
-// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
-//
-// With this method user context is directly stored as an anonymous function since Slack Bot works with single WebSocket connection and hence usually works with single process.
-// To use external storage to store user context, use go-sarah-rediscontext or similar sarah.UserContextStorage implementation.
-func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
-	return &sarah.CommandResponse{
-		Content:     responseContent,
-		UserContext: sarah.NewUserContext(next),
+// RespWithAttachments adds given attachments to the response.
+func RespWithAttachments(attachments []*webapi.MessageAttachment) RespOption {
+	return func(options *respOptions) {
+		options.attachments = attachments
 	}
 }
 
-// NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
-// Use NewStringResponse for simple text response.
-func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.CommandResponse {
-	inputMessage, _ := input.(*MessageInput)
-	return &sarah.CommandResponse{
-		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID, message, attachments),
-		UserContext: nil,
+// RespWithNext sets given fnc as part of the response's *sarah.UserContext.
+// The next input from the same user will be passed to this fnc.
+// See sarah.UserContextStorage must be present or otherwise, fnc will be ignored.
+func RespWithNext(fnc sarah.ContextualFunc) RespOption {
+	return func(options *respOptions) {
+		options.userContext = &sarah.UserContext{
+			Next: fnc,
+		}
 	}
 }
 
-// NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.
-// Use NewStringResponse for simple text response.
-//
-// With this method user context is directly stored as an anonymous function since Slack Bot works with single WebSocket connection and hence usually works with single process.
-// To use external storage to store user context, use go-sarah-rediscontext or similar sarah.UserContextStorage implementation.
-func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
-	inputMessage, _ := input.(*MessageInput)
-	return &sarah.CommandResponse{
-		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID, message, attachments),
-		UserContext: sarah.NewUserContext(next),
+// RespWithNextSerializable sets given arg as part of the response's *sarah.UserContext.
+// The next input from the same user will be passed to the function defined in the arg.
+// See sarah.UserContextStorage must be present or otherwise, arg will be ignored.
+func RespWithNextSerializable(arg *sarah.SerializableArgument) RespOption {
+	return func(options *respOptions) {
+		options.userContext = &sarah.UserContext{
+			Serializable: arg,
+		}
 	}
+}
+
+// RespWithLinkNames sets given linkNames to the response.
+// Set 1 to linkify channel names and usernames in the response.
+// The default value in this adapter is 1.
+func RespWithLinkNames(linkNames int) RespOption {
+	return func(options *respOptions) {
+		options.linkNames = linkNames
+	}
+}
+
+// RespWithParse sets given mode to the response.
+// The default value in this adapter is webapi.ParseModeFull.
+func RespWithParse(mode webapi.ParseMode) RespOption {
+	return func(options *respOptions) {
+		options.parseMode = mode
+	}
+}
+
+// RespWithUnfurlLinks sets given unfurl value to the response.
+// The default value is this adapter is true.
+func RespWithUnfurlLinks(unfurl bool) RespOption {
+	return func(options *respOptions) {
+		options.unfurlLinks = unfurl
+	}
+}
+
+// RespWithUnfurlMedia sets given unfurl value ot the response.
+// The default value is this adapter is true.
+func RespWithUnfurlMedia(unfurl bool) RespOption {
+	return func(options *respOptions) {
+		options.unfurlMedia = unfurl
+	}
+}
+
+// RespOptions defines function signature that NewResponse's functional option must satisfy.
+type RespOption func(*respOptions)
+
+type respOptions struct {
+	attachments []*webapi.MessageAttachment
+	userContext *sarah.UserContext
+	linkNames   int
+	parseMode   webapi.ParseMode
+	unfurlLinks bool
+	unfurlMedia bool
 }
 
 // SlackClient is an interface that covers golack's public methods.

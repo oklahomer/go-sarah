@@ -39,8 +39,8 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 		hour := time.Now().Hour()
 		return hour >= 0 && hour < 12
 	}).
-	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return slack.NewStringResponse("Good morning."), nil
+	Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+		return slack.NewResponse(input, "Good morning.")
 	}).
 	MustBuild()
 

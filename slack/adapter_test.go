@@ -13,6 +13,7 @@ import (
 	stdLogger "log"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -705,130 +706,6 @@ func TestAdapter_connect_error(t *testing.T) {
 	}
 }
 
-func TestNewStringResponse(t *testing.T) {
-	str := "abc"
-	res := NewStringResponse(str)
-
-	if res.Content != str {
-		t.Errorf("expected content is not returned: %s.", res.Content)
-	}
-
-	if res.UserContext != nil {
-		t.Errorf("UserContext should not be returned: %#v.", res.UserContext)
-	}
-}
-
-func TestNewStringResponseWithNext(t *testing.T) {
-	str := "abc"
-	next := func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return nil, nil
-	}
-	res := NewStringResponseWithNext(str, next)
-
-	if res.Content != str {
-		t.Errorf("expected content is not returned: %s.", res.Content)
-	}
-
-	if res.UserContext == nil {
-		t.Fatal("Expected UserContxt is not stored.")
-	}
-
-	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
-		t.Fatalf("expected next step is not returned: %#v.", res.UserContext.Next)
-	}
-}
-
-func TestNewPostMessageResponse(t *testing.T) {
-	channelID := slackobject.ChannelID("id")
-	input := NewMessageInput(
-		&rtmapi.Message{
-			TypedEvent: rtmapi.TypedEvent{
-				Type: rtmapi.MessageEvent,
-			},
-			ChannelID: channelID,
-			SenderID:  slackobject.UserID("who"),
-			Text:      ".echo foo",
-			TimeStamp: &rtmapi.TimeStamp{
-				Time:          time.Now(),
-				OriginalValue: time.Now().String() + ".99999",
-			},
-		},
-	)
-	message := "this  is my message."
-	attachments := []*webapi.MessageAttachment{
-		{},
-	}
-
-	res := NewPostMessageResponse(input, message, attachments)
-
-	if postMessage, ok := res.Content.(*webapi.PostMessage); ok {
-		if len(postMessage.Attachments) != 1 {
-			t.Errorf("One attachment should exists: %d.", len(postMessage.Attachments))
-		}
-
-		if postMessage.ChannelID != channelID {
-			t.Errorf("Unexpected Channel value is given: %s.", postMessage.ChannelID)
-		}
-
-	} else {
-		t.Errorf("Unexpected response content is set: %#v.", res.Content)
-
-	}
-
-	if res.UserContext != nil {
-		t.Errorf("Unexpected UserContext is returned: %#v.", res.UserContext)
-	}
-}
-
-func TestNewPostMessageResponseWithNext(t *testing.T) {
-	channelID := slackobject.ChannelID("id")
-	input := NewMessageInput(
-		&rtmapi.Message{
-			TypedEvent: rtmapi.TypedEvent{
-				Type: rtmapi.MessageEvent,
-			},
-			ChannelID: channelID,
-			SenderID:  slackobject.UserID("who"),
-			Text:      ".echo foo",
-			TimeStamp: &rtmapi.TimeStamp{
-				Time:          time.Now(),
-				OriginalValue: time.Now().String() + ".99999",
-			},
-		},
-	)
-	message := "this  is my message."
-	attachments := []*webapi.MessageAttachment{
-		{},
-	}
-	next := func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return nil, nil
-	}
-
-	res := NewPostMessageResponseWithNext(input, message, attachments, next)
-
-	if postMessage, ok := res.Content.(*webapi.PostMessage); ok {
-		if len(postMessage.Attachments) != 1 {
-			t.Errorf("One attachment should exists: %d.", len(postMessage.Attachments))
-		}
-
-		if postMessage.ChannelID != channelID {
-			t.Errorf("Unexpected Channel value is given: %s.", postMessage.ChannelID)
-		}
-
-	} else {
-		t.Errorf("Unexpected response content is set: %#v.", res.Content)
-
-	}
-
-	if res.UserContext == nil {
-		t.Fatal("Expected UserContext is not set")
-	}
-
-	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
-		t.Fatalf("expected next step is not returned: %#v.", res.UserContext.Next)
-	}
-}
-
 func Test_handlePayload(t *testing.T) {
 	helpCommand := ".help"
 	abortCommand := ".abort"
@@ -841,12 +718,33 @@ func Test_handlePayload(t *testing.T) {
 		inputType reflect.Type
 	}{
 		{
+			payload: &rtmapi.WebSocketOKReply{
+				WebSocketReply: rtmapi.WebSocketReply{
+					ReplyTo: 1,
+					OK:      true,
+				},
+				Text: "OK",
+			},
+			inputType: nil,
+		},
+		{
 			payload: &rtmapi.WebSocketNGReply{
 				WebSocketReply: rtmapi.WebSocketReply{
 					ReplyTo: 1,
 					OK:      false,
 				},
+				ErrorReason: struct {
+					Code    int    `json:"code"`
+					Message string `json:"msg"`
+				}{
+					Code:    404,
+					Message: "Not Found",
+				},
 			},
+			inputType: nil,
+		},
+		{
+			payload:   &rtmapi.Pong{},
 			inputType: nil,
 		},
 		{
@@ -908,5 +806,194 @@ func Test_handlePayload(t *testing.T) {
 		} else if receivedType != input.inputType {
 			t.Errorf("Unexpected input type is given on %d test: %s.", i, receivedType.String())
 		}
+	}
+}
+
+type DummyInput struct {
+}
+
+func (*DummyInput) SenderKey() string {
+	return ""
+}
+
+func (*DummyInput) Message() string {
+	return ""
+}
+
+func (*DummyInput) SentAt() time.Time {
+	return time.Now()
+}
+
+func (*DummyInput) ReplyTo() sarah.OutputDestination {
+	return "dummy"
+}
+
+func TestNewResponse(t *testing.T) {
+	tests := []struct {
+		input   sarah.Input
+		message string
+		options []RespOption
+		hasErr  bool
+	}{
+		{
+			input: &MessageInput{
+				event: &rtmapi.Message{
+					ChannelID: "dummy",
+				},
+			},
+			message: "dummy message",
+			hasErr:  false,
+		},
+		{
+			input: &MessageInput{
+				event: &rtmapi.Message{
+					ChannelID: "dummy",
+				},
+			},
+			message: "dummy message",
+			options: []RespOption{
+				func(options *respOptions) {
+					options.attachments = []*webapi.MessageAttachment{
+						{},
+						{},
+					}
+				},
+			},
+			hasErr: false,
+		},
+		{
+			input:   &DummyInput{},
+			message: "dummy message",
+			options: []RespOption{
+				func(options *respOptions) {
+					options.attachments = []*webapi.MessageAttachment{
+						{},
+						{},
+					}
+				},
+			},
+			hasErr: true,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			response, err := NewResponse(tt.input, tt.message, tt.options...)
+			if tt.hasErr {
+				if err == nil {
+					t.Fatal("Expected error is not returned.")
+				}
+				return
+			}
+
+			if !tt.hasErr && err != nil {
+				t.Fatalf("Unexpected error is returned: %s.", err.Error())
+			}
+
+			switch typed := response.Content.(type) {
+			case string:
+				if tt.message != typed {
+					t.Errorf("Unxecpected string is set as message: %s", typed)
+				}
+
+			case *webapi.PostMessage:
+				if tt.message != typed.Text {
+					t.Errorf("Unxecpected string is set as message: %s", typed.Text)
+				}
+
+			}
+		})
+	}
+}
+
+func TestRespWithAttachments(t *testing.T) {
+	options := &respOptions{}
+	attachments := []*webapi.MessageAttachment{{}, {}}
+	opt := RespWithAttachments(attachments)
+
+	opt(options)
+
+	if len(options.attachments) != len(attachments) {
+		t.Fatal("Passed attachments are not set.")
+	}
+}
+
+func TestRespWithLinkNames(t *testing.T) {
+	options := &respOptions{}
+	linkNames := 1
+	opt := RespWithLinkNames(linkNames)
+
+	opt(options)
+
+	if options.linkNames != linkNames {
+		t.Error("Passed linkNames is not set.")
+	}
+}
+
+func TestRespWithNext(t *testing.T) {
+	options := &respOptions{}
+	next := func(ctx context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+		return nil, nil
+	}
+	opt := RespWithNext(next)
+
+	opt(options)
+
+	if options.userContext == nil {
+		t.Fatal("Passed function is not set.")
+	}
+
+	if reflect.ValueOf(options.userContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
+		t.Error("Passed function is not set.")
+	}
+}
+
+func TestRespWithNextSerializable(t *testing.T) {
+	options := &respOptions{}
+	arg := &sarah.SerializableArgument{}
+	opt := RespWithNextSerializable(arg)
+
+	opt(options)
+
+	if options.userContext == nil {
+		t.Fatal("Passed UserContext is not set.")
+	}
+
+	if options.userContext.Serializable != arg {
+		t.Error("Passed UserContext argument is not set.")
+	}
+}
+
+func TestRespWithParse(t *testing.T) {
+	options := &respOptions{}
+	mode := webapi.ParseModeFull
+	opt := RespWithParse(mode)
+
+	opt(options)
+
+	if options.parseMode != mode {
+		t.Error("Passed parseMode is not set.")
+	}
+}
+
+func TestRespWithUnfurlLinks(t *testing.T) {
+	options := &respOptions{}
+	opt := RespWithUnfurlLinks(true)
+
+	opt(options)
+
+	if !options.unfurlLinks {
+		t.Error("Passed unfurlLinks is not set.")
+	}
+}
+
+func TestRespWithUnfurlMedia(t *testing.T) {
+	options := &respOptions{}
+	opt := RespWithUnfurlMedia(true)
+
+	opt(options)
+
+	if !options.unfurlMedia {
+		t.Error("Passed unfurlMedia is not set.")
 	}
 }

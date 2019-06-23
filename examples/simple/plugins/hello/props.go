@@ -27,8 +27,8 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 	MatchFunc(func(input sarah.Input) bool {
 		return strings.HasPrefix(input.Message(), ".hello")
 	}).
-	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return slack.NewStringResponse("Hello, 世界"), nil
+	Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+		return slack.NewResponse(input, "Hello, 世界")
 	}).
 	MustBuild()
 

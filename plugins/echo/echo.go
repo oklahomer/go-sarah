@@ -31,12 +31,12 @@ var commandFnc = func(input sarah.Input) string {
 
 // SlackCommandFunc is a sarah.CommandFunc especially designed for Slack adapter.
 func SlackCommandFunc(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-	return slack.NewStringResponse(commandFnc(input)), nil
+	return slack.NewResponse(input, commandFnc(input))
 }
 
 // GitterCommandFunc is a sarah.CommandFunc especially designed for gitter adapter.
 func GitterCommandFunc(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-	return gitter.NewStringResponse(commandFnc(input)), nil
+	return gitter.NewResponse(commandFnc(input))
 }
 
 // SlackProps is a pre-built echo command properties for Slack.

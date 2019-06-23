@@ -14,8 +14,8 @@ import (
 	"regexp"
 )
 
-var slackFunc = func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-	return slack.NewStringResponse("Hello!"), nil
+var slackFunc = func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+	return slack.NewResponse(input, "Hello!")
 }
 
 // SlackProps provides default setup of hello command.

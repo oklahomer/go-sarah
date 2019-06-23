@@ -10,6 +10,7 @@ import (
 	stdLogger "log"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -399,35 +400,70 @@ func TestAdapter_SendMessage_InvalidContentTypeError(t *testing.T) {
 	}
 }
 
-func TestNewStringResponse(t *testing.T) {
-	str := "abc"
-	res := NewStringResponse(str)
-
-	if res.Content != str {
-		t.Errorf("Expected content is not returned: %s.", res.Content)
+func TestNewResponse(t *testing.T) {
+	optCalled := false
+	tests := []struct {
+		content string
+		options []RespOption
+	}{
+		{
+			content: "dummy message",
+			options: []RespOption{
+				func(_ *respOptions) {
+					optCalled = true
+				},
+			},
+		},
 	}
 
-	if res.UserContext != nil {
-		t.Errorf("UserContext should not be returned: %#v.", res.UserContext)
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			response, err := NewResponse(tt.content, tt.options...)
+			if err != nil {
+				t.Errorf("Unexpected error is returned: %s", err.Error())
+			}
+
+			if !optCalled {
+				t.Error("Passed options are not called.")
+			}
+
+			if response == nil {
+				t.Error("Response is not returned")
+			}
+		})
 	}
 }
 
-func TestNewStringResponseWithNext(t *testing.T) {
-	str := "abc"
-	next := func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
+func TestRespWithNext(t *testing.T) {
+	options := &respOptions{}
+	next := func(ctx context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 		return nil, nil
 	}
-	res := NewStringResponseWithNext(str, next)
+	opt := RespWithNext(next)
 
-	if res.Content != str {
-		t.Errorf("Expected content is not returned: %s.", res.Content)
+	opt(options)
+
+	if options.userContext == nil {
+		t.Fatal("Passed function is not set.")
 	}
 
-	if res.UserContext == nil {
-		t.Fatal("Expected UserContxt is not stored.")
+	if reflect.ValueOf(options.userContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
+		t.Error("Passed function is not set.")
+	}
+}
+
+func TestRespWithNextSerializable(t *testing.T) {
+	options := &respOptions{}
+	arg := &sarah.SerializableArgument{}
+	opt := RespWithNextSerializable(arg)
+
+	opt(options)
+
+	if options.userContext == nil {
+		t.Fatal("Passed UserContext is not set.")
 	}
 
-	if reflect.ValueOf(res.UserContext.Next).Pointer() != reflect.ValueOf(next).Pointer() {
-		t.Fatalf("Expected next step is not returned: %T.", res.UserContext.Next)
+	if options.userContext.Serializable != arg {
+		t.Error("Passed UserContext argument is not set.")
 	}
 }
