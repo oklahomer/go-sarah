@@ -1,28 +1,35 @@
 package hello
 
 import (
+	"context"
+	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/golack/rtmapi"
 	"testing"
 )
 
 func Test_slackFunc(t *testing.T) {
-	response, err := slackFunc(nil, nil)
+	input := slack.NewMessageInput(&rtmapi.Message{
+		Text: ".hello",
+	})
+	response, err := slackFunc(context.TODO(), input)
 	if err != nil {
-		t.Errorf("Unexpected error is returned: %s.", err.Error())
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
 	}
 
 	if response == nil {
-		t.Fatal("Exppected response is not returned.")
+		t.Fatal("Expected response is not returned.")
 	}
 
 	if response.UserContext != nil {
 		t.Errorf("Unexpected UserContext is returned: %#v.", response.UserContext)
 	}
 
-	if str, ok := response.Content.(string); ok {
-		if str != "Hello!" {
-			t.Errorf("Unexpected text is returned: %s.", str)
-		}
-	} else {
-		t.Errorf("Returned content has unexpected type: %#v", response.Content)
+	message, ok := response.Content.(*rtmapi.OutgoingMessage)
+	if !ok {
+		t.Fatalf("Returned content has unexpected type: %T", response.Content)
+	}
+
+	if message.Text != "Hello!" {
+		t.Errorf("Unexpected text is returned: %s.", message.Text)
 	}
 }

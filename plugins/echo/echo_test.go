@@ -4,7 +4,8 @@ import (
 	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/gitter"
-	"github.com/oklahomer/golack/slackobject"
+	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/golack/rtmapi"
 	"testing"
 	"time"
 )
@@ -33,30 +34,32 @@ func (i *DummyInput) ReplyTo() sarah.OutputDestination {
 }
 
 func TestSlackCommandFunc(t *testing.T) {
-	input := &DummyInput{
-		SenderKeyValue: "userKey",
-		MessageValue:   ".echo foo",
-		SentAtValue:    time.Now(),
-		ReplyToValue:   slackobject.ChannelID("channelId"),
-	}
+	input := slack.NewMessageInput(&rtmapi.Message{
+		SenderID: "userKey",
+		Text:     ".echo foo",
+		TimeStamp: &rtmapi.TimeStamp{
+			Time: time.Now(),
+		},
+		ChannelID: "channelID",
+	})
 
 	response, err := SlackCommandFunc(context.TODO(), input)
 
 	if err != nil {
-		t.Errorf("Unexpected error is returned: %s.", err.Error())
+		t.Fatalf("Unexpected error is returned: %s.", err.Error())
 	}
 
 	if response == nil {
 		t.Fatal("Response should be returned.")
 	}
 
-	content, ok := response.Content.(string)
+	content, ok := response.Content.(*rtmapi.OutgoingMessage)
 	if !ok {
 		t.Fatalf("Response content should be a plain text: %#v.", response.Content)
 	}
 
-	if content != "foo" {
-		t.Errorf("Unexpected response is returned: %s.", content)
+	if content.Text != "foo" {
+		t.Errorf("Unexpected response is returned: %s", content.Text)
 	}
 
 	if response.UserContext != nil {
