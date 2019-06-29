@@ -114,7 +114,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			t.Fatal("Expected response is not returned.")
 		}
 
-		if _, ok := response.Content.(string); !ok {
+		if _, ok := response.Content.(*rtmapi.OutgoingMessage); !ok {
 			t.Errorf("Unexpected content type is returned %#v.", response.Content)
 		}
 
@@ -155,7 +155,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			t.Fatal("Expected response is not returned.")
 		}
 
-		if _, ok := response.Content.(string); !ok {
+		if _, ok := response.Content.(*rtmapi.OutgoingMessage); !ok {
 			t.Errorf("Unexpected content type is returned %#v.", response.Content)
 		}
 

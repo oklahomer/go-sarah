@@ -99,7 +99,7 @@ func WithPayloadHandler(fnc func(context.Context, *Config, rtmapi.DecodedPayload
 type Adapter struct {
 	config         *Config
 	client         SlackClient
-	messageQueue   chan *textMessage
+	messageQueue   chan *rtmapi.OutgoingMessage
 	payloadHandler func(context.Context, *Config, rtmapi.DecodedPayload, func(sarah.Input) error)
 }
 
@@ -107,7 +107,7 @@ type Adapter struct {
 func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	adapter := &Adapter{
 		config:         config,
-		messageQueue:   make(chan *textMessage, config.SendingQueueSize),
+		messageQueue:   make(chan *rtmapi.OutgoingMessage, config.SendingQueueSize),
 		payloadHandler: handlePayload, // may be replaced with WithPayloadHandler option.
 	}
 
@@ -196,7 +196,7 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 			return nil
 
 		case message := <-adapter.messageQueue:
-			if err := payloadSender.Send(message.channel, message.text); err != nil {
+			if err := payloadSender.Send(message); err != nil {
 				// Try ping right away when Send() returns error so that following messages stay in the queue
 				// while connection status is checked with ping message and optionally reconnect
 				if pingErr := payloadSender.Ping(); pingErr != nil {
@@ -331,11 +331,6 @@ func nonBlockSignal(id string, target chan<- struct{}) {
 	}
 }
 
-type textMessage struct {
-	channel slackobject.ChannelID
-	text    string
-}
-
 // SendMessage let Bot send message to Slack.
 func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	switch content := output.Content().(type) {
@@ -346,15 +341,21 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 			return
 		}
 
-		adapter.messageQueue <- &textMessage{
-			channel: channel,
-			text:    content,
-		}
+		message := rtmapi.NewOutgoingMessage(channel, content)
+		adapter.messageQueue <- message
+
+	case *rtmapi.OutgoingMessage:
+		adapter.messageQueue <- content
 
 	case *webapi.PostMessage:
-		message := output.Content().(*webapi.PostMessage)
-		if _, err := adapter.client.PostMessage(ctx, message); err != nil {
+		resp, err := adapter.client.PostMessage(ctx, content)
+		if err != nil {
 			log.Error("Something went wrong with Web API posting: %+v", err)
+			return
+		}
+
+		if !resp.OK {
+			log.Error("Failed to post message %#v: %s", content, resp.Error)
 		}
 
 	case *sarah.CommandHelps:
@@ -428,45 +429,73 @@ func NewMessageInput(message *rtmapi.Message) *MessageInput {
 // Simply pass given sarah.Input instance and a text string to send string message as a reply.
 // To send a more complicated reply message, pass as many options created by ResponseWith* function as required.
 func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.CommandResponse, error) {
-	stash := &respOptions{
-		attachments: []*webapi.MessageAttachment{},
-		userContext: nil,
-		linkNames:   1, // Linkify channel names and usernames. ref. https://api.slack.com/docs/message-formatting#parsing_modes
-		parseMode:   webapi.ParseModeFull,
-		unfurlLinks: true,
-		unfurlMedia: true,
+	messageInput, ok := input.(*MessageInput)
+	if !ok {
+		return nil, xerrors.Errorf("%T is not currently supported to automatically generate response", input)
 	}
 
+	stash := &respOptions{
+		attachments:   []*webapi.MessageAttachment{},
+		userContext:   nil,
+		linkNames:     1, // Linkify channel names and usernames. ref. https://api.slack.com/docs/message-formatting#parsing_modes
+		parseMode:     webapi.ParseModeFull,
+		unfurlLinks:   true,
+		unfurlMedia:   true,
+		asThreadReply: false,
+	}
 	for _, opt := range options {
 		opt(stash)
 	}
 
 	// Return a simple text response.
 	// This will be sent over WebSocket connection.
-	if len(stash.attachments) == 0 {
+	if len(stash.attachments) == 0 && !stash.replyBroadcast {
+		message := rtmapi.NewOutgoingMessage(messageInput.event.ChannelID, msg)
+		if stash.asThreadReply {
+			message.WithThreadTimeStamp(threadTimeStamp(messageInput.event))
+		}
 		return &sarah.CommandResponse{
-			Content:     msg,
+			Content:     message,
 			UserContext: stash.userContext,
 		}, nil
 	}
 
-	switch typed := input.(type) {
-	case *MessageInput:
-		postMessage := webapi.NewPostMessage(typed.event.ChannelID, msg).
-			WithAttachments(stash.attachments).
-			WithLinkNames(stash.linkNames).
-			WithParse(stash.parseMode).
-			WithUnfurlLinks(stash.unfurlLinks).
-			WithUnfurlMedia(stash.unfurlMedia)
-		return &sarah.CommandResponse{
-			Content:     postMessage,
-			UserContext: stash.userContext,
-		}, nil
+	postMessage := webapi.NewPostMessage(messageInput.event.ChannelID, msg).
+		WithAttachments(stash.attachments).
+		WithLinkNames(stash.linkNames).
+		WithParse(stash.parseMode).
+		WithUnfurlLinks(stash.unfurlLinks).
+		WithUnfurlMedia(stash.unfurlMedia)
+	if stash.asThreadReply {
+		postMessage.
+			WithThreadTimeStamp(threadTimeStamp(messageInput.event).String()).
+			WithReplyBroadcast(stash.replyBroadcast)
+	}
+	return &sarah.CommandResponse{
+		Content:     postMessage,
+		UserContext: stash.userContext,
+	}, nil
+}
 
-	default:
-		// TODO cover all possible incoming events
-		return nil, xerrors.Errorf("%T is not currently supported to automatically generate response", input)
+func threadTimeStamp(m *rtmapi.Message) *rtmapi.TimeStamp {
+	if m.ThreadTimeStamp != nil {
+		return m.ThreadTimeStamp
+	}
+	return m.TimeStamp
+}
 
+// RespAsThreadReply indicates that this response is sent as a thread reply.
+func RespAsThreadReply(asReply bool) RespOption {
+	return func(options *respOptions) {
+		options.asThreadReply = asReply
+	}
+}
+
+// RespReplyBroadcast decides if the thread reply should be broadcasted.
+// To activate this option, RespAsThreadReply() must be set to true.
+func RespReplyBroadcast(broadcast bool) RespOption {
+	return func(options *respOptions) {
+		options.replyBroadcast = broadcast
 	}
 }
 
@@ -536,12 +565,14 @@ func RespWithUnfurlMedia(unfurl bool) RespOption {
 type RespOption func(*respOptions)
 
 type respOptions struct {
-	attachments []*webapi.MessageAttachment
-	userContext *sarah.UserContext
-	linkNames   int
-	parseMode   webapi.ParseMode
-	unfurlLinks bool
-	unfurlMedia bool
+	attachments    []*webapi.MessageAttachment
+	userContext    *sarah.UserContext
+	linkNames      int
+	parseMode      webapi.ParseMode
+	unfurlLinks    bool
+	unfurlMedia    bool
+	asThreadReply  bool
+	replyBroadcast bool
 }
 
 // SlackClient is an interface that covers golack's public methods.

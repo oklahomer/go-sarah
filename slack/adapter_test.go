@@ -52,7 +52,7 @@ func (client *DummyClient) PostMessage(ctx context.Context, message *webapi.Post
 
 type DummyConnection struct {
 	ReceiveFunc func() (rtmapi.DecodedPayload, error)
-	SendFunc    func(slackobject.ChannelID, string) error
+	SendFunc    func(message *rtmapi.OutgoingMessage) error
 	PingFunc    func() error
 	CloseFunc   func() error
 }
@@ -61,8 +61,8 @@ func (conn *DummyConnection) Receive() (rtmapi.DecodedPayload, error) {
 	return conn.ReceiveFunc()
 }
 
-func (conn *DummyConnection) Send(channel slackobject.ChannelID, content string) error {
-	return conn.SendFunc(channel, content)
+func (conn *DummyConnection) Send(message *rtmapi.OutgoingMessage) error {
+	return conn.SendFunc(message)
 }
 
 func (conn *DummyConnection) Ping() error {
@@ -158,7 +158,7 @@ func TestAdapter_superviseConnection(t *testing.T) {
 	send := make(chan struct{}, 1)
 	ping := make(chan struct{}, 1)
 	conn := &DummyConnection{
-		SendFunc: func(_ slackobject.ChannelID, _ string) error {
+		SendFunc: func(_ *rtmapi.OutgoingMessage) error {
 			send <- struct{}{}
 			return nil
 		},
@@ -179,7 +179,7 @@ func TestAdapter_superviseConnection(t *testing.T) {
 		config: &Config{
 			PingInterval: pingInterval,
 		},
-		messageQueue: make(chan *textMessage, 1),
+		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
 	}
 
 	conErr := make(chan error)
@@ -188,9 +188,9 @@ func TestAdapter_superviseConnection(t *testing.T) {
 		conErr <- err
 	}()
 
-	adapter.messageQueue <- &textMessage{
-		channel: "dummy",
-		text:    "Hello, 世界",
+	adapter.messageQueue <- &rtmapi.OutgoingMessage{
+		ChannelID: "dummy",
+		Text:      "Hello, 世界",
 	}
 
 	time.Sleep(pingInterval + 10*time.Millisecond) // Give long enough time to check ping.
@@ -256,7 +256,7 @@ func TestAdapter_superviseConnection_ConnectionPingError(t *testing.T) {
 
 func TestAdapter_superviseConnection_ConnectionSendError(t *testing.T) {
 	conn := &DummyConnection{
-		SendFunc: func(_ slackobject.ChannelID, _ string) error {
+		SendFunc: func(_ *rtmapi.OutgoingMessage) error {
 			return errors.New("send error")
 		},
 		PingFunc: func() error {
@@ -268,7 +268,7 @@ func TestAdapter_superviseConnection_ConnectionSendError(t *testing.T) {
 		config: &Config{
 			PingInterval: 100 * time.Second, // not for scheduled ping test
 		},
-		messageQueue: make(chan *textMessage),
+		messageQueue: make(chan *rtmapi.OutgoingMessage),
 	}
 
 	conErr := make(chan error)
@@ -277,9 +277,9 @@ func TestAdapter_superviseConnection_ConnectionSendError(t *testing.T) {
 		conErr <- err
 	}()
 
-	adapter.messageQueue <- &textMessage{
-		channel: "dummy",
-		text:    "Hello, 世界",
+	adapter.messageQueue <- &rtmapi.OutgoingMessage{
+		ChannelID: "dummy",
+		Text:      "Hello, 世界",
 	}
 
 	// Connection.Send error should trigger Connection.Ping, and Connection.Ping error triggers supervise failure.
@@ -331,6 +331,7 @@ func TestAdapter_receivePayload_Error(t *testing.T) {
 	errs := []error{
 		rtmapi.ErrEmptyPayload,
 		rtmapi.NewMalformedPayloadError("dummy"),
+		&rtmapi.UnexpectedMessageTypeError{},
 		errors.New("random error"),
 	}
 	conn := &DummyConnection{
@@ -515,7 +516,7 @@ func TestAdapter_Run_ConnectionAbortionError(t *testing.T) {
 
 func TestAdapter_SendMessage_String(t *testing.T) {
 	adapter := &Adapter{
-		messageQueue: make(chan *textMessage, 1),
+		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
 	}
 
 	output := sarah.NewOutputMessage(slackobject.ChannelID("ch"), "test")
@@ -537,23 +538,75 @@ func TestAdapter_SendMessage_String(t *testing.T) {
 	}
 }
 
-func TestAdapter_SendMessage_PostMessage(t *testing.T) {
-	called := false
+func TestAdapter_SendMessage_OutgoingMessage(t *testing.T) {
 	adapter := &Adapter{
-		client: &DummyClient{
-			PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
-				called = true
-				return nil, errors.New("post error") // Should not cause panic.
+		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
+	}
+
+	message := rtmapi.NewOutgoingMessage("channel", "test")
+	output := sarah.NewOutputMessage(slackobject.ChannelID("channel"), message)
+	adapter.SendMessage(context.TODO(), output)
+	select {
+	case passed := <-adapter.messageQueue:
+		if passed != message {
+			t.Errorf("Passed message is not enqueued: %#v", passed)
+		}
+
+	default:
+		t.Fatalf("Valid output was not enqueued.")
+
+	}
+}
+
+func TestAdapter_SendMessage_PostMessage(t *testing.T) {
+	tests := []struct {
+		channelID slackobject.ChannelID
+		err       error
+		response  *webapi.APIResponse
+	}{
+		{
+			channelID: "channelID",
+			err:       nil,
+			response: &webapi.APIResponse{
+				OK:    true,
+				Error: "",
+			},
+		},
+		{
+			channelID: "channelID",
+			err:       errors.New("error"),
+			response:  nil,
+		},
+		{
+			channelID: "channelID",
+			err:       nil,
+			response: &webapi.APIResponse{
+				OK:    false,
+				Error: "error",
 			},
 		},
 	}
 
-	postMessage := webapi.NewPostMessage("channelID", "test")
-	output := sarah.NewOutputMessage(slackobject.ChannelID("ch"), postMessage)
-	adapter.SendMessage(context.TODO(), output)
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			called := false
+			adapter := &Adapter{
+				client: &DummyClient{
+					PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
+						called = true
+						return tt.response, tt.err
+					},
+				},
+			}
 
-	if !called {
-		t.Fatal("Client.PostMessage is not called.")
+			postMessage := webapi.NewPostMessage(tt.channelID, "test")
+			output := sarah.NewOutputMessage(tt.channelID, postMessage)
+			adapter.SendMessage(context.TODO(), output)
+
+			if !called {
+				t.Fatal("Client.PostMessage is not called.")
+			}
+		})
 	}
 }
 
@@ -590,7 +643,7 @@ func TestAdapter_SendMessage_CommandHelps(t *testing.T) {
 func TestAdapter_SendMessage_IrrelevantType(t *testing.T) {
 	postMessageCalled := false
 	adapter := &Adapter{
-		messageQueue: make(chan *textMessage, 1),
+		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
 		client: &DummyClient{
 			PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
 				postMessageCalled = true
@@ -874,6 +927,39 @@ func TestNewResponse(t *testing.T) {
 			},
 			hasErr: true,
 		},
+		{
+			input: &MessageInput{
+				event: &rtmapi.Message{
+					ChannelID: "dummy",
+					TimeStamp: &rtmapi.TimeStamp{
+						Time:          time.Now(),
+						OriginalValue: time.Now().String(),
+					},
+				},
+			},
+			message: "dummy message",
+			options: []RespOption{
+				RespAsThreadReply(true),
+			},
+			hasErr: false,
+		},
+		{
+			input: &MessageInput{
+				event: &rtmapi.Message{
+					ChannelID: "dummy",
+					ThreadTimeStamp: &rtmapi.TimeStamp{
+						Time:          time.Now(),
+						OriginalValue: time.Now().String(),
+					},
+				},
+			},
+			message: "dummy message",
+			options: []RespOption{
+				RespAsThreadReply(true),
+				RespReplyBroadcast(true),
+			},
+			hasErr: false,
+		},
 	}
 
 	for i, tt := range tests {
@@ -903,6 +989,28 @@ func TestNewResponse(t *testing.T) {
 
 			}
 		})
+	}
+}
+
+func TestRespAsThreadReply(t *testing.T) {
+	options := &respOptions{}
+	opt := RespAsThreadReply(true)
+
+	opt(options)
+
+	if !options.asThreadReply {
+		t.Fatal("Passed value is not set.")
+	}
+}
+
+func TestRespReplyBroadcast(t *testing.T) {
+	options := &respOptions{}
+	opt := RespReplyBroadcast(true)
+
+	opt(options)
+
+	if !options.replyBroadcast {
+		t.Fatal("Passed value is not set.")
 	}
 }
 
