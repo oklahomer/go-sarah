@@ -28,7 +28,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 		return strings.HasPrefix(input.Message(), ".hello")
 	}).
 	Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-		return slack.NewResponse(input, "Hello, 世界", slack.RespAsThreadReply(true))
+		return slack.NewResponse(input, "Hello, 世界")
 	}).
 	MustBuild()
 

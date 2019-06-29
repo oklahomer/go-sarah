@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
@@ -882,6 +883,7 @@ func (*DummyInput) ReplyTo() sarah.OutputDestination {
 }
 
 func TestNewResponse(t *testing.T) {
+	now := time.Now()
 	tests := []struct {
 		input   sarah.Input
 		message string
@@ -932,8 +934,8 @@ func TestNewResponse(t *testing.T) {
 				event: &rtmapi.Message{
 					ChannelID: "dummy",
 					TimeStamp: &rtmapi.TimeStamp{
-						Time:          time.Now(),
-						OriginalValue: time.Now().String(),
+						Time:          now,
+						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 					},
 				},
 			},
@@ -948,8 +950,8 @@ func TestNewResponse(t *testing.T) {
 				event: &rtmapi.Message{
 					ChannelID: "dummy",
 					ThreadTimeStamp: &rtmapi.TimeStamp{
-						Time:          time.Now(),
-						OriginalValue: time.Now().String(),
+						Time:          now,
+						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 					},
 				},
 			},
@@ -959,6 +961,42 @@ func TestNewResponse(t *testing.T) {
 				RespReplyBroadcast(true),
 			},
 			hasErr: false,
+		},
+		{
+			input: &MessageInput{
+				event: &rtmapi.Message{
+					ChannelID: "dummy",
+					ThreadTimeStamp: &rtmapi.TimeStamp{
+						Time:          now,
+						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
+					},
+					TimeStamp: &rtmapi.TimeStamp{
+						Time:          time.Now(),
+						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
+					},
+				},
+			},
+			message: "dummy message",
+			options: []RespOption{},
+			hasErr:  false,
+		},
+		{
+			input: &MessageInput{
+				event: &rtmapi.Message{
+					ChannelID: "dummy",
+					ThreadTimeStamp: &rtmapi.TimeStamp{
+						Time:          now,
+						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
+					},
+					TimeStamp: &rtmapi.TimeStamp{
+						Time:          time.Now(),
+						OriginalValue: fmt.Sprintf("%d.999999", now.Unix()),
+					},
+				},
+			},
+			message: "dummy message",
+			options: []RespOption{},
+			hasErr:  false,
 		},
 	}
 
@@ -982,10 +1020,18 @@ func TestNewResponse(t *testing.T) {
 					t.Errorf("Unxecpected string is set as message: %s", typed)
 				}
 
+			case *rtmapi.OutgoingMessage:
+				if tt.message != typed.Text {
+					t.Errorf("Unxecpected string is set as message: %s", typed.Text)
+				}
+
 			case *webapi.PostMessage:
 				if tt.message != typed.Text {
 					t.Errorf("Unxecpected string is set as message: %s", typed.Text)
 				}
+
+			default:
+				t.Errorf("Unexpected type of payload is returned: %T", typed)
 
 			}
 		})
@@ -998,7 +1044,7 @@ func TestRespAsThreadReply(t *testing.T) {
 
 	opt(options)
 
-	if !options.asThreadReply {
+	if options.asThreadReply == nil || !*options.asThreadReply {
 		t.Fatal("Passed value is not set.")
 	}
 }
@@ -1103,5 +1149,61 @@ func TestRespWithUnfurlMedia(t *testing.T) {
 
 	if !options.unfurlMedia {
 		t.Error("Passed unfurlMedia is not set.")
+	}
+}
+
+func TestIsThreadMessage(t *testing.T) {
+	now := time.Now()
+	ts := &rtmapi.TimeStamp{
+		Time:          now,
+		OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
+	}
+	tests := []struct {
+		input    sarah.Input
+		expected bool
+	}{
+		{
+			input:    &DummyInput{},
+			expected: false,
+		},
+		{
+			input: &MessageInput{
+				event: &rtmapi.Message{},
+			},
+			expected: false,
+		},
+		{
+			// A parent message
+			input: &MessageInput{
+				event: &rtmapi.Message{
+					ThreadTimeStamp: ts,
+					TimeStamp:       ts,
+				},
+			},
+			expected: false,
+		},
+		{
+			// A reply to a parent message, which is posted in a thread
+			// https://api.slack.com/docs/message-threading
+			input: &MessageInput{
+				event: &rtmapi.Message{
+					ThreadTimeStamp: ts,
+					TimeStamp: &rtmapi.TimeStamp{
+						Time:          now,
+						OriginalValue: fmt.Sprintf("%d.9999999999", now.Unix()),
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			isThread := IsThreadMessage(tt.input)
+			if isThread != tt.expected {
+				t.Errorf("Unexpected value is returned: %t", isThread)
+			}
+		})
 	}
 }

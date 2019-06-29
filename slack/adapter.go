@@ -425,9 +425,34 @@ func NewMessageInput(message *rtmapi.Message) *MessageInput {
 	}
 }
 
+// IsThreadMessage tells if the given message is sent in a thread.
+// If the message is sent in a thread, this is encouraged to reply in a thread.
+//
+// NewResponse defaults to defaults to send a response as a thread reply if the input is sent in a thread.
+// Use RespAsThreadReply to specifically switch the behavior.
+func IsThreadMessage(input sarah.Input) bool {
+	m, ok := input.(*MessageInput)
+	if !ok {
+		return false
+	}
+
+	if m.event.ThreadTimeStamp == nil {
+		return false
+	}
+
+	if m.event.ThreadTimeStamp.OriginalValue == m.event.TimeStamp.OriginalValue {
+		return false
+	}
+
+	return true
+}
+
 // NewResponse creates *sarah.CommandResponse with given arguments.
-// Simply pass given sarah.Input instance and a text string to send string message as a reply.
+// Simply pass a given sarah.Input instance and a text string to send a string message as a reply.
 // To send a more complicated reply message, pass as many options created by ResponseWith* function as required.
+//
+// When an input is sent in a thread, this function defaults to send a response as a thread reply.
+// To explicitly change such behavior, use RespAsThreadReply() and RespReplyBroadcast().
 func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.CommandResponse, error) {
 	messageInput, ok := input.(*MessageInput)
 	if !ok {
@@ -435,13 +460,12 @@ func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.C
 	}
 
 	stash := &respOptions{
-		attachments:   []*webapi.MessageAttachment{},
-		userContext:   nil,
-		linkNames:     1, // Linkify channel names and usernames. ref. https://api.slack.com/docs/message-formatting#parsing_modes
-		parseMode:     webapi.ParseModeFull,
-		unfurlLinks:   true,
-		unfurlMedia:   true,
-		asThreadReply: false,
+		attachments: []*webapi.MessageAttachment{},
+		userContext: nil,
+		linkNames:   1, // Linkify channel names and usernames. ref. https://api.slack.com/docs/message-formatting#parsing_modes
+		parseMode:   webapi.ParseModeFull,
+		unfurlLinks: true,
+		unfurlMedia: true,
 	}
 	for _, opt := range options {
 		opt(stash)
@@ -451,7 +475,7 @@ func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.C
 	// This will be sent over WebSocket connection.
 	if len(stash.attachments) == 0 && !stash.replyBroadcast {
 		message := rtmapi.NewOutgoingMessage(messageInput.event.ChannelID, msg)
-		if stash.asThreadReply {
+		if replyInThread(input, stash) {
 			message.WithThreadTimeStamp(threadTimeStamp(messageInput.event))
 		}
 		return &sarah.CommandResponse{
@@ -466,7 +490,7 @@ func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.C
 		WithParse(stash.parseMode).
 		WithUnfurlLinks(stash.unfurlLinks).
 		WithUnfurlMedia(stash.unfurlMedia)
-	if stash.asThreadReply {
+	if replyInThread(input, stash) {
 		postMessage.
 			WithThreadTimeStamp(threadTimeStamp(messageInput.event).String()).
 			WithReplyBroadcast(stash.replyBroadcast)
@@ -475,6 +499,21 @@ func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.C
 		Content:     postMessage,
 		UserContext: stash.userContext,
 	}, nil
+}
+
+func replyInThread(input sarah.Input, options *respOptions) bool {
+	// If explicitly set by user, follow such instruction.
+	if options.asThreadReply != nil {
+		return *options.asThreadReply
+	}
+
+	// If input is given in a thread, then reply in thread.
+	if IsThreadMessage(input) {
+		return true
+	}
+
+	// Other post as a stand-alone message.
+	return false
 }
 
 func threadTimeStamp(m *rtmapi.Message) *rtmapi.TimeStamp {
@@ -487,7 +526,7 @@ func threadTimeStamp(m *rtmapi.Message) *rtmapi.TimeStamp {
 // RespAsThreadReply indicates that this response is sent as a thread reply.
 func RespAsThreadReply(asReply bool) RespOption {
 	return func(options *respOptions) {
-		options.asThreadReply = asReply
+		options.asThreadReply = &asReply
 	}
 }
 
@@ -571,7 +610,7 @@ type respOptions struct {
 	parseMode      webapi.ParseMode
 	unfurlLinks    bool
 	unfurlMedia    bool
-	asThreadReply  bool
+	asThreadReply  *bool
 	replyBroadcast bool
 }
 
