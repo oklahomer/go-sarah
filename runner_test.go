@@ -445,9 +445,7 @@ func Test_runner_runBot(t *testing.T) {
 			AppendCommandFunc: func(cmd Command) {
 				passedCommand <- cmd
 			},
-			RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {
-				return
-			},
+			RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {},
 		}
 
 		// Prepare command to be configured on the fly
@@ -620,7 +618,8 @@ func Test_runner_runBot_WithPanic(t *testing.T) {
 
 		// Let it run
 		rootCtx := context.Background()
-		runnerCtx, _ := context.WithCancel(rootCtx)
+		runnerCtx, cancel := context.WithCancel(rootCtx)
+		defer cancel()
 		finished := make(chan bool)
 		go func() {
 			r.runBot(runnerCtx, bot)
