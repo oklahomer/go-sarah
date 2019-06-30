@@ -429,7 +429,6 @@ func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
 		return func() {
 			log.Infof("Updating command: %s", p.identifier)
 			reg(p)
-			return
 		}
 	}
 
@@ -469,7 +468,6 @@ func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
 		return func() {
 			log.Infof("Updating scheduled task: %s", p.identifier)
 			reg(p)
-			return
 		}
 	}
 

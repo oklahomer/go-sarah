@@ -14,8 +14,10 @@ before_install:
   - export PATH=$HOME/gopath/bin:$PATH
   - go get github.com/mattn/goveralls
   - go get github.com/modocache/gover
+  - go get github.com/golangci/golangci-lint/cmd/golangci-lint
 
 script:
+  - golangci-lint run
   - go test -race ./...
   - go test -coverprofile=sarah.coverprofile .
   - go test -coverprofile=alerter.line.coverprofile ./alerter/line

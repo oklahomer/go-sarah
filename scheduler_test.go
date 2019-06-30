@@ -56,12 +56,12 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 	}
 
 	var storedBotType BotType = "Foo"
-	if err := scheduler.update(storedBotType, task, func() { return }); err == nil {
+	if err := scheduler.update(storedBotType, task, func() {}); err == nil {
 		t.Fatal("Error should return on invalid schedule value.")
 	}
 
 	task.schedule = "@daily"
-	if err := scheduler.update(storedBotType, task, func() { return }); err != nil {
+	if err := scheduler.update(storedBotType, task, func() {}); err != nil {
 		t.Fatalf("Error is returned on valid schedule value: %s", err.Error())
 	}
 	time.Sleep(10 * time.Millisecond)
@@ -89,7 +89,7 @@ func TestTaskScheduler_updateWithEmptySchedule(t *testing.T) {
 	defer cancel()
 	scheduler := runScheduler(ctx, time.Local)
 
-	err := scheduler.update("dummy", &DummyScheduledTask{}, func() { return })
+	err := scheduler.update("dummy", &DummyScheduledTask{}, func() {})
 
 	if err == nil {
 		t.Error("Expected error is not returned.")

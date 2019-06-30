@@ -33,7 +33,6 @@ func TestRetry(t *testing.T) {
 
 	retryTests := []struct {
 		failCnt uint
-		err     error
 	}{
 		{
 			// Succeed on the last trial
