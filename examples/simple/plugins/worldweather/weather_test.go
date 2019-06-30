@@ -16,7 +16,7 @@ import (
 )
 
 func TestSlackCommandFunc(t *testing.T) {
-	path, err := filepath.Abs(filepath.Join("..", "..", "testdata", "plugins", "worldweather", "weather.json"))
+	path, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "testdata", "examples", "simple", "plugins", "worldweather", "weather.json"))
 	if err != nil {
 		t.Fatalf("Test file could not be located: %s.", err.Error())
 	}

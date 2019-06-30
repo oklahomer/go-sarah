@@ -19,6 +19,10 @@ import (
 	"strings"
 )
 
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}
+
 // SlackProps is a pre-built hello command properties for Slack.
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
@@ -31,7 +35,3 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 		return slack.NewResponse(input, "Hello, 世界")
 	}).
 	MustBuild()
-
-func init() {
-	sarah.RegisterCommandProps(SlackProps)
-}

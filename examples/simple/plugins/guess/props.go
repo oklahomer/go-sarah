@@ -20,6 +20,10 @@ import (
 	"time"
 )
 
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}
+
 // SlackProps is a pre-built guess command properties for Slack.
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
@@ -65,8 +69,4 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 	} else {
 		return slack.NewResponse(input, "Bigger!", slack.RespWithNext(retry))
 	}
-}
-
-func init() {
-	sarah.RegisterCommandProps(SlackProps)
 }

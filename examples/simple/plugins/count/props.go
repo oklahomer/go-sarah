@@ -17,6 +17,11 @@ import (
 	"sync"
 )
 
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+	sarah.RegisterCommandProps(GitterProps)
+}
+
 type counter struct {
 	count uint
 	mutex *sync.Mutex
@@ -56,8 +61,3 @@ var GitterProps = sarah.NewCommandPropsBuilder().
 		return gitter.NewResponse(fmt.Sprint(globalCounter.increment()))
 	}).
 	MustBuild()
-
-func init() {
-	sarah.RegisterCommandProps(SlackProps)
-	sarah.RegisterCommandProps(GitterProps)
-}

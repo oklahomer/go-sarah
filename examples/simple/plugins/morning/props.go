@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}
+
 // SlackProps is a pre-built morning command properties for Slack.
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
@@ -43,7 +47,3 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 		return slack.NewResponse(input, "Good morning.")
 	}).
 	MustBuild()
-
-func init() {
-	sarah.RegisterCommandProps(SlackProps)
-}

@@ -76,7 +76,7 @@ func main() {
 
 	// Setup .hello command
 	hello := &HelloCommand{}
-	bot.AppendCommand(hello)
+	sarah.RegisterCommand(slack.SLACK, hello)
 	
 	// Setup properties to setup .guess command on the fly
 	sarah.RegisterCommandProps(GuessProps)
@@ -102,9 +102,9 @@ var GuessProps = sarah.NewCommandPropsBuilder().
 		answer := rand.Intn(10)
 
 		// Let user guess the right answer.
-		return slack.NewStringResponseWithNext("Input number.", func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+		return slack.NewResponse(input, "Input number.", slack.RespWithNext(func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error){
 			return guessFunc(c, i, answer)
-		}), nil
+		}))
 	}).
 	MustBuild()
 
@@ -117,17 +117,17 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 	// See if user inputs valid number.
 	guess, err := strconv.Atoi(strings.TrimSpace(input.Message()))
 	if err != nil {
-		return slack.NewStringResponseWithNext("Invalid input format.", retry), nil
+		return slack.NewResponse(input, "Invalid input format.", slack.RespWithNext(retry))
 	}
 
 	// If guess is right, tell user and finish current user context.
 	// Otherwise let user input next guess with bit of a hint.
 	if guess == answer {
-		return slack.NewStringResponse("Correct!"), nil
+		return slack.NewResponse(input, "Correct!")
 	} else if guess > answer {
-		return slack.NewStringResponseWithNext("Smaller!", retry), nil
+		return slack.NewResponse(input, "Smaller!", slack.RespWithNext(retry))
 	} else {
-		return slack.NewStringResponseWithNext("Bigger!", retry), nil
+		return slack.NewResponse(input, "Bigger!", slack.RespWithNext(retry))
 	}
 }
 
@@ -140,8 +140,8 @@ func (hello *HelloCommand) Identifier() string {
 	return "hello"
 }
 
-func (hello *HelloCommand) Execute(context.Context, sarah.Input) (*sarah.CommandResponse, error) {
-	return slack.NewStringResponse("Hello!"), nil
+func (hello *HelloCommand) Execute(_ context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+	return slack.NewResponse(i, "Hello!")
 }
 
 func (hello *HelloCommand) Instruction(input *sarah.HelpInput) string {
@@ -156,6 +156,7 @@ func (hello *HelloCommand) Instruction(input *sarah.HelpInput) string {
 func (hello *HelloCommand) Match(input sarah.Input) bool {
 	return strings.TrimSpace(input.Message()) == ".hello"
 }
+
 ```
 
 # Overview

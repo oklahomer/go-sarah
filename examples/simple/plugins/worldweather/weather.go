@@ -1,23 +1,29 @@
 /*
-Package worldweather is an reference implementation that provides relatively practical sarah.CommandProps.
+Package worldweather is a reference implementation that provides relatively practical use of sarah.CommandProps.
 
-This illustrates the use of user's conversational context, sarah.UserContext.
-When weather API returns response that indicates input error, this command returns text message along with a sarah.UserContext
+This illustrates the use of a user's conversational context, sarah.UserContext.
+When weather API returns a response that indicates input error, this command returns text message along with a sarah.UserContext
 so the user's next input will be directly fed to the designated function, which actually is equivalent to second command call in this time.
-To see detailed implementation, read corresponding code where this command is calling slack.NewStringResponseWithNext.
+To see the detailed implementation, read the corresponding code where this command is calling slack.NewResponse.
 
-When this sarah.CommandProps is passed to sarah.RegisterCommandProps, go-sarah tries to read configuration file and map content to weather.CommandConfig.
-Setup should be somewhat like below:
+Setup can be done by importing this package since sarah.RegisterCommandProps() is called in init().
+However, to read the configuration on the fly, sarah.ConfigWatcher's implementation must be set.
 
-  sarah.RegisterCommandProps(hello.SlackProps)
-  sarah.RegisterCommandProps(echo.SlackProps)
-  sarah.RegisterCommandProps(worldweather.SlackProps)
+  package main
 
-  // Config.PluginConfigRoot must be set to read configuration file for this command.
-  // Runner searches for configuration file located at config.PluginConfigRoot + "/slack/weather.(yaml|yml|json)".
-  config := sarah.NewConfig()
-  config.PluginConfigRoot = "/path/to/config/" // Or do yaml.Unmarshal(fileBuf, config), json.Unmarshal(fileBuf, config)
-  err := sarah.Run(context.TODO(), config)
+  import (
+    _ "github.com/oklahomer/go-sarah/examples/simple/plugins/worldweather"
+    "github.com/oklahomer/go-sarah/watchers"
+  )
+
+  func main() {
+    // setup watcher
+    watcher, _ := watchers.NewFileWatcher(context.TODO(), "/path/to/config/dir/")
+    sarah.RegisterConfigWatcher(watcher)
+
+    // Do the rest
+
+  }
 */
 package worldweather
 
@@ -31,6 +37,10 @@ import (
 	"regexp"
 	"time"
 )
+
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}
 
 // MatchPattern defines regular expression pattern that is checked against user input
 var MatchPattern = regexp.MustCompile(`^\.weather`)
