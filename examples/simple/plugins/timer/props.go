@@ -13,6 +13,10 @@ import (
 	"github.com/oklahomer/golack/slackobject"
 )
 
+func init() {
+	sarah.RegisterScheduledTaskProps(SlackProps)
+}
+
 type timerConfig struct {
 	TaskSchedule string                `yaml:"schedule"`
 	ChannelID    slackobject.ChannelID `yaml:"channel_id"`
@@ -39,7 +43,3 @@ var SlackProps = sarah.NewScheduledTaskPropsBuilder().
 		}, nil
 	}).
 	MustBuild()
-
-func init() {
-	sarah.RegisterScheduledTaskProps(SlackProps)
-}
