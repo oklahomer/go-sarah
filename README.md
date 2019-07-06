@@ -4,6 +4,15 @@
 [![Coverage Status](https://coveralls.io/repos/github/oklahomer/go-sarah/badge.svg?branch=master)](https://coveralls.io/github/oklahomer/go-sarah?branch=master)
 [![Maintainability](https://api.codeclimate.com/v1/badges/a2f0df359bec1552b28f/maintainability)](https://codeclimate.com/github/oklahomer/go-sarah/maintainability) [![Join the chat at https://gitter.im/go-sarah-dev/community](https://badges.gitter.im/go-sarah-dev/community.svg)](https://gitter.im/go-sarah-dev/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
+# IMPORTANT NOTICE
+A next major version, 2.0.0, is on its way to release.
+For those who are developing with go-sarah for the first time or planning to use go-sarah in the near future, this is encouraged to see the latest version of [v2.0.0](https://github.com/oklahomer/go-sarah/tree/v2.0.0) branch.
+
+A pull reqeust for [2.0.0 release](https://github.com/oklahomer/go-sarah/pull/85) will help existing developers understand how new features work.
+
+The work is almost done. The pull reqeuest will be merged to master branch shortly and 2.0.0 will be officially released once wiki pages are updated.
+
+# Introduction
 Sarah is a general purpose bot framework named after author's firstborn daughter.
 
 While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
