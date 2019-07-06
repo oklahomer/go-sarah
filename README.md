@@ -167,7 +167,7 @@ In addition to those features, this provides rich life cycle management includin
 `go-sarah` is composed of fine grained components to provide above features.
 Those components have their own interfaces and default implementations, so developers are free to customize bot behavior by supplying own implementation.
 
-![component diagram](/doc/uml/component.png)
+![component diagram](/doc/uml/components.png)
 
 Follow below links for details:
 - [Project wiki](https://github.com/oklahomer/go-sarah/wiki)
