@@ -2,15 +2,16 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/oklahomer/go-sarah)](https://goreportcard.com/report/github.com/oklahomer/go-sarah)
 [![Build Status](https://travis-ci.org/oklahomer/go-sarah.svg?branch=master)](https://travis-ci.org/oklahomer/go-sarah)
 [![Coverage Status](https://coveralls.io/repos/github/oklahomer/go-sarah/badge.svg?branch=master)](https://coveralls.io/github/oklahomer/go-sarah?branch=master)
-[![Maintainability](https://api.codeclimate.com/v1/badges/a2f0df359bec1552b28f/maintainability)](https://codeclimate.com/github/oklahomer/go-sarah/maintainability) [![Join the chat at https://gitter.im/go-sarah-dev/community](https://badges.gitter.im/go-sarah-dev/community.svg)](https://gitter.im/go-sarah-dev/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Maintainability](https://api.codeclimate.com/v1/badges/a2f0df359bec1552b28f/maintainability)](https://codeclimate.com/github/oklahomer/go-sarah/maintainability)
+[![Join the chat at https://gitter.im/go-sarah-dev/community](https://badges.gitter.im/go-sarah-dev/community.svg)](https://gitter.im/go-sarah-dev/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 # Introduction
 Sarah is a general purpose bot framework named after author's firstborn daughter.
 
-While the first goal is to prep author to write Go-ish code, the second goal is to provide simple yet highly customizable bot framework.
+While the first goal is to prep the author to write Go-ish code, the second goal is to provide a simple yet highly customizable bot framework.
 
 # Supported Chat Services/Protocols
-Although a developer may implement `sarah.Adapter` to integrate with a desired chat service,
+Although a developer may implement `sarah.Adapter` to integrate with the desired chat service,
 some adapters are provided as reference implementations:
 - [Slack](https://github.com/oklahomer/go-sarah/tree/master/slack)
 - [Gitter](https://github.com/oklahomer/go-sarah/tree/master/gitter)
@@ -30,7 +31,7 @@ The idea and implementation of "user's conversational context" is go-sarah's sig
 ![](/doc/img/todo_captioned.png)
 
 Above example is a good way to let user input series of arguments in a conversational manner.
-Below is another example that use stateful command to entertain user.
+Below is another example that uses a stateful command to entertain the user.
 
 ![](/doc/img/guess_captioned.png)
 
@@ -50,6 +51,10 @@ import (
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
 	
+	"os"
+	"os/signal"
+	"syscall"
+	
 	// Below packages register commands in their init().
 	// Importing with blank identifier will do the magic.
 	_ "guess"
@@ -57,6 +62,30 @@ import (
 )
 
 func main() {
+	// Setup Slack adapter
+	setupSlack()
+	
+	// Prepare go-sarah's core context.
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Run
+	config := sarah.NewConfig()
+	err := sarah.Run(ctx, config)
+	if err != nil {
+		panic(fmt.Errorf("failed to run: %s", err.Error()))
+	}
+	
+	// Stop when signal is sent.
+	c := make(chan os.Signal, 1)
+   	signal.Notify(c, syscall.SIGTERM)
+   	select {
+   	case <-c:
+   		cancel()
+   
+   	}
+}
+
+func setupSlack() {
 	// Setup slack adapter.
 	slackConfig := slack.NewConfig()
 	slackConfig.Token = "REPLACE THIS"
@@ -65,7 +94,7 @@ func main() {
 		panic(fmt.Errorf("faileld to setup Slack Adapter: %s", err.Error()))
 	}
 
-	// Setup storage.
+	// Setup optional storage so conversational context can be stored.
 	cacheConfig := sarah.NewCacheConfig()
 	storage := sarah.NewUserContextStorage(cacheConfig)
 
@@ -75,15 +104,11 @@ func main() {
 		panic(fmt.Errorf("faileld to setup Slack Bot: %s", err.Error()))
 	}
 	sarah.RegisterBot(bot)
-
-	// Run
-	config := sarah.NewConfig()
-	err = sarah.Run(context.TODO(), config)
-	if err != nil {
-		panic(fmt.Errorf("failed to run: %s", err.Error()))
-	}
 }
 ```
+
+---
+
 ```go
 package guess
 
@@ -144,6 +169,8 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 }
 ```
 
+---
+
 ```go
 package hello
 
@@ -191,7 +218,7 @@ func (hello *command) Match(input sarah.Input) bool {
 This comes with a unique feature called "_**stateful command**_" as well as some basic features such as _**command**_ and _**scheduled task**_.
 In addition to those features, this provides rich life cycle management including _**live configuration update**_, _**customizable alerting mechanism**_, _**automated command/task (re-)building**_ and _**concurrent command/task execution**_.
 
-`go-sarah` is composed of fine grained components to provide above features.
+`go-sarah` is composed of fine-grained components to provide the above features.
 Those components have their own interfaces and default implementations, so developers are free to customize bot behavior by supplying own implementation.
 
 ![component diagram](/doc/uml/components.png)
