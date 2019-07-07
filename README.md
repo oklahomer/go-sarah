@@ -49,10 +49,11 @@ import (
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"math/rand"
-	"strconv"
-	"strings"
-	"time"
+	
+	// Below packages register commands in their init().
+	// Importing with blank identifier will do the magic.
+	_ "guess"
+	_ "hello"
 )
 
 func main() {
@@ -75,13 +76,6 @@ func main() {
 	}
 	sarah.RegisterBot(bot)
 
-	// Setup .hello command
-	hello := &HelloCommand{}
-	sarah.RegisterCommand(slack.SLACK, hello)
-	
-	// Setup properties to setup .guess command on the fly
-	sarah.RegisterCommandProps(GuessProps)
-
 	// Run
 	config := sarah.NewConfig()
 	err = sarah.Run(context.TODO(), config)
@@ -89,8 +83,25 @@ func main() {
 		panic(fmt.Errorf("failed to run: %s", err.Error()))
 	}
 }
+```
+```go
+package guess
 
-var GuessProps = sarah.NewCommandPropsBuilder().
+import (
+	"context"
+	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/slack"
+	"math/rand"
+	"strconv"
+	"strings"
+	"time"
+)
+
+func init() {
+	sarah.RegisterCommandProps(props)
+}
+
+var props = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("guess").
 	Instruction("Input .guess to start a game.").
@@ -131,21 +142,36 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 		return slack.NewResponse(input, "Bigger!", slack.RespWithNext(retry))
 	}
 }
+```
 
-type HelloCommand struct {
+```go
+package hello
+
+import (
+	"context"
+	"github.com/oklahomer/go-sarah"
+	"github.com/oklahomer/go-sarah/slack"
+	"strings"
+)
+
+func init() {
+    sarah.RegisterCommand(slack.SLACK, &command{})	
 }
 
-var _ sarah.Command = (*HelloCommand)(nil)
+type command struct {
+}
 
-func (hello *HelloCommand) Identifier() string {
+var _ sarah.Command = (*command)(nil)
+
+func (hello *command) Identifier() string {
 	return "hello"
 }
 
-func (hello *HelloCommand) Execute(_ context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+func (hello *command) Execute(_ context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 	return slack.NewResponse(i, "Hello!")
 }
 
-func (hello *HelloCommand) Instruction(input *sarah.HelpInput) string {
+func (hello *command) Instruction(input *sarah.HelpInput) string {
 	if 12 < input.SentAt().Hour() {
 		// This command is only active in the morning.
 		// Do not show instruction in the afternoon.
@@ -154,7 +180,7 @@ func (hello *HelloCommand) Instruction(input *sarah.HelpInput) string {
 	return "Input .hello to greet"
 }
 
-func (hello *HelloCommand) Match(input sarah.Input) bool {
+func (hello *command) Match(input sarah.Input) bool {
 	return strings.TrimSpace(input.Message()) == ".hello"
 }
 
