@@ -179,7 +179,7 @@ func RespWithNextSerializable(arg *sarah.SerializableArgument) RespOption {
 	}
 }
 
-// RespOptions defines function signature that NewResponse's functional option must satisfy.
+// RespOption defines function signature that NewResponse's functional option must satisfy.
 type RespOption func(*respOptions)
 
 type respOptions struct {
