@@ -52,10 +52,7 @@ func main() {
 	}
 
 	// Read configuration file.
-	config, err := readConfig(*path)
-	if err != nil {
-		panic(err)
-	}
+	config := readConfig(*path)
 
 	// When Bot encounters critical states, send alert to LINE.
 	// Any number of Alerter implementation can be registered.
@@ -65,21 +62,15 @@ func main() {
 	storage := sarah.NewUserContextStorage(config.CacheConfig)
 
 	// Setup Slack Bot.
-	slackBot, err := setupSlack(config.Slack, storage)
-	if err != nil {
-		panic(err)
-	}
+	setupSlack(config.Slack, storage)
 
 	// Setup some commands.
 	todoCmd := todo.BuildCommand(&todo.DummyStorage{})
-	slackBot.AppendCommand(todoCmd)
-
-	// Register bot to run.
-	sarah.RegisterBot(slackBot)
+	sarah.RegisterCommand(slack.SLACK, todoCmd)
 
 	// Directly add Command to Bot.
 	// This Command is not subject to config file supervision.
-	slackBot.AppendCommand(echo.Command)
+	sarah.RegisterCommand(slack.SLACK, echo.Command)
 
 	// Prepare go-sarah's core context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -91,7 +82,7 @@ func main() {
 	}
 
 	// Run
-	err = sarah.Run(ctx, config.Runner)
+	err := sarah.Run(ctx, config.Runner)
 	if err != nil {
 		panic(err)
 	}
@@ -108,26 +99,32 @@ func main() {
 	}
 }
 
-func readConfig(path string) (*myConfig, error) {
+func readConfig(path string) *myConfig {
 	configBody, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	config := newMyConfig()
 	err = yaml.Unmarshal(configBody, config)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	return config, nil
+	return config
 }
 
-func setupSlack(config *slack.Config, storage sarah.UserContextStorage) (sarah.Bot, error) {
+func setupSlack(config *slack.Config, storage sarah.UserContextStorage) {
 	adapter, err := slack.NewAdapter(config)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	return sarah.NewBot(adapter, sarah.BotWithStorage(storage))
+	bot, err := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
+	if err != nil {
+		panic(err)
+	}
+
+	// Register bot to run.
+	sarah.RegisterBot(bot)
 }
