@@ -8,8 +8,17 @@ import (
 
 var runnerStatus = &status{}
 
+// ErrRunnerAlreadyRunning indicates that sarah.Run() is already called and the process is already running.
+// When this is returned, a second or later activations are prevented so the initially activated process is still protected.
 var ErrRunnerAlreadyRunning = xerrors.New("go-sarah's process is already running")
 
+// CurrentStatus returns the current status of go-sarah.
+// This can still be called even if sarah.Run() is not called, yet.
+// So developers can safely build two different goroutines:
+//
+//   - One to setup bot configuration and call sarah.Run()
+//   - Another to periodically call sarah.CurrentStatus() and monitor status.
+//     When Status.Running is false and Status.Bots is empty, then bot is not initiated yet.
 func CurrentStatus() Status {
 	return runnerStatus.snapshot()
 }
