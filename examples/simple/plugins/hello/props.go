@@ -13,21 +13,25 @@ This sarah.CommandProps can be fed to sarah.NewRunner() as below.
 package hello
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"strings"
 )
+
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}
 
 // SlackProps is a pre-built hello command properties for Slack.
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("hello").
-	InputExample(".hello").
+	Instruction("Input .hello to greet").
 	MatchFunc(func(input sarah.Input) bool {
 		return strings.HasPrefix(input.Message(), ".hello")
 	}).
-	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return slack.NewStringResponse("Hello, 世界"), nil
+	Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+		return slack.NewResponse(input, "Hello, 世界")
 	}).
 	MustBuild()

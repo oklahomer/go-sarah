@@ -11,20 +11,24 @@ See https://github.com/oklahomer/go-sarah-rediscontext to use external storage.
 package guess
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"math/rand"
 	"strconv"
 	"strings"
 	"time"
 )
 
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+}
+
 // SlackProps is a pre-built guess command properties for Slack.
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("guess").
-	InputExample(".guess").
+	Instruction("Input .guess to start a game.").
 	MatchFunc(func(input sarah.Input) bool {
 		return strings.HasPrefix(strings.TrimSpace(input.Message()), ".guess")
 	}).
@@ -34,9 +38,13 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 		answer := rand.Intn(10)
 
 		// Let user guess the right answer.
-		return slack.NewStringResponseWithNext("Input number.", func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
-			return guessFunc(c, i, answer)
-		}), nil
+		return slack.NewResponse(
+			input,
+			"Input number.",
+			slack.RespWithNext(func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+				return guessFunc(c, i, answer)
+			}),
+		)
 	}).
 	MustBuild()
 
@@ -49,16 +57,16 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 	// See if user inputs valid number.
 	guess, err := strconv.Atoi(strings.TrimSpace(input.Message()))
 	if err != nil {
-		return slack.NewStringResponseWithNext("Invalid input format.", retry), nil
+		return slack.NewResponse(input, "Invalid input format.", slack.RespWithNext(retry))
 	}
 
 	// If guess is right, tell user and finish current user context.
 	// Otherwise let user input next guess with bit of a hint.
 	if guess == answer {
-		return slack.NewStringResponse("Correct!"), nil
+		return slack.NewResponse(input, "Correct!")
 	} else if guess > answer {
-		return slack.NewStringResponseWithNext("Smaller!", retry), nil
+		return slack.NewResponse(input, "Smaller!", slack.RespWithNext(retry))
 	} else {
-		return slack.NewStringResponseWithNext("Bigger!", retry), nil
+		return slack.NewResponse(input, "Bigger!", slack.RespWithNext(retry))
 	}
 }

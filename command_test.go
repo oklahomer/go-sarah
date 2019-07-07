@@ -1,22 +1,24 @@
 package sarah
 
 import (
-	"golang.org/x/net/context"
-	"io/ioutil"
-	"path/filepath"
+	"context"
+	"golang.org/x/xerrors"
+	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 type DummyCommand struct {
-	IdentifierValue  string
-	ExecuteFunc      func(context.Context, Input) (*CommandResponse, error)
-	InputExampleFunc func() string
-	MatchFunc        func(Input) bool
+	IdentifierValue string
+	ExecuteFunc     func(context.Context, Input) (*CommandResponse, error)
+	InstructionFunc func(*HelpInput) string
+	MatchFunc       func(Input) bool
 }
+
+var _ Command = (*DummyCommand)(nil)
 
 func (command *DummyCommand) Identifier() string {
 	return command.IdentifierValue
@@ -26,8 +28,8 @@ func (command *DummyCommand) Execute(ctx context.Context, input Input) (*Command
 	return command.ExecuteFunc(ctx, input)
 }
 
-func (command *DummyCommand) InputExample() string {
-	return command.InputExampleFunc()
+func (command *DummyCommand) Instruction(input *HelpInput) string {
+	return command.InstructionFunc(input)
 }
 
 func (command *DummyCommand) Match(input Input) bool {
@@ -85,7 +87,7 @@ func TestCommandPropsBuilder_Func(t *testing.T) {
 	builder.Func(fnc)
 	_, _ = builder.props.commandFunc(context.TODO(), &DummyInput{})
 	if wrappedFncCalled == false {
-		t.Error("Provided func was not properlly wrapped in builder.")
+		t.Error("Provided func was not properly wrapped in builder.")
 	}
 }
 
@@ -99,13 +101,26 @@ func TestCommandPropsBuilder_Identifier(t *testing.T) {
 	}
 }
 
-func TestCommandPropsBuilder_InputExample(t *testing.T) {
+func TestCommandPropsBuilder_Instruction(t *testing.T) {
 	builder := &CommandPropsBuilder{props: &CommandProps{}}
 	example := ".echo foo"
-	builder.InputExample(example)
+	builder.Instruction(example)
 
-	if builder.props.example != example {
-		t.Error("Provided example is not set.")
+	instruction := builder.props.instructionFunc(&HelpInput{})
+	if instruction != example {
+		t.Error("Provided instruction is not returned.")
+	}
+}
+
+func TestCommandPropsBuilder_InstructionFunc(t *testing.T) {
+	builder := &CommandPropsBuilder{props: &CommandProps{}}
+	fnc := func(_ *HelpInput) string {
+		return "dummy"
+	}
+	builder.InstructionFunc(fnc)
+
+	if reflect.ValueOf(builder.props.instructionFunc).Pointer() != reflect.ValueOf(fnc).Pointer() {
+		t.Error("Passed function is not set.")
 	}
 }
 
@@ -152,7 +167,7 @@ func TestCommandPropsBuilder_Build(t *testing.T) {
 	builder.BotType(botType).
 		Identifier(identifier).
 		MatchPattern(matchPattern).
-		InputExample(example).
+		Instruction(example).
 		ConfigurableFunc(config, fnc)
 
 	props, err := builder.Build()
@@ -176,8 +191,9 @@ func TestCommandPropsBuilder_Build(t *testing.T) {
 		t.Error("Expected match result is not given.")
 	}
 
-	if props.example != example {
-		t.Errorf("Expected example is not set: %s.", props.example)
+	instruction := props.instructionFunc(&HelpInput{})
+	if instruction != example {
+		t.Errorf("Expected example is not returned: %s.", instruction)
 	}
 
 	if props.config != config {
@@ -190,7 +206,7 @@ func TestCommandPropsBuilder_MustBuild(t *testing.T) {
 	builder.BotType("dummyBot").
 		Identifier("dummy").
 		MatchPattern(regexp.MustCompile(`^\.echo`)).
-		InputExample(".echo knock knock")
+		Instruction(".echo knock knock")
 
 	func() {
 		defer func() {
@@ -209,221 +225,6 @@ func TestCommandPropsBuilder_MustBuild(t *testing.T) {
 		t.Error("Provided identifier is not set.")
 	}
 }
-
-func Test_buildCommand(t *testing.T) {
-	config := &struct {
-		Token string `yaml:"token"`
-	}{
-		Token: "",
-	}
-	props := &CommandProps{
-		identifier: "dummy",
-		config:     config,
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yamlFile,
-	}
-
-	_, err := buildCommand(props, file)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-	if config.Token != "foobar" {
-		t.Error("Configuration is not read from testdata/commandbuilder/dummy.yaml file.")
-	}
-}
-
-func Test_buildCommand_WithOutConfig(t *testing.T) {
-	props := &CommandProps{
-		botType:    "foo",
-		identifier: "bar",
-		commandFunc: func(_ context.Context, _ Input, config ...CommandConfig) (*CommandResponse, error) {
-			return nil, nil
-		},
-		matchFunc: func(_ Input) bool {
-			return false
-		},
-		example: ".foo",
-		config:  nil,
-	}
-
-	cmd, err := buildCommand(props, nil)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if cmd == nil {
-		t.Error("Expected Command is not returned.")
-	}
-}
-
-func Test_buildCommand_WithOutConfigFile(t *testing.T) {
-	props := &CommandProps{
-		botType:    "foo",
-		identifier: "bar",
-		commandFunc: func(_ context.Context, _ Input, config ...CommandConfig) (*CommandResponse, error) {
-			return nil, nil
-		},
-		matchFunc: func(_ Input) bool {
-			return false
-		},
-		example: ".foo",
-		config:  struct{}{}, // non-nil
-	}
-
-	cmd, err := buildCommand(props, nil)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if cmd == nil {
-		t.Error("Expected Command is not returned.")
-	}
-}
-
-func Test_buildCommand_WithConfigValue(t *testing.T) {
-	type config struct {
-		Token  string `yaml:"token"`
-		Foo    string `yaml:"foo"`
-		hidden string
-	}
-	// *NOT* a pointer
-	c := config{
-		Token:  "default",
-		Foo:    "initial value",
-		hidden: "hashhash",
-	}
-	props := &CommandProps{
-		identifier: "dummy",
-		config:     c,
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yamlFile,
-	}
-
-	cmd, err := buildCommand(props, file)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-	if cmd.(*defaultCommand).configWrapper.value.(config).Token != "foobar" {
-		t.Errorf("Configuration is not read from testdata/commandbuilder/dummy.yaml file. %#v", cmd.(*defaultCommand).configWrapper.value)
-	}
-	if cmd.(*defaultCommand).configWrapper.value.(config).Foo != "initial value" {
-		t.Errorf("Value is lost. %#v", cmd.(*defaultCommand).configWrapper.value)
-	}
-}
-
-func Test_buildCommand_WithConfigMap(t *testing.T) {
-	config := map[string]interface{}{
-		"token": "default",
-		"foo":   "initial value",
-	}
-	props := &CommandProps{
-		identifier: "dummy",
-		config:     config,
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yamlFile,
-	}
-
-	cmd, err := buildCommand(props, file)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	configWrapper := cmd.(*defaultCommand).configWrapper
-	if configWrapper == nil {
-		t.Fatal("CommandConfig is not set.")
-	}
-
-	newConfig, ok := configWrapper.value.(map[string]interface{})
-	if !ok {
-		t.Fatalf("CommandConfig type is not valid: %T", configWrapper.value)
-	}
-
-	// Make sure original value is updated.
-	v, ok := config["token"]
-	if ok && v != "foobar" {
-		t.Errorf("Unexpected token value is set: %s", v)
-	} else if !ok {
-		t.Error("Token key does not exist.")
-	}
-
-	v, ok = newConfig["token"]
-	if ok && v != "foobar" {
-		t.Errorf("Unexpected token value is set: %s", v)
-	} else if !ok {
-		t.Error("Token key does not exist.")
-	}
-
-	v, ok = newConfig["foo"]
-	if ok && v != "initial value" {
-		t.Errorf("Unexpected foo value is set: %s", v)
-	} else if !ok {
-		t.Error("Foo key does not exist.")
-	}
-}
-
-func Test_buildCommand_BrokenYaml(t *testing.T) {
-	config := &struct {
-		Token string `yaml:"token"`
-	}{
-		Token: "",
-	}
-	props := &CommandProps{
-		identifier: "broken",
-		config:     config,
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "broken.yaml"),
-		fileType: yamlFile,
-	}
-
-	_, err := buildCommand(props, file)
-
-	if err == nil {
-		t.Fatal("Error must be returned.")
-	}
-}
-
-func Test_buildCommand_WithUnlocatableConfigFile(t *testing.T) {
-	config := &struct {
-		Token string
-	}{
-		Token: "presetToken",
-	}
-	props := &CommandProps{
-		identifier:  "fileNotFound",
-		example:     "example",
-		matchFunc:   func(_ Input) bool { return true },
-		commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) { return nil, nil },
-		config:      config,
-	}
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "fileNotFound.yaml"),
-		fileType: yamlFile,
-	}
-
-	_, err := buildCommand(props, file)
-
-	if err == nil {
-		t.Fatalf("Error should be returned when expecting config file is not located.")
-	}
-}
-
 func TestNewCommands(t *testing.T) {
 	commands := NewCommands()
 	if commands == nil {
@@ -539,23 +340,29 @@ func TestCommands_Append(t *testing.T) {
 }
 
 func TestCommands_Helps(t *testing.T) {
-	cmd := &DummyCommand{
+	cmd1 := &DummyCommand{
 		IdentifierValue: "id",
-		InputExampleFunc: func() string {
+		InstructionFunc: func(_ *HelpInput) string {
 			return "example"
 		},
 	}
-	commands := &Commands{collection: []Command{cmd}}
+	cmd2 := &DummyCommand{
+		IdentifierValue: "hiddenCommand",
+		InstructionFunc: func(_ *HelpInput) string {
+			return ""
+		},
+	}
+	commands := &Commands{collection: []Command{cmd1, cmd2}}
 
-	helps := commands.Helps()
+	helps := commands.Helps(&HelpInput{})
 	if len(*helps) != 1 {
 		t.Fatalf("Expectnig one help to be given, but was %d.", len(*helps))
 	}
-	if (*helps)[0].Identifier != cmd.IdentifierValue {
+	if (*helps)[0].Identifier != cmd1.IdentifierValue {
 		t.Errorf("Expected ID was not returned: %s.", (*helps)[0].Identifier)
 	}
-	if (*helps)[0].InputExample != cmd.InputExampleFunc() {
-		t.Errorf("Expected example was not returned: %s.", (*helps)[0].InputExample)
+	if (*helps)[0].Instruction != cmd1.InstructionFunc(&HelpInput{}) {
+		t.Errorf("Expected instruction was not returned: %s.", (*helps)[0].Instruction)
 	}
 }
 
@@ -568,11 +375,15 @@ func TestSimpleCommand_Identifier(t *testing.T) {
 	}
 }
 
-func TestSimpleCommand_InputExample(t *testing.T) {
-	example := "example foo"
-	command := defaultCommand{example: example}
+func TestSimpleCommand_Instruction(t *testing.T) {
+	instruction := "example foo"
+	command := defaultCommand{
+		instructionFunc: func(_ *HelpInput) string {
+			return instruction
+		},
+	}
 
-	if command.InputExample() != example {
+	if command.Instruction(&HelpInput{}) != instruction {
 		t.Errorf("Stored example is not returned: %s.", command.Identifier())
 	}
 }
@@ -619,85 +430,283 @@ func TestStripMessage(t *testing.T) {
 	}
 }
 
-// Test_race_commandRebuild is an integration test to detect race condition on Command (re-)build.
-func Test_race_commandRebuild(t *testing.T) {
-	// Prepare CommandProps
+func Test_buildCommand(t *testing.T) {
 	type config struct {
-		Token string
+		text string
 	}
-	props, err := NewCommandPropsBuilder().
-		Identifier("dummy").
-		InputExample(".dummy").
-		BotType("dummyBot").
-		ConfigurableFunc(
-			&config{Token: "default"},
-			func(ctx context.Context, _ Input, givenConfig CommandConfig) (*CommandResponse, error) {
-				_, _ = ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
-				return nil, nil
+	tests := []struct {
+		props          *CommandProps
+		watcher        ConfigWatcher
+		validateConfig func(cfg interface{}) error
+		hasErr         bool
+	}{
+		{
+			// No config
+			props: &CommandProps{
+				botType:    "botType",
+				identifier: "fileNotFound",
+				config:     nil,
+				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
+					return nil, nil
+				},
+				matchFunc: func(_ Input) bool {
+					return true
+				},
+				instructionFunc: func(_ *HelpInput) string {
+					return ""
+				},
 			},
-		).
-		MatchFunc(func(_ Input) bool { return true }).
-		Build()
-	if err != nil {
-		t.Fatalf("Error on CommnadProps preparation: %s.", err.Error())
-	}
-
-	// Prepare a bot
-	commands := NewCommands()
-	bot := &DummyBot{
-		RespondFunc: func(ctx context.Context, input Input) error {
-			_, err := commands.ExecuteFirstMatched(ctx, input)
-			return err
+			watcher: nil,
+			hasErr:  false,
 		},
-		AppendCommandFunc: func(cmd Command) {
-			commands.Append(cmd)
-		},
-	}
+		{
+			props: &CommandProps{
+				botType:    "botType",
+				identifier: "fileNotFound",
+				config:     &config{},
+				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
+					return nil, nil
+				},
+				matchFunc: func(_ Input) bool {
+					return true
+				},
+				instructionFunc: func(_ *HelpInput) string {
+					return ""
+				},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg interface{}) error {
+					config, ok := cfg.(*config)
+					if !ok {
+						t.Errorf("Unexpected type is passed: %T.", cfg)
+						return nil
+					}
 
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-
-	file := &pluginConfigFile{
-		id:       props.identifier,
-		path:     filepath.Join("testdata", "command", "dummy.yaml"),
-		fileType: yamlFile,
-	}
-
-	// Continuously read configuration file and re-build Command
-	go func(c context.Context, b Bot, p *CommandProps) {
-		for {
-			select {
-			case <-c.Done():
-				return
-
-			default:
-				// Write
-				command, err := buildCommand(p, file)
-				if err == nil {
-					b.AppendCommand(command)
-				} else {
-					t.Errorf("Error on command build: %s.", err.Error())
+					config.text = "texts"
+					return nil
+				},
+			},
+			validateConfig: func(cfg interface{}) error {
+				config, ok := cfg.(*config)
+				if !ok {
+					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
 				}
 
-			}
-		}
-	}(ctx, bot, props)
+				if config.text != "texts" {
+					return xerrors.Errorf("Unexpected value is set: %s", config.text)
+				}
 
-	// Continuously read config struct's field value by calling Bot.Respond
-	go func(c context.Context, b Bot) {
-		for {
-			select {
-			case <-c.Done():
+				return nil
+			},
+			hasErr: false,
+		},
+		{
+			props: &CommandProps{
+				botType:    "botType",
+				identifier: "fileNotFound",
+				// Not a pointer to the config value, but is well handled
+				config: config{},
+				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
+					return nil, nil
+				},
+				matchFunc: func(_ Input) bool {
+					return true
+				},
+				instructionFunc: func(_ *HelpInput) string {
+					return ""
+				},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg interface{}) error {
+					config, ok := cfg.(*config) // Pointer is passed
+					if !ok {
+						t.Errorf("Unexpected type is passed: %T.", cfg)
+						return nil
+					}
+
+					config.text = "texts"
+					return nil
+				},
+			},
+			validateConfig: func(cfg interface{}) error {
+				config, ok := cfg.(config) // Value is passed
+				if !ok {
+					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+				}
+
+				if config.text != "texts" {
+					return xerrors.Errorf("Unexpected value is set: %s", config.text)
+				}
+
+				return nil
+			},
+			hasErr: false,
+		},
+		{
+			props: &CommandProps{
+				botType:    "botType",
+				identifier: "fileNotFound",
+				config:     &config{},
+				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
+					return nil, nil
+				},
+				matchFunc: func(_ Input) bool {
+					return true
+				},
+				instructionFunc: func(_ *HelpInput) string {
+					return ""
+				},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, botType BotType, id string, cfg interface{}) error {
+					return &ConfigNotFoundError{
+						BotType: botType,
+						ID:      id,
+					}
+				},
+			},
+			validateConfig: func(cfg interface{}) error {
+				config, ok := cfg.(*config)
+				if !ok {
+					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+				}
+
+				if config.text != "" {
+					return xerrors.Errorf("Unexpected value is set: %s", config.text)
+				}
+
+				return nil
+			},
+			hasErr: false,
+		},
+		{
+			props: &CommandProps{
+				botType:    "botType",
+				identifier: "fileNotFound",
+				config:     &config{},
+				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
+					return nil, nil
+				},
+				matchFunc: func(_ Input) bool {
+					return true
+				},
+				instructionFunc: func(_ *HelpInput) string {
+					return ""
+				},
+			},
+			watcher: &DummyConfigWatcher{
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+					return xerrors.New("unacceptable error")
+				},
+			},
+			hasErr: true,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			command, err := buildCommand(context.TODO(), tt.props, tt.watcher)
+			if tt.hasErr {
+				if err == nil {
+					t.Error("Expected error is not returned.")
+				}
 				return
-
-			default:
-				_ = b.Respond(c, &DummyInput{})
-
 			}
-		}
-	}(ctx, bot)
 
-	// Wait till race condition occurs
-	time.Sleep(1 * time.Second)
-	cancel()
+			if command == nil {
+				t.Fatal("Built command is not returned.")
+			}
+
+			if tt.props.config != nil {
+				typed := command.(*defaultCommand)
+				err = tt.validateConfig(typed.configWrapper.value)
+				if err != nil {
+					t.Error(err.Error())
+				}
+			}
+		})
+	}
 }
+
+//// Test_race_commandRebuild is an integration test to detect race condition on Command (re-)build.
+//func Test_race_commandRebuild(t *testing.T) {
+//	// Prepare CommandProps
+//	type config struct {
+//		Token string
+//	}
+//	props, err := NewCommandPropsBuilder().
+//		Identifier("dummy").
+//		Instruction(".dummy").
+//		BotType("dummyBot").
+//		ConfigurableFunc(
+//			&config{Token: "default"},
+//			func(ctx context.Context, _ Input, givenConfig CommandConfig) (*CommandResponse, error) {
+//				_, _ = ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
+//				return nil, nil
+//			},
+//		).
+//		MatchFunc(func(_ Input) bool { return true }).
+//		Build()
+//	if err != nil {
+//		t.Fatalf("Error on CommnadProps preparation: %s.", err.Error())
+//	}
+//
+//	// Prepare a bot
+//	commands := NewCommands()
+//	bot := &DummyBot{
+//		RespondFunc: func(ctx context.Context, input Input) error {
+//			_, err := commands.ExecuteFirstMatched(ctx, input)
+//			return err
+//		},
+//		AppendCommandFunc: func(cmd Command) {
+//			commands.Append(cmd)
+//		},
+//	}
+//
+//	rootCtx := context.Background()
+//	ctx, cancel := context.WithCancel(rootCtx)
+//
+//	file := &pluginConfigFile{
+//		id:       props.identifier,
+//		path:     filepath.Join("testdata", "command", "dummy.yaml"),
+//		fileType: yamlFile,
+//	}
+//
+//	// Continuously read configuration file and re-build Command
+//	go func(c context.Context, b Bot, p *CommandProps) {
+//		for {
+//			select {
+//			case <-c.Done():
+//				return
+//
+//			default:
+//				// Write
+//				command, err := buildCommand(p, file)
+//				if err == nil {
+//					b.AppendCommand(command)
+//				} else {
+//					t.Errorf("Error on command build: %s.", err.Error())
+//				}
+//
+//			}
+//		}
+//	}(ctx, bot, props)
+//
+//	// Continuously read config struct's field value by calling Bot.Respond
+//	go func(c context.Context, b Bot) {
+//		for {
+//			select {
+//			case <-c.Done():
+//				return
+//
+//			default:
+//				_ = b.Respond(c, &DummyInput{})
+//
+//			}
+//		}
+//	}(ctx, bot)
+//
+//	// Wait till race condition occurs
+//	time.Sleep(1 * time.Second)
+//	cancel()
+//}

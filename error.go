@@ -1,6 +1,8 @@
 package sarah
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // BotNonContinuableError represents critical error that Bot can't continue its operation.
 // When Runner receives this, it must stop corresponding Bot, and should inform administrator by available mean.

@@ -1,20 +1,18 @@
 package sarah
 
 import (
-	"errors"
-	"fmt"
-	"golang.org/x/net/context"
-	"os"
+	"context"
+	"golang.org/x/xerrors"
 	"reflect"
 	"sync"
 )
 
 var (
 	// ErrTaskInsufficientArgument is returned when required parameters are not set.
-	ErrTaskInsufficientArgument = errors.New("one or more of required fields -- BotType, Identifier or Func -- are empty")
+	ErrTaskInsufficientArgument = xerrors.New("one or more of required fields -- BotType, Identifier or Func -- are empty")
 
 	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskPropsBuilder's parameter nor config.
-	ErrTaskScheduleNotGiven = errors.New("task schedule is not set or given from config struct")
+	ErrTaskScheduleNotGiven = xerrors.New("task schedule is not set or given from config struct")
 )
 
 // ScheduledTaskResult is a struct that ScheduledTask returns on its execution.
@@ -99,9 +97,8 @@ func (task *scheduledTask) DefaultDestination() OutputDestination {
 	return task.defaultDestination
 }
 
-func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (ScheduledTask, error) {
-	taskConfig := props.config
-	if taskConfig == nil {
+func buildScheduledTask(ctx context.Context, props *ScheduledTaskProps, watcher ConfigWatcher) (ScheduledTask, error) {
+	if props.config == nil {
 		// If config struct is not set, props MUST provide settings to set schedule.
 		if props.schedule == "" {
 			return nil, ErrTaskScheduleNotGiven
@@ -118,48 +115,43 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 	}
 
 	// https://github.com/oklahomer/go-sarah/issues/44
-	//
-	// Because config file can be created later and that may trigger config struct's live update,
-	// locker needs to be obtained and passed to ScheduledTask to avoid concurrent read/write.
-	// Until then, assume given TaskConfig is already configured and proceed to build.
 	locker := configLocker.get(props.botType, props.identifier)
-	if file != nil {
-		// Minimize the scope of mutex with anonymous function for better performance.
-		err := func() error {
-			locker.Lock()
-			defer locker.Unlock()
 
-			rv := reflect.ValueOf(taskConfig)
-			if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
-				return updatePluginConfig(file, taskConfig)
-			}
+	cfg := props.config
+	err := func() error {
+		locker.Lock()
+		defer locker.Unlock()
 
-			// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
-			// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
-			n := reflect.New(reflect.TypeOf(taskConfig))
-
-			// Copy the current value to newly created instance.
-			// This includes private field values.
-			n.Elem().Set(rv)
-
-			// Pass the pointer to the newly created instance.
-			e := updatePluginConfig(file, n.Interface())
-
-			// Replace the current value with updated value.
-			taskConfig = n.Elem().Interface()
-			return e
-		}()
-		if err != nil && os.IsNotExist(err) {
-			return nil, fmt.Errorf("config file property was given, but failed to locate it: %s", err.Error())
-		} else if err != nil {
-			// File was there, but could not read.
-			return nil, err
+		rv := reflect.ValueOf(cfg)
+		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
+			return watcher.Read(ctx, props.botType, props.identifier, cfg)
 		}
+
+		// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
+		// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
+		n := reflect.New(reflect.TypeOf(cfg))
+
+		// Copy the current value to newly created instance.
+		// This includes private field values.
+		n.Elem().Set(rv)
+
+		// Pass the pointer to the newly created instance
+		e := watcher.Read(ctx, props.botType, props.identifier, n.Interface())
+		if e == nil {
+			cfg = n.Elem().Interface()
+		}
+		return e
+	}()
+
+	var notFoundErr *ConfigNotFoundError
+	if err != nil && !xerrors.As(err, &notFoundErr) {
+		// Unacceptable error
+		return nil, xerrors.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
 	}
 
 	// Setup execution schedule
 	schedule := props.schedule
-	if scheduledConfig, ok := (taskConfig).(ScheduledConfig); ok {
+	if scheduledConfig, ok := (cfg).(ScheduledConfig); ok {
 		if s := scheduledConfig.Schedule(); s != "" {
 			schedule = s
 		}
@@ -171,7 +163,7 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 	// Setup default destination
 	// This can be nil since each task execution may return corresponding destination
 	dest := props.defaultDestination
-	if destConfig, ok := (taskConfig).(DestinatedConfig); ok {
+	if destConfig, ok := (cfg).(DestinatedConfig); ok {
 		if d := destConfig.DefaultDestination(); d != nil {
 			dest = d
 		}
@@ -183,7 +175,7 @@ func buildScheduledTask(props *ScheduledTaskProps, file *pluginConfigFile) (Sche
 		schedule:           schedule,
 		defaultDestination: dest,
 		configWrapper: &taskConfigWrapper{
-			value: taskConfig,
+			value: cfg,
 			mutex: locker,
 		},
 	}, nil
@@ -294,7 +286,7 @@ func (builder *ScheduledTaskPropsBuilder) Build() (*ScheduledTaskProps, error) {
 func (builder *ScheduledTaskPropsBuilder) MustBuild() *ScheduledTaskProps {
 	task, err := builder.Build()
 	if err != nil {
-		panic(fmt.Sprintf("Error on building ScheduledTaskProps: %s", err.Error()))
+		panic(xerrors.Errorf("error on building ScheduledTaskProps: %w", err))
 	}
 
 	return task

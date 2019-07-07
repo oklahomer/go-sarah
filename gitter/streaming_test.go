@@ -1,7 +1,7 @@
 package gitter
 
 import (
-	"golang.org/x/net/context"
+	"context"
 	"io/ioutil"
 	"net/http"
 	"strings"

@@ -1,11 +1,11 @@
 package workers
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	stdLogger "log"
@@ -104,11 +104,7 @@ func TestWithReporter(t *testing.T) {
 	option := WithReporter(reporter)
 
 	worker := &worker{}
-	err := option(worker)
-
-	if err != nil {
-		t.Fatalf("Unexpected error occurred: %s.", err.Error())
-	}
+	option(worker)
 
 	if worker.reporter == nil {
 		t.Error("Given reporter is not set.")
@@ -168,8 +164,8 @@ func TestRun_ErrEnqueueAfterShutdown(t *testing.T) {
 
 	err = worker.Enqueue(func() {})
 
-	if err != ErrEnqueueAfterWorkerShutdown {
-		t.Errorf("Expected error is not returned: %T.", err)
+	if !xerrors.Is(err, ErrEnqueueAfterWorkerShutdown) {
+		t.Errorf("Expected error is not returned: %+v", err)
 	}
 }
 
@@ -197,8 +193,8 @@ func TestRun_ErrQueueOverflow(t *testing.T) {
 
 	// Next job should be blocked with no buffered channel.
 	err = worker.Enqueue(func() {})
-	if err != ErrQueueOverflow {
-		t.Errorf("Expected error is not returned: %T.", err)
+	if !xerrors.Is(err, ErrQueueOverflow) {
+		t.Errorf("Expected error is not returned: %+v", err)
 	}
 }
 
@@ -208,15 +204,9 @@ func TestRun_WorkerOption(t *testing.T) {
 	defer cancelWorker()
 
 	var cnt int
-	expectedErr := errors.New("expected error")
 	opts := []WorkerOption{
-		func(*worker) error {
+		func(*worker) {
 			cnt++
-			return nil
-		},
-		func(*worker) error {
-			cnt++
-			return expectedErr
 		},
 	}
 	_, err := Run(workerCtx, &Config{}, opts...)
@@ -225,12 +215,8 @@ func TestRun_WorkerOption(t *testing.T) {
 		t.Fatalf("%d WorkerOptions are given, but executed %d time(s).", len(opts), cnt)
 	}
 
-	if err == nil {
-		t.Fatal("Error is not returned.")
-	}
-
-	if err != expectedErr {
-		t.Fatalf("Expected error is not returned: %s.", err.Error())
+	if err != nil {
+		t.Fatalf("Unexpected error is returned: %s", err.Error())
 	}
 }
 

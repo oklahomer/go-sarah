@@ -7,11 +7,15 @@ The configuration values are read from timer.yaml and Command is re-built when c
 package timer
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/golack/slackobject"
-	"golang.org/x/net/context"
 )
+
+func init() {
+	sarah.RegisterScheduledTaskProps(SlackProps)
+}
 
 type timerConfig struct {
 	TaskSchedule string                `yaml:"schedule"`

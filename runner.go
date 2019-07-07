@@ -1,230 +1,255 @@
 package sarah
 
 import (
-	"encoding/json"
-	"errors"
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
-	"github.com/oklahomer/go-sarah/watchers"
 	"github.com/oklahomer/go-sarah/workers"
-	"golang.org/x/net/context"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"reflect"
+	"golang.org/x/xerrors"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 )
 
-// Config contains some configuration variables for Runner.
+var options = &optionHolder{}
+
+// Config contains some basic configuration variables for go-sarah.
 type Config struct {
-	PluginConfigRoot string `json:"plugin_config_root" yaml:"plugin_config_root"`
-	TimeZone         string `json:"timezone" yaml:"timezone"`
+	TimeZone string `json:"timezone" yaml:"timezone"`
 }
 
 // NewConfig creates and returns new Config instance with default settings.
 // Use json.Unmarshal, yaml.Unmarshal, or manual manipulation to override default values.
 func NewConfig() *Config {
 	return &Config{
-		// PluginConfigRoot defines the root directory for each Command and ScheduledTask.
-		// File path for each plugin is defined as PluginConfigRoot + "/" + BotType + "/" + (Command|ScheduledTask).Identifier.
-		PluginConfigRoot: "",
-		TimeZone:         time.Now().Location().String(),
+		TimeZone: time.Now().Location().String(),
 	}
 }
 
-// Runner is the core of sarah.
-//
-// This is responsible for each Bot implementation's lifecycle and plugin execution;
-// Bot is responsible for bot-specific implementation such as connection handling, message reception and sending.
-//
-// Developers can register desired number of Bots and Commands to create own bot experience.
-// While developers may provide own implementation for interfaces in this project to customize behavior,
-// this particular interface is not meant to be implemented and replaced.
-// See https://github.com/oklahomer/go-sarah/pull/47
-type Runner interface {
-	// Run starts Bot interaction.
-	// At this point Runner starts its internal workers and schedulers, runs each bot, and starts listening to incoming messages.
-	Run(context.Context)
-
-	// Status returns the status of Runner and belonging Bots.
-	// The returned Status value represents a snapshot of the status when this method is called,
-	// which means each field value is not subject to update.
-	// To reflect the latest status, this is recommended to call this method whenever the value is needed.
-	Status() Status
+// optionHolder is a struct that stashes given options before go-sarah's initialization.
+// This was formally called RunnerOptions and was provided publicly, but is now private in favor of https://github.com/oklahomer/go-sarah/issues/72
+// Calls to its methods are thread-safe.
+type optionHolder struct {
+	mutex   sync.RWMutex
+	stashed []func(*runner)
 }
 
-type runner struct {
-	config            *Config
-	bots              []Bot
-	worker            workers.Worker
-	watcher           watchers.Watcher
-	commandProps      map[BotType][]*CommandProps
-	scheduledTaskPrps map[BotType][]*ScheduledTaskProps
-	scheduledTasks    map[BotType][]ScheduledTask
-	alerters          *alerters
-	status            *status
+func (o *optionHolder) register(opt func(*runner)) {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+
+	o.stashed = append(o.stashed, opt)
 }
 
-// NewRunner creates and return new instance that satisfies Runner interface.
-//
-// The reason for returning interface instead of concrete implementation
-// is to avoid developers from executing RunnerOption outside of NewRunner,
-// where sarah can not be aware of and severe side-effect may occur.
-//
-// Ref. https://github.com/oklahomer/go-sarah/pull/47
-//
-// So the aim is not to let developers switch its implementations.
-func NewRunner(config *Config, options ...RunnerOption) (Runner, error) {
-	r := &runner{
-		config:            config,
-		bots:              []Bot{},
-		worker:            nil,
-		commandProps:      make(map[BotType][]*CommandProps),
-		scheduledTaskPrps: make(map[BotType][]*ScheduledTaskProps),
-		scheduledTasks:    make(map[BotType][]ScheduledTask),
-		alerters:          &alerters{},
-		status:            &status{},
-	}
+func (o *optionHolder) apply(r *runner) {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
 
-	for _, opt := range options {
-		err := opt(r)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return r, nil
-}
-
-// RunnerOption defines a function signature that NewRunner's functional option must satisfy.
-type RunnerOption func(*runner) error
-
-// RunnerOptions stashes group of RunnerOption for later use with NewRunner().
-//
-// On typical setup, especially when a process consists of multiple Bots and Commands, each construction step requires more lines of codes.
-// Each step ends with creating new RunnerOption instance to be fed to NewRunner(), but as code gets longer it gets harder to keep track of each RunnerOption.
-// In that case RunnerOptions becomes a handy helper to temporary stash RunnerOption.
-//
-//  options := NewRunnerOptions()
-//
-//  // 5-10 lines of codes to configure Slack bot.
-//  slackBot, _ := sarah.NewBot(slack.NewAdapter(slackConfig), sarah.BotWithStorage(storage))
-//  options.Append(sarah.WithBot(slackBot))
-//
-//  // Here comes other 5-10 codes to configure another bot.
-//  myBot, _ := NewMyBot(...)
-//  optionsAppend(sarah.WithBot(myBot))
-//
-//  // Some more codes to register Commands/ScheduledTasks.
-//  myTask := customizedTask()
-//  options.Append(sarah.WithScheduledTask(myTask))
-//
-//  // Finally feed stashed options to NewRunner at once
-//  runner, _ := NewRunner(sarah.NewConfig(), options.Arg())
-//  runner.Run(ctx)
-type RunnerOptions []RunnerOption
-
-// NewRunnerOptions creates and returns new RunnerOptions instance.
-func NewRunnerOptions() *RunnerOptions {
-	return &RunnerOptions{}
-}
-
-// Append adds given RunnerOption to internal stash.
-// When more than two RunnerOption instances are stashed, they are executed in the order of addition.
-func (options *RunnerOptions) Append(opt RunnerOption) {
-	*options = append(*options, opt)
-}
-
-// Arg returns stashed RunnerOptions in a form that can be directly fed to NewRunner's second argument.
-func (options *RunnerOptions) Arg() RunnerOption {
-	return func(r *runner) error {
-		for _, opt := range *options {
-			err := opt(r)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
+	for _, v := range o.stashed {
+		v(r)
 	}
 }
 
-// WithBot creates RunnerOption that feeds given Bot implementation to Runner.
-func WithBot(bot Bot) RunnerOption {
-	return func(r *runner) error {
+// RegisterAlerter registers given sarah.Alerter implementation.
+// When registered sarah.Bot implementation encounters critical state, given alerter is called to notify such state.
+func RegisterAlerter(alerter Alerter) {
+	options.register(func(r *runner) {
+		r.alerters.appendAlerter(alerter)
+	})
+}
+
+// RegisterBot registers given sarah.Bot implementation to be run on sarah.Run().
+// This may be called multiple times to register as many bot instances as wanted.
+// When a Bot with same sarah.BotType is already registered, this returns error on sarah.Run().
+func RegisterBot(bot Bot) {
+	options.register(func(r *runner) {
 		r.bots = append(r.bots, bot)
-		return nil
-	}
+	})
 }
 
-// WithCommandProps creates RunnerOption that feeds given CommandProps to Runner.
-// Command is built on runner.Run with given CommandProps.
-// This props is re-used when configuration file is updated and Command needs to be re-built.
-func WithCommandProps(props *CommandProps) RunnerOption {
-	return func(r *runner) error {
+// RegisterCommand registers given sarah.Command.
+// On sarah.Run(), Commands are registered to corresponding bot via Bot.AppendCommand().
+func RegisterCommand(botType BotType, command Command) {
+	options.register(func(r *runner) {
+		commands, ok := r.commands[botType]
+		if !ok {
+			commands = []Command{}
+		}
+		r.commands[botType] = append(commands, command)
+	})
+}
+
+// RegisterCommandProps registers given sarah.CommandProps to build sarah.Command on sarah.Run().
+// This props is re-used when configuration file is updated and a corresponding sarah.Command needs to be re-built.
+func RegisterCommandProps(props *CommandProps) {
+	options.register(func(r *runner) {
 		stashed, ok := r.commandProps[props.botType]
 		if !ok {
 			stashed = []*CommandProps{}
 		}
 		r.commandProps[props.botType] = append(stashed, props)
-		return nil
-	}
+	})
 }
 
-// WithScheduledTaskProps creates RunnerOption that feeds given ScheduledTaskProps to Runner.
-// ScheduledTask is built on runner.Run with given ScheduledTaskProps.
-// This props is re-used when configuration file is updated and ScheduledTask needs to be re-built.
-func WithScheduledTaskProps(props *ScheduledTaskProps) RunnerOption {
-	return func(r *runner) error {
-		stashed, ok := r.scheduledTaskPrps[props.botType]
-		if !ok {
-			stashed = []*ScheduledTaskProps{}
-		}
-		r.scheduledTaskPrps[props.botType] = append(stashed, props)
-		return nil
-	}
-}
-
-// WithScheduledTask creates RunnerOperation that feeds given ScheduledTask to Runner.
-func WithScheduledTask(botType BotType, task ScheduledTask) RunnerOption {
-	return func(r *runner) error {
+// RegisterScheduledTask registers given sarah.ScheduledTask.
+// On sarah.Run(), schedule is set for this task.
+func RegisterScheduledTask(botType BotType, task ScheduledTask) {
+	options.register(func(r *runner) {
 		tasks, ok := r.scheduledTasks[botType]
 		if !ok {
 			tasks = []ScheduledTask{}
 		}
 		r.scheduledTasks[botType] = append(tasks, task)
-		return nil
-	}
+	})
 }
 
-// WithAlerter creates RunnerOperation that feeds given Alerter implementation to Runner.
-func WithAlerter(alerter Alerter) RunnerOption {
-	return func(r *runner) error {
-		r.alerters.appendAlerter(alerter)
-		return nil
-	}
+// RegisterScheduledTaskProps registers given sarah.ScheduledTaskProps to build sarah.ScheduledTask on sarah.Run().
+// This props is re-used when configuration file is updated and a corresponding sarah.ScheduledTask needs to be re-built.
+func RegisterScheduledTaskProps(props *ScheduledTaskProps) {
+	options.register(func(r *runner) {
+		stashed, ok := r.scheduledTaskProps[props.botType]
+		if !ok {
+			stashed = []*ScheduledTaskProps{}
+		}
+		r.scheduledTaskProps[props.botType] = append(stashed, props)
+	})
 }
 
-// WithWorker creates RunnerOperation that feeds given Worker implementation to Runner.
-// If no WithWorker is supplied, Runner creates worker with default configuration on runner.Run.
-func WithWorker(worker workers.Worker) RunnerOption {
-	return func(r *runner) error {
+// RegisterConfigWatcher registers given ConfigWatcher implementation.
+func RegisterConfigWatcher(watcher ConfigWatcher) {
+	options.register(func(r *runner) {
+		r.configWatcher = watcher
+	})
+}
+
+// RegisterWorker registers given workers.Worker implementation.
+// When this is not called, a worker instance with default setting is used.
+func RegisterWorker(worker workers.Worker) {
+	options.register(func(r *runner) {
 		r.worker = worker
-		return nil
-	}
+	})
 }
 
-// WithWatcher creates RunnerOption that feeds given Watcher implementation to Runner.
-// If Config.PluginConfigRoot is set without WithWatcher option, Runner creates Watcher with default configuration on Runner.Run.
-func WithWatcher(watcher watchers.Watcher) RunnerOption {
-	return func(r *runner) error {
-		r.watcher = watcher
-		return nil
+// RegisterBotErrorSupervisor registers a given supervising function that is called when a Bot escalates an error.
+// This function judges if the given error is worth being notified to administrators and if the Bot should stop.
+// A developer may return *SupervisionDirective to tell such order.
+// If the escalated error can simply be ignored, a nil value can be returned.
+//
+// Bot/Adapter can escalate an error via a function, func(error), that is passed to Run() as a third argument.
+// When BotNonContinuableError is escalated, go-sarah's core cancels failing Bot's context and thus the Bot and related resources stop working.
+// If one or more sarah.Alerters implementations are registered, such critical error is passed to the alerters and administrators will be notified.
+// When other types of error are escalated, the error is passed to the supervising function registered via sarah.RegisterBotErrorSupervisor().
+// The function may return *SupervisionDirective to tell how go-sarah's core should react.
+//
+// Bot/Adapter's implementation should be simple. It should not handle serious errors by itself.
+// Instead, it should simply escalate an error every time when a noteworthy error occurs and let core judge how to react.
+// For example, if the bot should stop when three reconnection trial fails in ten seconds, the scenario could be somewhat like below:
+//   1. Bot escalates reconnection error, FooReconnectionFailureError, each time it fails to reconnect
+//   2. Supervising function counts the error and ignores the first two occurrence
+//   3. When the third error comes within ten seconds from the initial error escalation, return *SupervisionDirective with StopBot value of true
+//
+// Similarly, if there should be a rate limiter to limit the calls to alerters, the supervising function should take care of this instead of the failing Bot.
+// Each Bot/Adapter's implementation can be kept simple in this way.
+// go-sarah's core should always supervise and control its belonging Bots.
+func RegisterBotErrorSupervisor(fnc func(BotType, error) *SupervisionDirective) {
+	options.register(func(r *runner) {
+		r.superviseError = fnc
+	})
+}
+
+// Run is a non-blocking function that starts running go-sarah's process with pre-registered options.
+// Workers, schedulers and other required resources for bot interaction starts running on this function call.
+// This returns error when bot interaction cannot start; No error is returned when process starts successfully.
+//
+// Refer to ctx.Done() or sarah.CurrentStatus() to reference current running status.
+//
+// To control its lifecycle, a developer may cancel ctx to stop go-sarah at any moment.
+// When bot interaction stops unintentionally without such context cancellation,
+// the critical state is notified to administrators via registered sarah.Alerter.
+// This is recommended to register multiple sarah.Alerter implementations to make sure critical states are notified.
+func Run(ctx context.Context, config *Config) error {
+	err := runnerStatus.start()
+	if err != nil {
+		return xerrors.Errorf("failed to start bot process: %w", err)
 	}
+
+	runner, err := newRunner(ctx, config)
+	if err != nil {
+		return xerrors.Errorf("failed to start bot process: %w", err)
+	}
+	go runner.run(ctx)
+
+	return nil
+}
+
+func newRunner(ctx context.Context, config *Config) (*runner, error) {
+	loc, err := time.LoadLocation(config.TimeZone)
+	if err != nil {
+		return nil, xerrors.Errorf(`given timezone "%s" cannot be converted to time.Location: %w`, config.TimeZone, err)
+	}
+
+	r := &runner{
+		config:             config,
+		bots:               []Bot{},
+		worker:             nil,
+		configWatcher:      &nullConfigWatcher{},
+		commands:           make(map[BotType][]Command),
+		commandProps:       make(map[BotType][]*CommandProps),
+		scheduledTasks:     make(map[BotType][]ScheduledTask),
+		scheduledTaskProps: make(map[BotType][]*ScheduledTaskProps),
+		alerters:           &alerters{},
+		scheduler:          runScheduler(ctx, loc),
+		superviseError:     nil,
+	}
+
+	options.apply(r)
+
+	if r.worker == nil {
+		w, e := workers.Run(ctx, workers.NewConfig())
+		if e != nil {
+			return nil, xerrors.Errorf("worker could not run: %w", e)
+		}
+
+		r.worker = w
+	}
+
+	return r, nil
+}
+
+type runner struct {
+	config             *Config
+	bots               []Bot
+	worker             workers.Worker
+	configWatcher      ConfigWatcher
+	commands           map[BotType][]Command
+	commandProps       map[BotType][]*CommandProps
+	scheduledTasks     map[BotType][]ScheduledTask
+	scheduledTaskProps map[BotType][]*ScheduledTaskProps
+	alerters           *alerters
+	scheduler          scheduler
+	superviseError     func(BotType, error) *SupervisionDirective
+}
+
+// SupervisionDirective tells go-sarah's core how to react when a Bot escalates an error.
+// A customized supervisor can be defined and registered via RegisterBotErrorSupervisor().
+type SupervisionDirective struct {
+	// StopBot tells the core to stop the failing Bot and cleanup related resources.
+	// When two or more Bots are registered and one or more Bots are to be still running after the failing Bot stops,
+	// internal workers and scheduler keep running.
+	//
+	// When all Bots stop, then the core stops all resources.
+	StopBot bool
+	// AlertingErr is sent registered alerters and administrators will be notified.
+	// Set nil when such alert notification is not required.
+	AlertingErr error
+}
+
+func (r *runner) botCommands(botType BotType) []Command {
+	if commands, ok := r.commands[botType]; ok {
+		return commands
+	}
+	return []Command{}
 }
 
 func (r *runner) botCommandProps(botType BotType) []*CommandProps {
@@ -235,7 +260,7 @@ func (r *runner) botCommandProps(botType BotType) []*CommandProps {
 }
 
 func (r *runner) botScheduledTaskProps(botType BotType) []*ScheduledTaskProps {
-	if props, ok := r.scheduledTaskPrps[botType]; ok {
+	if props, ok := r.scheduledTaskProps[botType]; ok {
 		return props
 	}
 	return []*ScheduledTaskProps{}
@@ -248,319 +273,96 @@ func (r *runner) botScheduledTasks(botType BotType) []ScheduledTask {
 	return []ScheduledTask{}
 }
 
-func (r *runner) Status() Status {
-	return r.status.snapshot()
-}
-
-func (r *runner) Run(ctx context.Context) {
-	r.status.start()
-
-	if r.worker == nil {
-		w, e := workers.Run(ctx, workers.NewConfig())
-		if e != nil {
-			panic(fmt.Sprintf("worker could not run: %s", e.Error()))
-		}
-
-		r.worker = w
-	}
-
-	if r.config.PluginConfigRoot != "" && r.watcher == nil {
-		w, e := watchers.Run(ctx)
-		if e != nil {
-			panic(fmt.Sprintf("watcher could not run: %s", e.Error()))
-		}
-
-		r.watcher = w
-	}
-
-	loc, locErr := time.LoadLocation(r.config.TimeZone)
-	if locErr != nil {
-		panic(fmt.Sprintf("given timezone can't be converted to time.Location: %s", locErr.Error()))
-	}
-	taskScheduler := runScheduler(ctx, loc)
-
+func (r *runner) run(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, bot := range r.bots {
 		wg.Add(1)
 
-		botType := bot.BotType()
-		log.Infof("starting %s", botType.String())
+		go func(b Bot) {
+			defer func() {
+				wg.Done()
+				runnerStatus.stopBot(b)
+			}()
 
-		// Each Bot has its own context propagating Runner's lifecycle.
-		botCtx, errNotifier := superviseBot(ctx, botType, r.alerters)
+			runnerStatus.addBot(b)
+			r.runBot(ctx, b)
+		}(bot)
 
-		// Prepare function that receives Input.
-		receiveInput := setupInputReceiver(botCtx, bot, r.worker)
-
-		// Run Bot
-		go runBot(botCtx, bot, receiveInput, errNotifier)
-		r.status.addBot(bot)
-
-		// Setup config directory.
-		var configDir string
-		if r.config.PluginConfigRoot != "" {
-			configDir = filepath.Join(r.config.PluginConfigRoot, strings.ToLower(bot.BotType().String()))
-		}
-
-		// Build commands with stashed CommandProps.
-		commandProps := r.botCommandProps(botType)
-		registerCommands(bot, commandProps, configDir)
-
-		// Register scheduled tasks.
-		tasks := r.botScheduledTasks(botType)
-		taskProps := r.botScheduledTaskProps(botType)
-		registerScheduledTasks(botCtx, bot, tasks, taskProps, taskScheduler, configDir)
-
-		// Supervise configuration files' directory for Command/ScheduledTask.
-		if configDir != "" {
-			callback := r.configUpdateCallback(botCtx, bot, taskScheduler)
-			err := r.watcher.Subscribe(botType.String(), configDir, callback)
-			if err != nil {
-				log.Errorf("Failed to watch %s: %s", configDir, err.Error())
-			}
-		}
-
-		go func(c context.Context, b Bot, d string) {
-			select {
-			case <-c.Done():
-				defer wg.Done()
-
-				// When Bot stops, stop subscription for config file changes.
-				if d != "" {
-					err := r.watcher.Unsubscribe(b.BotType().String())
-					if err != nil {
-						// Probably because Runner context is canceled, and its derived contexts are canceled simultaneously.
-						// In that case this warning is harmless since Watcher itself is canceled at this point.
-						log.Warnf("Failed to unsubscribe %s", err.Error())
-					}
-				}
-
-				r.status.stopBot(b)
-			}
-		}(botCtx, bot, configDir)
 	}
-
 	wg.Wait()
-	r.status.stop()
 }
 
-func (r *runner) configUpdateCallback(botCtx context.Context, bot Bot, taskScheduler scheduler) func(string) {
-	return func(path string) {
-		file, err := plainPathToFile(path)
-		if err == errUnableToDetermineConfigFileFormat {
-			log.Warnf("File under Config.PluginConfigRoot is updated, but file format can not be determined from its extension: %s.", path)
-			return
-		} else if err == errUnableToDetermineConfigFileFormat {
-			log.Warnf("File under Config.PluginConfigRoot is updated, but file format is not supported: %s.", path)
-			return
-		} else if err != nil {
-			log.Warnf("Failed to locate %s: %s", path, err.Error())
-			return
-		}
-
-		// TODO Consider wrapping below function calls with goroutine.
-		// Developer may update bunch of files under PluginConfigRoot at once. e.g. rsync whole all files under the directory.
-		// That makes series of callback function calls while each Command/ScheduledTask blocks config file while its execution.
-		// See if that block is critical to watcher implementation.
-		commandProps := r.botCommandProps(bot.BotType())
-		if e := updateCommandConfig(bot, commandProps, file); e != nil {
-			log.Errorf("Failed to update Command config: %s.", e.Error())
-		}
-
-		taskProps := r.botScheduledTaskProps(bot.BotType())
-		if e := updateScheduledTaskConfig(botCtx, bot, taskProps, taskScheduler, file); e != nil {
-			log.Errorf("Failed to update ScheduledTask config: %s", e.Error())
-		}
-	}
-}
-
-func runBot(ctx context.Context, bot Bot, receiveInput func(Input) error, errNotifier func(error)) {
-	// When bot panics, recover and tell as much detailed information as possible via error notification channel.
-	// Notified channel sends alert to notify administrator.
+func unsubscribeConfigWatcher(watcher ConfigWatcher, botType BotType) {
 	defer func() {
 		if r := recover(); r != nil {
-			stack := []string{fmt.Sprintf("panic in bot: %s. %#v.", bot.BotType(), r)}
-
-			// Inform stack trace
-			for depth := 0; ; depth++ {
-				_, src, line, ok := runtime.Caller(depth)
-				if !ok {
-					break
-				}
-				stack = append(stack, fmt.Sprintf(" -> depth:%d. file:%s. line:%d.", depth, src, line))
-			}
-
-			errNotifier(NewBotNonContinuableError(strings.Join(stack, "\n")))
+			log.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, r)
 		}
 	}()
-
-	bot.Run(ctx, receiveInput, errNotifier)
-}
-
-func registerScheduledTask(botCtx context.Context, bot Bot, task ScheduledTask, taskScheduler scheduler) {
-	err := taskScheduler.update(bot.BotType(), task, func() {
-		executeScheduledTask(botCtx, bot, task)
-	})
+	err := watcher.Unwatch(botType)
 	if err != nil {
-		log.Errorf("failed to schedule a task. id: %s. reason: %s.", task.Identifier(), err.Error())
+		log.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, err)
 	}
 }
 
-func registerCommands(bot Bot, props []*CommandProps, configDir string) {
-	for _, p := range props {
-		var file *pluginConfigFile
-		if configDir != "" && p.config != nil {
-			file = findPluginConfigFile(configDir, p.identifier)
-		}
+// runBot runs given Bot implementation in a blocking manner.
+// This returns when bot stops.
+func (r *runner) runBot(runnerCtx context.Context, bot Bot) {
+	log.Infof("Starting %s", bot.BotType())
+	botCtx, errNotifier := r.superviseBot(runnerCtx, bot.BotType())
 
-		command, err := buildCommand(p, file)
-		if err != nil {
-			log.Errorf("Failed to configure command. %s. %#v", err.Error(), p)
-			continue
-		}
-		bot.AppendCommand(command)
-	}
-}
+	// Build commands with stashed CommandProps.
+	r.registerCommands(botCtx, bot)
 
-func registerScheduledTasks(botCtx context.Context, bot Bot, tasks []ScheduledTask, props []*ScheduledTaskProps, taskScheduler scheduler, configDir string) {
-	for _, p := range props {
-		var file *pluginConfigFile
-		if configDir != "" && p.config != nil {
-			file = findPluginConfigFile(configDir, p.identifier)
-		}
+	// Register scheduled tasks.
+	r.registerScheduledTasks(botCtx, bot)
 
-		task, err := buildScheduledTask(p, file)
-		if err != nil {
-			log.Errorf("Failed to configure scheduled task: %s. %#v.", err.Error(), p)
-			continue
-		}
-		tasks = append(tasks, task)
-	}
+	inputReceiver := setupInputReceiver(botCtx, bot, r.worker)
 
-	for _, task := range tasks {
-		// Make sure schedule is given. Especially those pre-registered tasks.
-		if task.Schedule() == "" {
-			log.Errorf("Failed to schedule a task. id: %s. reason: %s.", task.Identifier(), "No schedule given.")
-			continue
-		}
+	// Run Bot in a panic-proof manner
+	func() {
+		defer func() {
+			// When Bot panics, recover and tell as much detailed information as possible via error notification channel.
+			// Notified channel sends alert to notify administrator.
+			if r := recover(); r != nil {
+				stack := []string{fmt.Sprintf("panic in bot: %s. %#v.", bot.BotType(), r)}
 
-		registerScheduledTask(botCtx, bot, task, taskScheduler)
-	}
-}
+				// Inform stack trace
+				for depth := 0; ; depth++ {
+					_, src, line, ok := runtime.Caller(depth)
+					if !ok {
+						break
+					}
+					stack = append(stack, fmt.Sprintf(" -> depth:%d. file:%s. line:%d.", depth, src, line))
+				}
 
-func updateCommandConfig(bot Bot, props []*CommandProps, file *pluginConfigFile) error {
-	for _, p := range props {
-		if p.config == nil {
-			continue
-		}
-
-		if p.identifier != file.id {
-			continue
-		}
-
-		log.Infof("Start updating config due to config file change: %s.", file.id)
-		rv := reflect.ValueOf(p.config)
-		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
-			// p.config is a pointer to config struct or a map
-			// Just update p.config and the same instance is shared by currently registered Command.
-			err := func() error {
-				// https://github.com/oklahomer/go-sarah/issues/44
-				locker := configLocker.get(p.botType, p.identifier)
-				locker.Lock()
-				defer locker.Unlock()
-
-				return updatePluginConfig(file, p.config)
-			}()
-			if err != nil {
-				return fmt.Errorf("failed to update config for %s: %s", p.identifier, err.Error())
-			}
-		} else {
-			// p.config is not pointer or map, but an actual struct value.
-			// Simply updating p.config can not update the behaviour of currently registered Command.
-			// Proceed to re-build Command and replace with old one.
-			rebuiltCmd, err := buildCommand(p, file)
-			if err != nil {
-				return fmt.Errorf("failed to rebuild Command for %s: %s", p.identifier, err.Error())
-			}
-			bot.AppendCommand(rebuiltCmd) // Replaces the old one.
-		}
-		log.Infof("End updating config due to config file change: %s.", file.id)
-
-		return nil
-	}
-
-	return nil
-}
-
-func updateScheduledTaskConfig(botCtx context.Context, bot Bot, taskProps []*ScheduledTaskProps, taskScheduler scheduler, file *pluginConfigFile) error {
-	for _, p := range taskProps {
-		if p.config == nil {
-			continue
-		}
-
-		if p.identifier != file.id {
-			continue
-		}
-
-		// TaskConfig update may involve re-scheduling and other miscellaneous tasks
-		// so no matter config type is a pointer or actual value, always re-build ScheduledTask and register again.
-		// See updateCommandConfig.
-		log.Infof("Start rebuilding scheduled task due to config file change: %s.", file.id)
-		task, err := buildScheduledTask(p, file)
-		if err != nil {
-			// When rebuild is failed, unregister corresponding ScheduledTask.
-			// This is to avoid a scenario that config struct itself is successfully updated,
-			// but the props' values and new config do not provide some required settings such as schedule, etc...
-			e := taskScheduler.remove(bot.BotType(), p.identifier)
-			if e != nil {
-				return fmt.Errorf("tried to remove ScheduledTask because rebuild failed, but removal also failed: %s", e.Error())
+				errNotifier(NewBotNonContinuableError(strings.Join(stack, "\n")))
 			}
 
-			return fmt.Errorf("failed to re-build scheduled task id: %s error: %s", p.identifier, err.Error())
-		}
+			// Explicitly send *BotNonContinuableError to make sure bot context is canceled and administrators are notified.
+			// This is effective when Bot implementation stops running without notifying its critical state by sending *BotNonContinuableError to errNotifier.
+			// Error sent here is simply ignored when Bot context is already canceled by previous *BotNonContinuableError notification.
+			errNotifier(NewBotNonContinuableError(fmt.Sprintf("shutdown bot: %s", bot.BotType())))
+		}()
 
-		registerScheduledTask(botCtx, bot, task, taskScheduler)
-
-		log.Infof("End rebuilding scheduled task due to config file change: %s.", file.id)
-
-		return nil
-	}
-
-	return nil
+		bot.Run(botCtx, inputReceiver, errNotifier)
+		unsubscribeConfigWatcher(r.configWatcher, bot.BotType())
+	}()
 }
 
-func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
-	results, err := task.Execute(ctx)
-	if err != nil {
-		log.Errorf("error on scheduled task: %s", task.Identifier())
-		return
-	} else if results == nil {
-		return
-	}
-
-	for _, res := range results {
-		// The destination returned by task execution has higher priority.
-		// e.g. RSS Reader's task searches for stored feed/destination set, and returns which destination to send.
-		dest := res.Destination
-		if dest == nil {
-			// If no destination is given, see if default destination exists.
-			// Useful when destination can be preset.
-			// e.g. Weather forecast task always sends weather information to #goodmorning room.
-			presetDest := task.DefaultDestination()
-			if presetDest == nil {
-				log.Errorf("task was completed, but destination was not set: %s.", task.Identifier())
-				continue
-			}
-			dest = presetDest
-		}
-
-		message := NewOutputMessage(dest, res.Content)
-		bot.SendMessage(ctx, message)
-	}
-}
-
-func superviseBot(runnerCtx context.Context, botType BotType, alerters *alerters) (context.Context, func(error)) {
+func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (context.Context, func(error)) {
 	botCtx, cancel := context.WithCancel(runnerCtx)
+
+	sendAlert := func(err error) {
+		e := r.alerters.alertAll(runnerCtx, botType, err)
+		if e != nil {
+			log.Errorf("Failed to send alert for %s: %+v", botType, e)
+		}
+	}
+
+	stopBot := func() {
+		cancel()
+		log.Infof("Stop supervising bot's critical error due to its context cancellation: %s.", botType)
+	}
 
 	// A function that receives an escalated error from Bot.
 	// If critical error is sent, this cancels Bot context to finish its lifecycle.
@@ -568,17 +370,28 @@ func superviseBot(runnerCtx context.Context, botType BotType, alerters *alerters
 	handleError := func(err error) {
 		switch err.(type) {
 		case *BotNonContinuableError:
-			log.Errorf("stop unrecoverable bot. BotType: %s. error: %s.", botType.String(), err.Error())
-			cancel()
+			log.Errorf("Stop unrecoverable bot. BotType: %s. Error: %+v", botType, err)
 
-			go func() {
-				e := alerters.alertAll(runnerCtx, botType, err)
-				if e != nil {
-					log.Errorf("failed to send alert for %s: %s", botType.String(), e.Error())
+			stopBot()
+
+			go sendAlert(err)
+
+		default:
+			if r.superviseError != nil {
+				directive := r.superviseError(botType, err)
+				if directive == nil {
+					return
 				}
-			}()
 
-			log.Infof("stop supervising bot critical error due to context cancellation: %s.", botType.String())
+				if directive.StopBot {
+					log.Errorf("Stop bot due to given directive. BotType: %s. Reason: %+v", botType, err)
+					stopBot()
+				}
+
+				if directive.AlertingErr != nil {
+					go sendAlert(directive.AlertingErr)
+				}
+			}
 
 		}
 	}
@@ -600,13 +413,125 @@ func superviseBot(runnerCtx context.Context, botType BotType, alerters *alerters
 	return botCtx, errNotifier
 }
 
+func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
+	props := r.botCommandProps(bot.BotType())
+
+	reg := func(p *CommandProps) {
+		command, err := buildCommand(botCtx, p, r.configWatcher)
+		if err != nil {
+			log.Errorf("Failed to build command %#v: %+v", p, err)
+			return
+		}
+		bot.AppendCommand(command)
+	}
+
+	callback := func(p *CommandProps) func() {
+		return func() {
+			log.Infof("Updating command: %s", p.identifier)
+			reg(p)
+		}
+	}
+
+	for _, p := range props {
+		reg(p)
+		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
+		if err != nil {
+			log.Errorf("Failed to subscribe configuration for command %s: %+v", p.identifier, err)
+			continue
+		}
+	}
+
+	for _, command := range r.botCommands(bot.BotType()) {
+		bot.AppendCommand(command)
+	}
+}
+
+func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
+	reg := func(p *ScheduledTaskProps) {
+		r.scheduler.remove(bot.BotType(), p.identifier)
+
+		task, err := buildScheduledTask(botCtx, p, r.configWatcher)
+		if err != nil {
+			log.Errorf("Failed to build scheduled task %s: %+v", p.identifier, err)
+			return
+		}
+
+		err = r.scheduler.update(bot.BotType(), task, func() {
+			executeScheduledTask(botCtx, bot, task)
+		})
+		if err != nil {
+			log.Errorf("Failed to schedule a task. ID: %s: %+v", task.Identifier(), err)
+		}
+	}
+
+	callback := func(p *ScheduledTaskProps) func() {
+		return func() {
+			log.Infof("Updating scheduled task: %s", p.identifier)
+			reg(p)
+		}
+	}
+
+	for _, p := range r.botScheduledTaskProps(bot.BotType()) {
+		reg(p)
+		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
+		if err != nil {
+			log.Errorf("Failed to subscribe configuration for scheduled task %s: %+v", p.identifier, err)
+			continue
+		}
+	}
+
+	for _, task := range r.botScheduledTasks(bot.BotType()) {
+		if task.Schedule() == "" {
+			log.Errorf("Failed to schedule a task. ID: %s. Reason: %s.", task.Identifier(), "No schedule given.")
+			continue
+		}
+
+		err := r.scheduler.update(bot.BotType(), task, func() {
+			executeScheduledTask(botCtx, bot, task)
+		})
+		if err != nil {
+			log.Errorf("Failed to schedule a task. id: %s: %+v", task.Identifier(), err)
+		}
+	}
+}
+
+func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
+	results, err := task.Execute(ctx)
+	if err != nil {
+		log.Errorf("Error on scheduled task: %s", task.Identifier())
+		return
+	} else if results == nil {
+		return
+	}
+
+	for _, res := range results {
+		// The destination returned by task execution has higher priority.
+		// e.g. RSS Reader's task searches for stored feed/destination set, and returns which destination to send.
+		dest := res.Destination
+		if dest == nil {
+			// If no destination is given, see if default destination exists.
+			// Useful when destination can be preset.
+			// e.g. Weather forecast task always sends weather information to #goodmorning room.
+			presetDest := task.DefaultDestination()
+			if presetDest == nil {
+				log.Errorf("Task was completed, but destination was not set: %s.", task.Identifier())
+				continue
+			}
+			dest = presetDest
+		}
+
+		message := NewOutputMessage(dest, res.Content)
+		bot.SendMessage(ctx, message)
+	}
+}
+
 func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) func(Input) error {
 	continuousEnqueueErrCnt := 0
 	return func(input Input) error {
 		err := worker.Enqueue(func() {
 			err := bot.Respond(botCtx, input)
 			if err != nil {
-				log.Errorf("error on message handling. input: %#v. error: %s.", input, err.Error())
+				log.Errorf("Error on message handling. Input: %#v. Error: %+v", input, err)
 			}
 		})
 
@@ -620,105 +545,4 @@ func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) 
 		// Could not send because probably the workers are too busy or the runner context is already canceled.
 		return NewBlockedInputError(continuousEnqueueErrCnt)
 	}
-}
-
-type fileType uint
-
-const (
-	_ fileType = iota
-	yamlFile
-	jsonFile
-)
-
-type pluginConfigFile struct {
-	id       string
-	path     string
-	fileType fileType
-}
-
-func updatePluginConfig(file *pluginConfigFile, configPtr interface{}) error {
-	buf, err := ioutil.ReadFile(file.path)
-	if err != nil {
-		return err
-	}
-
-	switch file.fileType {
-	case yamlFile:
-		return yaml.Unmarshal(buf, configPtr)
-
-	case jsonFile:
-		return json.Unmarshal(buf, configPtr)
-
-	default:
-		return fmt.Errorf("unsupported file type: %s", file.path)
-
-	}
-}
-
-var (
-	errUnableToDetermineConfigFileFormat = errors.New("can not determine file format")
-	errUnsupportedConfigFileFormat       = errors.New("unsupported file format")
-	configFileCandidates                 = []struct {
-		ext      string
-		fileType fileType
-	}{
-		{
-			ext:      ".yaml",
-			fileType: yamlFile,
-		},
-		{
-			ext:      ".yml",
-			fileType: yamlFile,
-		},
-		{
-			ext:      ".json",
-			fileType: jsonFile,
-		},
-	}
-)
-
-func plainPathToFile(path string) (*pluginConfigFile, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-
-	ext := filepath.Ext(path)
-	if ext == "" {
-		return nil, errUnableToDetermineConfigFileFormat
-	}
-
-	_, filename := filepath.Split(path)
-	id := strings.TrimSuffix(filename, ext) // buzz.yaml to buzz
-
-	for _, c := range configFileCandidates {
-		if ext != c.ext {
-			continue
-		}
-
-		return &pluginConfigFile{
-			id:       id,
-			path:     path,
-			fileType: c.fileType,
-		}, nil
-	}
-
-	return nil, errUnsupportedConfigFileFormat
-}
-
-func findPluginConfigFile(configDir, id string) *pluginConfigFile {
-	for _, c := range configFileCandidates {
-		configPath := filepath.Join(configDir, fmt.Sprintf("%s%s", id, c.ext))
-		_, err := os.Stat(configPath)
-		if err == nil {
-			// File exists.
-			return &pluginConfigFile{
-				id:       id,
-				path:     configPath,
-				fileType: c.fileType,
-			}
-		}
-	}
-
-	return nil
 }

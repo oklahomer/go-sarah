@@ -4,10 +4,10 @@ Package workers provides general purpose worker mechanism that outputs stacktrac
 package workers
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah/log"
-	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"runtime"
 	"strings"
 	"time"
@@ -15,10 +15,10 @@ import (
 
 var (
 	// ErrEnqueueAfterWorkerShutdown is returned when job is given after worker context cancellation.
-	ErrEnqueueAfterWorkerShutdown = errors.New("job can not be enqueued after worker shutdown")
+	ErrEnqueueAfterWorkerShutdown = xerrors.New("job can not be enqueued after worker shutdown")
 
 	// ErrQueueOverflow is returned when job is given, but all workers are busy and queue is full.
-	ErrQueueOverflow = errors.New("queue is full")
+	ErrQueueOverflow = xerrors.New("queue is full")
 )
 
 // Config contains some configuration variables.
@@ -62,13 +62,12 @@ func (*reporter) Report(_ context.Context, stats *Stats) {
 }
 
 // WorkerOption defines function that worker's functional option must satisfy.
-type WorkerOption func(*worker) error
+type WorkerOption func(*worker)
 
 // WithReporter creates and returns WorkerOption to set preferred Reporter implementation.
 func WithReporter(reporter Reporter) WorkerOption {
-	return func(w *worker) error {
+	return func(w *worker) {
 		w.reporter = reporter
-		return nil
 	}
 }
 
@@ -82,12 +81,11 @@ func (w *worker) Enqueue(fnc func()) error {
 }
 
 // Worker is an interface that all Worker implementation must satisfy.
-// Worker implementation can be fed to sarah.Runner via sarah.RunnerOption as below.
+// Worker implementation can be fed to sarah.RegisterWorker() to replace default implementation as below.
+// Given worker is used on sarah.Run() call.
 //
 //   myWorker := NewMyWorkerImpl()
-//   option := sarah.WithWorker(myWorker)
-//
-//   runner, _ := sarah.NewRunner(sarah.NewConfig(), option)
+//   sarah.RegisterWorker(myWorker)
 type Worker interface {
 	Enqueue(func()) error
 }
@@ -119,10 +117,7 @@ func Run(ctx context.Context, config *Config, options ...WorkerOption) (Worker, 
 	}
 
 	for _, opt := range options {
-		err := opt(w)
-		if err != nil {
-			return nil, err
-		}
+		opt(w)
 	}
 
 	log.Infof("Start spawning %d workers.", config.WorkerNum)

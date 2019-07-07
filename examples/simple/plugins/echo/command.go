@@ -9,9 +9,9 @@ when command specification is simple.
 package echo
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 )
 
@@ -27,11 +27,11 @@ func (c *command) Identifier() string {
 
 // Execute receives user input and returns results of this Command.
 func (c *command) Execute(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
-	return slack.NewStringResponse(sarah.StripMessage(matchPattern, input.Message())), nil
+	return slack.NewResponse(input, sarah.StripMessage(matchPattern, input.Message()))
 }
 
-// InputExample provides input example for user.
-func (c *command) InputExample() string {
+// Instruction provides input instruction for user.
+func (c *command) Instruction(_ *sarah.HelpInput) string {
 	return ".echo foo"
 }
 

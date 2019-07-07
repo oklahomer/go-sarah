@@ -8,14 +8,19 @@ This illustrates that, when multiple Bots are registered to Runner, same memory 
 package count
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/gitter"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"regexp"
 	"sync"
 )
+
+func init() {
+	sarah.RegisterCommandProps(SlackProps)
+	sarah.RegisterCommandProps(GitterProps)
+}
 
 type counter struct {
 	count uint
@@ -39,10 +44,10 @@ var globalCounter = &counter{
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("counter").
-	InputExample(".count").
+	Instruction("Input .count to count up").
 	MatchPattern(regexp.MustCompile(`^\.count`)).
-	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return slack.NewStringResponse(fmt.Sprint(globalCounter.increment())), nil
+	Func(func(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
+		return slack.NewResponse(input, fmt.Sprint(globalCounter.increment()))
 	}).
 	MustBuild()
 
@@ -50,9 +55,9 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 var GitterProps = sarah.NewCommandPropsBuilder().
 	BotType(gitter.GITTER).
 	Identifier("counter").
-	InputExample(".count").
+	Instruction("Input .count to count up").
 	MatchPattern(regexp.MustCompile(`^\.count`)).
 	Func(func(_ context.Context, _ sarah.Input) (*sarah.CommandResponse, error) {
-		return gitter.NewStringResponse(fmt.Sprint(globalCounter.increment())), nil
+		return gitter.NewResponse(fmt.Sprint(globalCounter.increment()))
 	}).
 	MustBuild()

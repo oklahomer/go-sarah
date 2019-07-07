@@ -1,7 +1,7 @@
 package slack
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
@@ -10,7 +10,7 @@ import (
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
-	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"strings"
 	"time"
 )
@@ -23,14 +23,13 @@ const (
 var pingSignalChannelID = "ping"
 
 // AdapterOption defines function signature that Adapter's functional option must satisfy.
-type AdapterOption func(adapter *Adapter) error
+type AdapterOption func(adapter *Adapter)
 
 // WithSlackClient creates AdapterOption with given SlackClient implementation.
 // If this option is not given, NewAdapter() tries to create golack instance with given Config.
 func WithSlackClient(client SlackClient) AdapterOption {
-	return func(adapter *Adapter) error {
+	return func(adapter *Adapter) {
 		adapter.client = client
-		return nil
 	}
 }
 
@@ -73,7 +72,7 @@ func WithSlackClient(client SlackClient) AdapterOption {
 //      }
 //
 //    default:
-//      log.Debugf("payload given, but no corresponding action is defined. %#v", p)
+//      log.Debugf("Payload given, but no corresponding action is defined. %#v", p)
 //
 //    }
 //  }
@@ -81,30 +80,26 @@ func WithSlackClient(client SlackClient) AdapterOption {
 //  slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithSlackClient(slackClient), slack.WithPayloadHandler(payloadHandler))
 //  slackBot, _ := sarah.NewBot(slackAdapter)
 func WithPayloadHandler(fnc func(context.Context, *Config, rtmapi.DecodedPayload, func(sarah.Input) error)) AdapterOption {
-	return func(adapter *Adapter) error {
+	return func(adapter *Adapter) {
 		adapter.payloadHandler = fnc
-		return nil
 	}
 }
 
 // Adapter internally calls Slack Rest API and Real Time Messaging API to offer Bot developers easy way to communicate with Slack.
 //
-// This implements sarah.Adapter interface, so this instance can be fed to sarah.Runner as below.
-//
-//  runnerOptions := sarah.NewRunnerOptions()
+// This implements sarah.Adapter interface, so this instance can be fed to sarah.RegisterBot() as below.
 //
 //  slackConfig := slack.NewConfig()
 //  slackConfig.Token = "XXXXXXXXXXXX" // Set token manually or feed slackConfig to json.Unmarshal or yaml.Unmarshal
 //  slackAdapter, _ := slack.NewAdapter(slackConfig)
 //  slackBot, _ := sarah.NewBot(slackAdapter)
-//  runnerOptions.Append(sarah.WithBot(slackBot))
+//  sarah.RegisterBot(slackBot)
 //
-//  runner := sarah.NewRunner(sarah.NewConfig(), runnerOptions.Arg())
-//  runner.Run(context.TODO())
+//  sarah.Run(context.TODO(), sarah.NewConfig())
 type Adapter struct {
 	config         *Config
 	client         SlackClient
-	messageQueue   chan *textMessage
+	messageQueue   chan *rtmapi.OutgoingMessage
 	payloadHandler func(context.Context, *Config, rtmapi.DecodedPayload, func(sarah.Input) error)
 }
 
@@ -112,22 +107,19 @@ type Adapter struct {
 func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	adapter := &Adapter{
 		config:         config,
-		messageQueue:   make(chan *textMessage, config.SendingQueueSize),
+		messageQueue:   make(chan *rtmapi.OutgoingMessage, config.SendingQueueSize),
 		payloadHandler: handlePayload, // may be replaced with WithPayloadHandler option.
 	}
 
 	for _, opt := range options {
-		err := opt(adapter)
-		if err != nil {
-			return nil, err
-		}
+		opt(adapter)
 	}
 
 	// See if client is set by WithSlackClient option.
 	// If not, use golack with given configuration.
 	if adapter.client == nil {
 		if config.Token == "" {
-			return nil, errors.New("Slack client must be provided with WithSlackClient option or must be configurable with given *Config.")
+			return nil, xerrors.New("Slack client must be provided with WithSlackClient option or must be configurable with given *Config")
 		}
 
 		golackConfig := golack.NewConfig()
@@ -150,11 +142,11 @@ func (adapter *Adapter) BotType() sarah.BotType {
 // Run establishes connection with Slack, supervise it, and tries to reconnect when current connection is gone.
 // Connection will be
 //
-// When message is sent from slack server, the payload is passed to sarah.Runner via the function given as 2nd argument, enqueueInput.
+// When message is sent from slack server, the payload is passed to go-sarah's core via the function given as 2nd argument, enqueueInput.
 // This function simply wraps a channel to prevent blocking situation. When workers are too busy and channel blocks, this function returns BlockedInputError.
 //
-// When critical situation such as reconnection trial fails for specified times, this critical situation is notified to sarah.Runner via 3rd argument function, notifyErr.
-// sarah.Runner cancels this Bot/Adapter and related resources when BotNonContinuableError is given to this function.
+// When critical situation such as reconnection trial fails for specified times, this critical situation is notified to go-sarah's core via 3rd argument function, notifyErr.
+// go-sarah cancels this Bot/Adapter and related resources when BotNonContinuableError is given to this function.
 func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) error, notifyErr func(error)) {
 	for {
 		conn, err := adapter.connect(ctx)
@@ -190,7 +182,7 @@ func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) 
 			return
 		}
 
-		log.Errorf("Will try re-connection due to previous connection's fatal state: %s.", connErr.Error())
+		log.Errorf("Will try re-connection due to previous connection's fatal state: %+v", connErr)
 	}
 }
 
@@ -204,12 +196,12 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 			return nil
 
 		case message := <-adapter.messageQueue:
-			if err := payloadSender.Send(message.channel, message.text); err != nil {
+			if err := payloadSender.Send(message); err != nil {
 				// Try ping right away when Send() returns error so that following messages stay in the queue
 				// while connection status is checked with ping message and optionally reconnect
 				if pingErr := payloadSender.Ping(); pingErr != nil {
 					// Reconnection requested.
-					return fmt.Errorf("error on ping: %s", pingErr.Error())
+					return xerrors.Errorf("error on ping: %w", pingErr)
 				}
 			}
 
@@ -219,7 +211,7 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 		case <-tryPing:
 			log.Debug("Send ping")
 			if err := payloadSender.Ping(); err != nil {
-				return fmt.Errorf("error on ping: %s", err.Error())
+				return xerrors.Errorf("error on ping: %w", err)
 			}
 
 		}
@@ -263,12 +255,12 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 			} else if _, ok := err.(*rtmapi.MalformedPayloadError); ok {
 				// Malformed payload was passed, but there is no programmable way to handle this error.
 				// Leave log and proceed.
-				log.Warnf("Ignore malformed payload: %s.", err.Error())
+				log.Warnf("Ignore malformed payload: %+v", err)
 			} else if _, ok := err.(*rtmapi.UnexpectedMessageTypeError); ok {
-				log.Warnf("Ignore a payload with unexpected message type: %s.", err.Error())
+				log.Warnf("Ignore a payload with unexpected message type: %+v", err)
 			} else if err != nil {
 				// Connection might not be stable or is closed already.
-				log.Debugf("Ping caused by '%s'", err.Error())
+				log.Debugf("Ping caused by error: %+v", err)
 				nonBlockSignal(pingSignalChannelID, tryPing)
 				continue
 			}
@@ -302,11 +294,11 @@ func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayl
 		trimmed := strings.TrimSpace(input.Message())
 		if config.HelpCommand != "" && trimmed == config.HelpCommand {
 			// Help command
-			help := sarah.NewHelpInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
+			help := sarah.NewHelpInput(input)
 			_ = enqueueInput(help)
 		} else if config.AbortCommand != "" && trimmed == config.AbortCommand {
 			// Abort command
-			abort := sarah.NewAbortInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
+			abort := sarah.NewAbortInput(input)
 			_ = enqueueInput(abort)
 		} else {
 			// Regular input
@@ -334,14 +326,9 @@ func nonBlockSignal(id string, target chan<- struct{}) {
 
 	default:
 		// couldn't send because no goroutine is receiving channel or is busy.
-		log.Infof("not sending signal to channel: %s", id)
+		log.Debugf("Not sending signal to channel: %s", id)
 
 	}
-}
-
-type textMessage struct {
-	channel slackobject.ChannelID
-	text    string
 }
 
 // SendMessage let Bot send message to Slack.
@@ -354,15 +341,21 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 			return
 		}
 
-		adapter.messageQueue <- &textMessage{
-			channel: channel,
-			text:    content,
-		}
+		message := rtmapi.NewOutgoingMessage(channel, content)
+		adapter.messageQueue <- message
+
+	case *rtmapi.OutgoingMessage:
+		adapter.messageQueue <- content
 
 	case *webapi.PostMessage:
-		message := output.Content().(*webapi.PostMessage)
-		if _, err := adapter.client.PostMessage(ctx, message); err != nil {
-			log.Error("something went wrong with Web API posting", err)
+		resp, err := adapter.client.PostMessage(ctx, content)
+		if err != nil {
+			log.Error("Something went wrong with Web API posting: %+v", err)
+			return
+		}
+
+		if !resp.OK {
+			log.Error("Failed to post message %#v: %s", content, resp.Error)
 		}
 
 	case *sarah.CommandHelps:
@@ -372,30 +365,30 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 			return
 		}
 
-		fields := []*webapi.AttachmentField{}
+		var fields []*webapi.AttachmentField
 		for _, commandHelp := range *output.Content().(*sarah.CommandHelps) {
 			fields = append(fields, &webapi.AttachmentField{
 				Title: commandHelp.Identifier,
-				Value: commandHelp.InputExample,
+				Value: commandHelp.Instruction,
 				Short: false,
 			})
 		}
 		attachments := []*webapi.MessageAttachment{
 			{
-				Fallback: "Here are some input examples.", // TODO
+				Fallback: "Here are some input instructions.",
 				Pretext:  "Help:",
 				Title:    "",
 				Fields:   fields,
 			},
 		}
-		postMessage := webapi.NewPostMessageWithAttachments(channelID, "", attachments)
+		postMessage := webapi.NewPostMessage(channelID, "").WithAttachments(attachments)
 
 		if _, err := adapter.client.PostMessage(ctx, postMessage); err != nil {
-			log.Error("something went wrong with Web API posting", err)
+			log.Errorf("Something went wrong with Web API posting: %+v", err)
 		}
 
 	default:
-		log.Warnf("unexpected output %#v", output)
+		log.Warnf("Unexpected output %#v", output)
 
 	}
 }
@@ -407,7 +400,7 @@ type MessageInput struct {
 
 // SenderKey returns string representing message sender.
 func (message *MessageInput) SenderKey() string {
-	return fmt.Sprintf("%s|%s", message.event.ChannelID.String(), message.event.Sender.String())
+	return fmt.Sprintf("%s|%s", message.event.ChannelID.String(), message.event.SenderID.String())
 }
 
 // Message returns sent message.
@@ -432,46 +425,193 @@ func NewMessageInput(message *rtmapi.Message) *MessageInput {
 	}
 }
 
-// NewStringResponse creates new sarah.CommandResponse instance with given string.
-func NewStringResponse(responseContent string) *sarah.CommandResponse {
-	return &sarah.CommandResponse{
-		Content:     responseContent,
-		UserContext: nil,
-	}
-}
-
-// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
+// IsThreadMessage tells if the given message is sent in a thread.
+// If the message is sent in a thread, this is encouraged to reply in a thread.
 //
-// With this method user context is directly stored as an anonymous function since Slack Bot works with single WebSocket connection and hence usually works with single process.
-// To use external storage to store user context, use go-sarah-rediscontext or similar sarah.UserContextStorage implementation.
-func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
-	return &sarah.CommandResponse{
-		Content:     responseContent,
-		UserContext: sarah.NewUserContext(next),
+// NewResponse defaults to defaults to send a response as a thread reply if the input is sent in a thread.
+// Use RespAsThreadReply to specifically switch the behavior.
+func IsThreadMessage(input sarah.Input) bool {
+	m, ok := input.(*MessageInput)
+	if !ok {
+		return false
 	}
+
+	if m.event.ThreadTimeStamp == nil {
+		return false
+	}
+
+	if m.event.ThreadTimeStamp.OriginalValue == m.event.TimeStamp.OriginalValue {
+		return false
+	}
+
+	return true
 }
 
-// NewPostMessageResponse can be used by plugin command to send message with customizable attachments.
-// Use NewStringResponse for simple text response.
-func NewPostMessageResponse(input sarah.Input, message string, attachments []*webapi.MessageAttachment) *sarah.CommandResponse {
-	inputMessage, _ := input.(*MessageInput)
-	return &sarah.CommandResponse{
-		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID, message, attachments),
-		UserContext: nil,
-	}
-}
-
-// NewPostMessageResponseWithNext can be used by plugin command to send message with customizable attachments, and keep the user in the middle of conversation.
-// Use NewStringResponse for simple text response.
+// NewResponse creates *sarah.CommandResponse with given arguments.
+// Simply pass a given sarah.Input instance and a text string to send a string message as a reply.
+// To send a more complicated reply message, pass as many options created by ResponseWith* function as required.
 //
-// With this method user context is directly stored as an anonymous function since Slack Bot works with single WebSocket connection and hence usually works with single process.
-// To use external storage to store user context, use go-sarah-rediscontext or similar sarah.UserContextStorage implementation.
-func NewPostMessageResponseWithNext(input sarah.Input, message string, attachments []*webapi.MessageAttachment, next sarah.ContextualFunc) *sarah.CommandResponse {
-	inputMessage, _ := input.(*MessageInput)
-	return &sarah.CommandResponse{
-		Content:     webapi.NewPostMessageWithAttachments(inputMessage.event.ChannelID, message, attachments),
-		UserContext: sarah.NewUserContext(next),
+// When an input is sent in a thread, this function defaults to send a response as a thread reply.
+// To explicitly change such behavior, use RespAsThreadReply() and RespReplyBroadcast().
+func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.CommandResponse, error) {
+	messageInput, ok := input.(*MessageInput)
+	if !ok {
+		return nil, xerrors.Errorf("%T is not currently supported to automatically generate response", input)
 	}
+
+	stash := &respOptions{
+		attachments: []*webapi.MessageAttachment{},
+		userContext: nil,
+		linkNames:   1, // Linkify channel names and usernames. ref. https://api.slack.com/docs/message-formatting#parsing_modes
+		parseMode:   webapi.ParseModeFull,
+		unfurlLinks: true,
+		unfurlMedia: true,
+	}
+	for _, opt := range options {
+		opt(stash)
+	}
+
+	// Return a simple text response.
+	// This will be sent over WebSocket connection.
+	if len(stash.attachments) == 0 && !stash.replyBroadcast {
+		message := rtmapi.NewOutgoingMessage(messageInput.event.ChannelID, msg)
+		if replyInThread(input, stash) {
+			message.WithThreadTimeStamp(threadTimeStamp(messageInput.event))
+		}
+		return &sarah.CommandResponse{
+			Content:     message,
+			UserContext: stash.userContext,
+		}, nil
+	}
+
+	postMessage := webapi.NewPostMessage(messageInput.event.ChannelID, msg).
+		WithAttachments(stash.attachments).
+		WithLinkNames(stash.linkNames).
+		WithParse(stash.parseMode).
+		WithUnfurlLinks(stash.unfurlLinks).
+		WithUnfurlMedia(stash.unfurlMedia)
+	if replyInThread(input, stash) {
+		postMessage.
+			WithThreadTimeStamp(threadTimeStamp(messageInput.event).String()).
+			WithReplyBroadcast(stash.replyBroadcast)
+	}
+	return &sarah.CommandResponse{
+		Content:     postMessage,
+		UserContext: stash.userContext,
+	}, nil
+}
+
+func replyInThread(input sarah.Input, options *respOptions) bool {
+	// If explicitly set by user, follow such instruction.
+	if options.asThreadReply != nil {
+		return *options.asThreadReply
+	}
+
+	// If input is given in a thread, then reply in thread.
+	if IsThreadMessage(input) {
+		return true
+	}
+
+	// Other post as a stand-alone message.
+	return false
+}
+
+func threadTimeStamp(m *rtmapi.Message) *rtmapi.TimeStamp {
+	if m.ThreadTimeStamp != nil {
+		return m.ThreadTimeStamp
+	}
+	return m.TimeStamp
+}
+
+// RespAsThreadReply indicates that this response is sent as a thread reply.
+func RespAsThreadReply(asReply bool) RespOption {
+	return func(options *respOptions) {
+		options.asThreadReply = &asReply
+	}
+}
+
+// RespReplyBroadcast decides if the thread reply should be broadcasted.
+// To activate this option, RespAsThreadReply() must be set to true.
+func RespReplyBroadcast(broadcast bool) RespOption {
+	return func(options *respOptions) {
+		options.replyBroadcast = broadcast
+	}
+}
+
+// RespWithAttachments adds given attachments to the response.
+func RespWithAttachments(attachments []*webapi.MessageAttachment) RespOption {
+	return func(options *respOptions) {
+		options.attachments = attachments
+	}
+}
+
+// RespWithNext sets given fnc as part of the response's *sarah.UserContext.
+// The next input from the same user will be passed to this fnc.
+// See sarah.UserContextStorage must be present or otherwise, fnc will be ignored.
+func RespWithNext(fnc sarah.ContextualFunc) RespOption {
+	return func(options *respOptions) {
+		options.userContext = &sarah.UserContext{
+			Next: fnc,
+		}
+	}
+}
+
+// RespWithNextSerializable sets given arg as part of the response's *sarah.UserContext.
+// The next input from the same user will be passed to the function defined in the arg.
+// See sarah.UserContextStorage must be present or otherwise, arg will be ignored.
+func RespWithNextSerializable(arg *sarah.SerializableArgument) RespOption {
+	return func(options *respOptions) {
+		options.userContext = &sarah.UserContext{
+			Serializable: arg,
+		}
+	}
+}
+
+// RespWithLinkNames sets given linkNames to the response.
+// Set 1 to linkify channel names and usernames in the response.
+// The default value in this adapter is 1.
+func RespWithLinkNames(linkNames int) RespOption {
+	return func(options *respOptions) {
+		options.linkNames = linkNames
+	}
+}
+
+// RespWithParse sets given mode to the response.
+// The default value in this adapter is webapi.ParseModeFull.
+func RespWithParse(mode webapi.ParseMode) RespOption {
+	return func(options *respOptions) {
+		options.parseMode = mode
+	}
+}
+
+// RespWithUnfurlLinks sets given unfurl value to the response.
+// The default value is this adapter is true.
+func RespWithUnfurlLinks(unfurl bool) RespOption {
+	return func(options *respOptions) {
+		options.unfurlLinks = unfurl
+	}
+}
+
+// RespWithUnfurlMedia sets given unfurl value ot the response.
+// The default value is this adapter is true.
+func RespWithUnfurlMedia(unfurl bool) RespOption {
+	return func(options *respOptions) {
+		options.unfurlMedia = unfurl
+	}
+}
+
+// RespOptions defines function signature that NewResponse's functional option must satisfy.
+type RespOption func(*respOptions)
+
+type respOptions struct {
+	attachments    []*webapi.MessageAttachment
+	userContext    *sarah.UserContext
+	linkNames      int
+	parseMode      webapi.ParseMode
+	unfurlLinks    bool
+	unfurlMedia    bool
+	asThreadReply  *bool
+	replyBroadcast bool
 }
 
 // SlackClient is an interface that covers golack's public methods.

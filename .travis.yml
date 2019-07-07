@@ -6,22 +6,37 @@ go:
   - "1.8"
   - "1.9"
   - "1.10"
-  - "1.11"
+  - "1.11.4"
   - "1.12"
   - "tip"
 
 before_install:
   - export PATH=$HOME/gopath/bin:$PATH
   - go get github.com/mattn/goveralls
+  - go get github.com/modocache/gover
+  - go get github.com/golangci/golangci-lint/cmd/golangci-lint
 
 script:
+  - golangci-lint run
   - go test -race ./...
-  - go test -cover ./...
-  - goveralls -service=travis-ci -ignore=examples/*/*.go,examples/*/*/*.go,examples/*/*/*/*.go
+  - go test -coverprofile=sarah.coverprofile .
+  - go test -coverprofile=alerter.line.coverprofile ./alerter/line
+  - go test -coverprofile=gitter.coverprofile ./gitter
+  - go test -coverprofile=log.coverprofile ./log
+  - go test -coverprofile=retry.coverprofile ./retry
+  - go test -coverprofile=slack.coverprofile ./slack
+  - go test -coverprofile=watchers.coverprofile ./watchers
+  - go test -coverprofile=workers.coverprofile ./workers
+  - gover
+  - goveralls -coverprofile=gover.coverprofile -service=travis-ci -ignore=examples/*/*.go,examples/*/*/*.go,examples/*/*/*/*.go
 
 matrix:
   allow_failures:
    - go: tip
+   - go: "1.7"
+   - go: "1.8"
+   - go: "1.9"
+   - go: "1.10"
 
 git:
   depth: 10

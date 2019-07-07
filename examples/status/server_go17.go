@@ -3,8 +3,7 @@
 package main
 
 import (
-	"github.com/oklahomer/go-sarah"
-	"golang.org/x/net/context"
+	"context"
 	"net/http"
 )
 
@@ -12,9 +11,9 @@ type server struct {
 	sv *http.Server
 }
 
-func newServer(runner sarah.Runner, wsr *workerStats) *server {
+func newServer(wsr *workerStats) *server {
 	mux := http.NewServeMux()
-	setStatusHandler(mux, runner, wsr)
+	setStatusHandler(mux, wsr)
 	return &server{
 		sv: &http.Server{Addr: ":8080", Handler: mux},
 	}

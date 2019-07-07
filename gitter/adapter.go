@@ -1,10 +1,11 @@
 package gitter
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/retry"
-	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 )
 
 // AdapterOption defines function signature that Adapter's functional option must satisfy.
-type AdapterOption func(adapter *Adapter) error
+type AdapterOption func(adapter *Adapter)
 
 // Adapter stores REST/Streaming API clients' instances to let users interact with gitter.
 type Adapter struct {
@@ -31,10 +32,7 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	}
 
 	for _, opt := range options {
-		err := opt(adapter)
-		if err != nil {
-			return nil, err
-		}
+		opt(adapter)
 	}
 
 	return adapter, nil
@@ -73,10 +71,11 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 			log.Errorf("Destination is not instance of Room. %#v.", output.Destination())
 			return
 		}
-		_, _ = adapter.apiClient.PostMessage(ctx, room, content)
+		_, err := adapter.apiClient.PostMessage(ctx, room, content)
+		log.Errorf("Failed posting message to %s: %+v", room.ID, err)
 
 	default:
-		log.Warnf("unexpected output %#v", output)
+		log.Warnf("Unexpected output %#v", output)
 
 	}
 }
@@ -88,7 +87,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			return
 
 		default:
-			log.Infof("connecting to room: %s", room.ID)
+			log.Infof("Connecting to room: %s", room.ID)
 
 			var conn Connection
 			err := retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
@@ -96,7 +95,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 				return e
 			})
 			if err != nil {
-				log.Warnf("could not connect to room: %s. error: %s.", room.ID, err.Error())
+				log.Warnf("Could not connect to room: %s. Error: %+v", room.ID, err)
 				return
 			}
 
@@ -108,32 +107,33 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			// But, the truth is, given error is just a privately defined error instance given by http package.
 			// var errRequestCanceled = errors.New("net/http: request canceled")
 			// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
-			log.Error(connErr.Error())
+			log.Errorf("Disconnected from room %s: %+v", room.ID, connErr)
 
 		}
 	}
 }
 
 func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(sarah.Input) error) error {
-	log.Infof("start receiving message")
+	log.Infof("Start receiving message")
 	for {
 		message, err := messageReceiver.Receive()
 
-		if err == ErrEmptyPayload {
+		var malformedErr *MalformedPayloadError
+		if xerrors.Is(err, ErrEmptyPayload) {
 			// https://developer.gitter.im/docs/streaming-api
 			// Parsers must be tolerant of occasional extra newline characters placed between messages.
 			// These characters are sent as periodic "keep-alive" messages to tell clients and NAT firewalls
 			// that the connection is still alive during low message volume periods.
 			continue
 
-		} else if malformedErr, ok := err.(*MalformedPayloadError); ok {
-			log.Warnf("skipping malformed input: %s", malformedErr)
+		} else if xerrors.As(err, &malformedErr) {
+			log.Warnf("Skipping malformed input: %+v", err)
 			continue
 
 		} else if err != nil {
 			// At this point, assume connection is unstable or is closed.
 			// Let caller proceed to reconnect or quit.
-			return err
+			return xerrors.Errorf("failed to receive input: %w", err)
 
 		}
 
@@ -141,20 +141,49 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 	}
 }
 
-// NewStringResponse creates new sarah.CommandResponse instance with given string.
-func NewStringResponse(responseContent string) *sarah.CommandResponse {
+// NewResponse creates *sarah.CommandResponse with given arguments.
+func NewResponse(content string, options ...RespOption) (*sarah.CommandResponse, error) {
+	stash := &respOptions{
+		userContext: nil,
+	}
+
+	for _, opt := range options {
+		opt(stash)
+	}
+
 	return &sarah.CommandResponse{
-		Content:     responseContent,
-		UserContext: nil,
+		Content:     content,
+		UserContext: stash.userContext,
+	}, nil
+}
+
+// RespWithNext sets given fnc as part of the response's *sarah.UserContext.
+// The next input from the same user will be passed to this fnc.
+// See sarah.UserContextStorage must be present or otherwise, fnc will be ignored.
+func RespWithNext(fnc sarah.ContextualFunc) RespOption {
+	return func(options *respOptions) {
+		options.userContext = &sarah.UserContext{
+			Next: fnc,
+		}
 	}
 }
 
-// NewStringResponseWithNext creates new sarah.CommandResponse instance with given string and next function to continue
-func NewStringResponseWithNext(responseContent string, next sarah.ContextualFunc) *sarah.CommandResponse {
-	return &sarah.CommandResponse{
-		Content:     responseContent,
-		UserContext: sarah.NewUserContext(next),
+// RespWithNextSerializable sets given arg as part of the response's *sarah.UserContext.
+// The next input from the same user will be passed to the function defined in the arg.
+// See sarah.UserContextStorage must be present or otherwise, arg will be ignored.
+func RespWithNextSerializable(arg *sarah.SerializableArgument) RespOption {
+	return func(options *respOptions) {
+		options.userContext = &sarah.UserContext{
+			Serializable: arg,
+		}
 	}
+}
+
+// RespOptions defines function signature that NewResponse's functional option must satisfy.
+type RespOption func(*respOptions)
+
+type respOptions struct {
+	userContext *sarah.UserContext
 }
 
 // APIClient is an interface that Rest API client must satisfy.

@@ -4,14 +4,6 @@
 [![Coverage Status](https://coveralls.io/repos/github/oklahomer/go-sarah/badge.svg?branch=master)](https://coveralls.io/github/oklahomer/go-sarah?branch=master)
 [![Maintainability](https://api.codeclimate.com/v1/badges/a2f0df359bec1552b28f/maintainability)](https://codeclimate.com/github/oklahomer/go-sarah/maintainability) [![Join the chat at https://gitter.im/go-sarah-dev/community](https://badges.gitter.im/go-sarah-dev/community.svg)](https://gitter.im/go-sarah-dev/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-# IMPORTANT NOTICE
-A next major version, 2.0.0, is on its way to release.
-For those who are developing with go-sarah for the first time or planning to use go-sarah in the near future, this is encouraged to see the latest version of [v2.0.0](https://github.com/oklahomer/go-sarah/tree/v2.0.0) branch.
-
-A pull reqeust for [2.0.0 release](https://github.com/oklahomer/go-sarah/pull/85) will help existing developers understand how new features work.
-
-The work is almost done. The pull reqeuest will be merged to master branch shortly and 2.0.0 will be officially released once wiki pages are updated.
-
 # Introduction
 Sarah is a general purpose bot framework named after author's firstborn daughter.
 
@@ -53,10 +45,10 @@ For more practical examples, see [./examples](https://github.com/oklahomer/go-sa
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
-	"golang.org/x/net/context"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -76,38 +68,32 @@ func main() {
 	cacheConfig := sarah.NewCacheConfig()
 	storage := sarah.NewUserContextStorage(cacheConfig)
 
-	// A helper to stash sarah.RunnerOptions for later use.
-	options := sarah.NewRunnerOptions()
-
 	// Setup Bot with slack adapter and default storage.
 	bot, err := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
 	if err != nil {
 		panic(fmt.Errorf("faileld to setup Slack Bot: %s", err.Error()))
 	}
-	options.Append(sarah.WithBot(bot))
+	sarah.RegisterBot(bot)
 
 	// Setup .hello command
 	hello := &HelloCommand{}
-	bot.AppendCommand(hello)
-
+	sarah.RegisterCommand(slack.SLACK, hello)
+	
 	// Setup properties to setup .guess command on the fly
-	options.Append(sarah.WithCommandProps(GuessProps))
+	sarah.RegisterCommandProps(GuessProps)
 
-	// Setup sarah.Runner.
-	runnerConfig := sarah.NewConfig()
-	runner, err := sarah.NewRunner(runnerConfig, options.Arg())
+	// Run
+	config := sarah.NewConfig()
+	err = sarah.Run(context.TODO(), config)
 	if err != nil {
-		panic(fmt.Errorf("failed to initialize Runner: %s", err.Error()))
+		panic(fmt.Errorf("failed to run: %s", err.Error()))
 	}
-
-	// Run sarah.Runner.
-	runner.Run(context.TODO())
 }
 
 var GuessProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("guess").
-	InputExample(".guess").
+	Instruction("Input .guess to start a game.").
 	MatchFunc(func(input sarah.Input) bool {
 		return strings.HasPrefix(strings.TrimSpace(input.Message()), ".guess")
 	}).
@@ -117,9 +103,9 @@ var GuessProps = sarah.NewCommandPropsBuilder().
 		answer := rand.Intn(10)
 
 		// Let user guess the right answer.
-		return slack.NewStringResponseWithNext("Input number.", func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+		return slack.NewResponse(input, "Input number.", slack.RespWithNext(func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error){
 			return guessFunc(c, i, answer)
-		}), nil
+		}))
 	}).
 	MustBuild()
 
@@ -132,17 +118,17 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 	// See if user inputs valid number.
 	guess, err := strconv.Atoi(strings.TrimSpace(input.Message()))
 	if err != nil {
-		return slack.NewStringResponseWithNext("Invalid input format.", retry), nil
+		return slack.NewResponse(input, "Invalid input format.", slack.RespWithNext(retry))
 	}
 
 	// If guess is right, tell user and finish current user context.
 	// Otherwise let user input next guess with bit of a hint.
 	if guess == answer {
-		return slack.NewStringResponse("Correct!"), nil
+		return slack.NewResponse(input, "Correct!")
 	} else if guess > answer {
-		return slack.NewStringResponseWithNext("Smaller!", retry), nil
+		return slack.NewResponse(input, "Smaller!", slack.RespWithNext(retry))
 	} else {
-		return slack.NewStringResponseWithNext("Bigger!", retry), nil
+		return slack.NewResponse(input, "Bigger!", slack.RespWithNext(retry))
 	}
 }
 
@@ -155,17 +141,23 @@ func (hello *HelloCommand) Identifier() string {
 	return "hello"
 }
 
-func (hello *HelloCommand) Execute(context.Context, sarah.Input) (*sarah.CommandResponse, error) {
-	return slack.NewStringResponse("Hello!"), nil
+func (hello *HelloCommand) Execute(_ context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
+	return slack.NewResponse(i, "Hello!")
 }
 
-func (hello *HelloCommand) InputExample() string {
-	return ".hello"
+func (hello *HelloCommand) Instruction(input *sarah.HelpInput) string {
+	if 12 < input.SentAt().Hour() {
+		// This command is only active in the morning.
+		// Do not show instruction in the afternoon.
+		return ""
+	}
+	return "Input .hello to greet"
 }
 
 func (hello *HelloCommand) Match(input sarah.Input) bool {
 	return strings.TrimSpace(input.Message()) == ".hello"
 }
+
 ```
 
 # Overview
@@ -176,7 +168,7 @@ In addition to those features, this provides rich life cycle management includin
 `go-sarah` is composed of fine grained components to provide above features.
 Those components have their own interfaces and default implementations, so developers are free to customize bot behavior by supplying own implementation.
 
-![component diagram](/doc/uml/component.png)
+![component diagram](/doc/uml/components.png)
 
 Follow below links for details:
 - [Project wiki](https://github.com/oklahomer/go-sarah/wiki)

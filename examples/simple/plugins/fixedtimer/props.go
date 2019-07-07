@@ -8,11 +8,15 @@ Schedule never changes no matter how many times the configuration file, fixed_ti
 package fixedtimer
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/golack/slackobject"
-	"golang.org/x/net/context"
 )
+
+func init() {
+	sarah.RegisterScheduledTaskProps(SlackProps)
+}
 
 type timerConfig struct {
 	ChannelID slackobject.ChannelID `yaml:"channel_id"`

@@ -1,19 +1,19 @@
 /*
-Package main provides an example that uses Runner.Status()
-to return current sarah.Runner and its belonging Bot status via HTTP server.
+Package main provides an example that uses sarah.CurrentStatus() to get current go-sarah and its belonging Bot's status via HTTP server.
 
-In this example two bots, slack and nullBot, are registered to sarah.Runner and become subject to supervise.
+In this example two bots, slack and nullBot, are registered to go-sarah and become subject to supervise.
 See handler.go for Runner.Status() usage.
 */
 package main
 
 import (
+	"context"
 	"flag"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/log"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/go-sarah/workers"
-	"golang.org/x/net/context"
+	"golang.org/x/xerrors"
 	"os"
 	"os/signal"
 	"time"
@@ -35,19 +35,16 @@ func main() {
 		panic(err)
 	}
 
-	// A handy struct that stores all sarah.RunnerOption to be passed to sarah.Runner
-	runnerOptions := sarah.NewRunnerOptions()
-
 	// Setup a bot
 	nullBot := &nullBot{}
-	runnerOptions.Append(sarah.WithBot(nullBot))
+	sarah.RegisterBot(nullBot)
 
 	// Setup another bot
 	slackBot, err := setupSlackBot(cfg)
 	if err != nil {
 		panic(err)
 	}
-	runnerOptions.Append(sarah.WithBot(slackBot))
+	sarah.RegisterBot(slackBot)
 
 	// Setup worker
 	workerReporter := &workerStats{}
@@ -56,19 +53,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	runnerOptions.Append(sarah.WithWorker(worker))
+	sarah.RegisterWorker(worker)
 
 	// Setup a Runner to run and supervise above bots
-	runner, err := sarah.NewRunner(cfg.Runner, runnerOptions.Arg())
+	err = sarah.Run(ctx, cfg.Runner)
 	if err != nil {
 		panic(err)
 	}
 
-	// Run sarah.Runner
-	go runner.Run(ctx)
-
 	// Run HTTP server that reports current status
-	server := newServer(runner, workerReporter)
+	server := newServer(workerReporter)
 	go server.Run(ctx)
 
 	// Wait til signal reception
@@ -86,11 +80,11 @@ func setupSlackBot(cfg *config) (sarah.Bot, error) {
 	storage := sarah.NewUserContextStorage(cfg.ContextCache)
 	slackAdapter, err := slack.NewAdapter(cfg.Slack)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed to initialize Slack adapter: %w", err)
 	}
 	slackBot, err := sarah.NewBot(slackAdapter, sarah.BotWithStorage(storage))
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed to initialize Bot with given Slack adapter: %w", err)
 	}
 	return slackBot, nil
 }

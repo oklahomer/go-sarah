@@ -4,14 +4,13 @@ go 1.11
 
 require (
 	github.com/fsnotify/fsnotify v1.4.7
-	github.com/gorilla/websocket v1.4.0 // indirect
-	github.com/oklahomer/cron v0.0.0-20170121044010-e6e3d632402c
-	github.com/oklahomer/golack v0.0.0-20180603071311-54f1368ad24f
+	github.com/kr/pretty v0.1.0 // indirect
+	github.com/kr/pty v1.1.5 // indirect
+	github.com/oklahomer/golack v0.0.0-20190629020339-9fd6087c8776
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/stretchr/testify v1.3.0 // indirect
-	github.com/tidwall/gjson v1.2.1 // indirect
-	github.com/tidwall/match v1.0.1 // indirect
-	github.com/tidwall/pretty v0.0.0-20190325153808-1166b9ac2b65 // indirect
-	golang.org/x/net v0.0.0-20190424112056-4829fb13d2c6
+	github.com/robfig/cron/v3 v3.0.0-rc1
+	golang.org/x/sys v0.0.0-20190626221950-04f50cda93cb // indirect
+	golang.org/x/xerrors v0.0.0-20190513163551-3ee3066db522
+	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/yaml.v2 v2.2.2
 )

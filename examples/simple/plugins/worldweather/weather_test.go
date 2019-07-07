@@ -2,13 +2,13 @@ package worldweather
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"github.com/oklahomer/go-sarah"
 	"github.com/oklahomer/go-sarah/slack"
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"
 	"github.com/oklahomer/golack/webapi"
-	"golang.org/x/net/context"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
@@ -16,7 +16,7 @@ import (
 )
 
 func TestSlackCommandFunc(t *testing.T) {
-	path, err := filepath.Abs(filepath.Join("..", "..", "testdata", "plugins", "worldweather", "weather.json"))
+	path, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "testdata", "examples", "simple", "plugins", "worldweather", "weather.json"))
 	if err != nil {
 		t.Fatalf("Test file could not be located: %s.", err.Error())
 	}
@@ -41,7 +41,7 @@ func TestSlackCommandFunc(t *testing.T) {
 		slack.NewMessageInput(
 			&rtmapi.Message{
 				ChannelID: slackobject.ChannelID("dummy"),
-				Sender:    slackobject.UserID("user"),
+				SenderID:  slackobject.UserID("user"),
 				Text:      ".weather tokyo",
 			},
 		),
@@ -97,7 +97,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			slack.NewMessageInput(
 				&rtmapi.Message{
 					ChannelID: slackobject.ChannelID("dummy"),
-					Sender:    slackobject.UserID("user"),
+					SenderID:  slackobject.UserID("user"),
 					Text:      ".weather tokyo",
 				},
 			),
@@ -114,7 +114,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			t.Fatal("Expected response is not returned.")
 		}
 
-		if _, ok := response.Content.(string); !ok {
+		if _, ok := response.Content.(*rtmapi.OutgoingMessage); !ok {
 			t.Errorf("Unexpected content type is returned %#v.", response.Content)
 		}
 
@@ -141,7 +141,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			slack.NewMessageInput(
 				&rtmapi.Message{
 					ChannelID: slackobject.ChannelID("dummy"),
-					Sender:    slackobject.UserID("user"),
+					SenderID:  slackobject.UserID("user"),
 					Text:      "tokyo",
 				},
 			),
@@ -155,7 +155,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			t.Fatal("Expected response is not returned.")
 		}
 
-		if _, ok := response.Content.(string); !ok {
+		if _, ok := response.Content.(*rtmapi.OutgoingMessage); !ok {
 			t.Errorf("Unexpected content type is returned %#v.", response.Content)
 		}
 

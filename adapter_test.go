@@ -1,6 +1,6 @@
 package sarah
 
-import "golang.org/x/net/context"
+import "context"
 
 type DummyAdapter struct {
 	BotTypeValue    BotType

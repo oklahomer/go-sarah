@@ -1,0 +1,7 @@
+issues:
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    # Exclude some staticcheck messages
+    - linters:
+        - staticcheck
+      text: "SA1019:" # Ignore https://golang.org/doc/go1.12#regexp to support Golang 1.11 and older.

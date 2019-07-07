@@ -4,16 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah"
+	"golang.org/x/xerrors"
 	"io"
 	"time"
 )
 
 var (
 	// ErrEmptyPayload is an error that represents empty payload.
-	ErrEmptyPayload = errors.New("empty payload was given")
+	ErrEmptyPayload = xerrors.New("empty payload was given")
 )
 
 // MessageReceiver defines an interface that receives RoomMessage.

@@ -1,8 +1,8 @@
 package main
 
 import (
+	"context"
 	"github.com/oklahomer/go-sarah/workers"
-	"golang.org/x/net/context"
 	"sync"
 	"time"
 )
