@@ -10,6 +10,9 @@ Sarah is a general purpose bot framework named after author's firstborn daughter
 
 While the first goal is to prep the author to write Go-ish code, the second goal is to provide a simple yet highly customizable bot framework.
 
+# IMPORTANT NOTICE
+This is the second major version of go-sarah. If you are using the previous version of it, take a look at [Mitrating from v1.x to v2.x](https://github.com/oklahomer/go-sarah/wiki/Mitrating-from-v1.x-to-v2.x) to migrate to the newer version.
+
 # Supported Chat Services/Protocols
 Although a developer may implement `sarah.Adapter` to integrate with the desired chat service,
 some adapters are provided as reference implementations:
