@@ -9,8 +9,8 @@ package fixedtimer
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/slack"
 	"github.com/oklahomer/golack/slackobject"
 )
 

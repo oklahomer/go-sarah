@@ -186,7 +186,7 @@ func SetLogger(l Logger) {
 // Example follows.
 //
 //	import (
-//		"github.com/oklahomer/go-sarah/log"
+//		"github.com/oklahomer/go-sarah/v2/log"
 //		"io/ioutil"
 //		stdLogger "log"
 //		"os"

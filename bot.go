@@ -2,7 +2,7 @@ package sarah
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/log"
+	"github.com/oklahomer/go-sarah/v2/log"
 )
 
 // Bot provides an interface that each bot implementation must satisfy.

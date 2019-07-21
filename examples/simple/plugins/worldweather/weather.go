@@ -12,8 +12,8 @@ However, to read the configuration on the fly, sarah.ConfigWatcher's implementat
   package main
 
   import (
-    _ "github.com/oklahomer/go-sarah/examples/simple/plugins/worldweather"
-    "github.com/oklahomer/go-sarah/watchers"
+    _ "github.com/oklahomer/go-sarah/v2/examples/simple/plugins/worldweather"
+    "github.com/oklahomer/go-sarah/v2/watchers"
   )
 
   func main() {
@@ -30,9 +30,9 @@ package worldweather
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/log"
-	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/log"
+	"github.com/oklahomer/go-sarah/v2/slack"
 	"github.com/oklahomer/golack/webapi"
 	"regexp"
 	"time"

@@ -48,8 +48,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/slack"
 	
 	"os"
 	"os/signal"
@@ -114,8 +114,8 @@ package guess
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/slack"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -176,8 +176,8 @@ package hello
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/slack"
 	"strings"
 )
 
