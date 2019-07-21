@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/log"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/log"
 	"net/http"
 	"runtime"
 )

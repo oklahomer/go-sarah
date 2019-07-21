@@ -2,9 +2,9 @@ package gitter
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/log"
-	"github.com/oklahomer/go-sarah/retry"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/log"
+	"github.com/oklahomer/go-sarah/v2/retry"
 	"golang.org/x/xerrors"
 )
 

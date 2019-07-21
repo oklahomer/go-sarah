@@ -3,9 +3,9 @@ package slack
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/log"
-	"github.com/oklahomer/go-sarah/retry"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/log"
+	"github.com/oklahomer/go-sarah/v2/retry"
 	"github.com/oklahomer/golack"
 	"github.com/oklahomer/golack/rtmapi"
 	"github.com/oklahomer/golack/slackobject"

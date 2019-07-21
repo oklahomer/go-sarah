@@ -8,8 +8,8 @@ package morning
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah"
-	"github.com/oklahomer/go-sarah/slack"
+	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v2/slack"
 	"strings"
 	"time"
 )

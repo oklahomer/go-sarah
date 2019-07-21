@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/oklahomer/go-sarah/log"
+	"github.com/oklahomer/go-sarah/v2/log"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
