@@ -4,6 +4,7 @@ sudo: false
 go:
   - "1.11.4"
   - "1.12"
+  - "1.13"
   - "tip"
 
 before_install:
