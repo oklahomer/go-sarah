@@ -26,8 +26,9 @@ func (err *ConfigNotFoundError) Error() string {
 
 var _ error = (*ConfigNotFoundError)(nil)
 
-// ConfigWatcher provides an interface for such component that subscribes to any changes for Command and ScheduledTask.
-// One example could be watchers.fileWatcher that subscribes to directory changes.
+// ConfigWatcher provides an interface for such a component that subscribes to any changes for configuration value of Command and ScheduledTask.
+// One example could be watchers.fileWatcher that subscribes to directory changes:
+// while another reference implementation to subscribe changes on GitHub repository is hosted at https://github.com/oklahomer/go-sarah-githubconfig .
 type ConfigWatcher interface {
 	// Read reads the latest configuration value and apply that value to configPtr.
 	Read(botCtx context.Context, botType BotType, id string, configPtr interface{}) error
