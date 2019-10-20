@@ -6,12 +6,19 @@
 [![Join the chat at https://gitter.im/go-sarah-dev/community](https://badges.gitter.im/go-sarah-dev/community.svg)](https://gitter.im/go-sarah-dev/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 # Introduction
-Sarah is a general purpose bot framework named after author's firstborn daughter.
+Sarah is a general-purpose bot framework named after the author's firstborn daughter.
 
-While the first goal is to prep the author to write Go-ish code, the second goal is to provide a simple yet highly customizable bot framework.
+This comes with a unique feature called "stateful command" as well as some basic features such as command and scheduled task.
+In addition to those fundamental features, this project provides rich life cycle management including _**[live configuration update](https://github.com/oklahomer/go-sarah/wiki/Live-Configuration-Update)**_, _**[customizable alerting mechanism](https://github.com/oklahomer/go-sarah/wiki/Alerter)**_, _**automated [command](https://github.com/oklahomer/go-sarah/wiki/CommandPropsBuilder)\/[task](https://github.com/oklahomer/go-sarah/wiki/ScheduledTaskPropsBuilder) (re-)building**_, and _**[panic-proofed concurrent command/task execution](https://github.com/oklahomer/go-sarah/wiki/Worker)**_.
+
+Such features are achieved with a composition of fine-grained components.
+Each component has its own interface and a default implementation, so developers are free to customize their bot experience by replacing the default implementation for a particular component with their own implementation.
+Thanks to such segmentalized lifecycle management architecture, the [adapter component](https://github.com/oklahomer/go-sarah/wiki/Default-Bot-and-Adapter) to interact with each chat service has fewer responsibilities comparing to other bot frameworks;
+An adapter developer may focus on implementing the protocol to interacting with the corresponding chat service.
+To take a look at those components and their relations, see [Components](https://github.com/oklahomer/go-sarah/wiki/Components).
 
 # IMPORTANT NOTICE
-This is the second major version of go-sarah. If you are using the previous version of it, take a look at [Mitrating from v1.x to v2.x](https://github.com/oklahomer/go-sarah/wiki/Mitrating-from-v1.x-to-v2.x) to migrate to the newer version.
+This is the second major version of `go-sarah`. If you are using the previous version of it, take a look at [Migrating from v1.x to v2.x](https://github.com/oklahomer/go-sarah/wiki/Migrating-from-v1.x-to-v2.x) to migrate to the newer version.
 
 # Supported Chat Services/Protocols
 Although a developer may implement `sarah.Adapter` to integrate with the desired chat service,
@@ -22,22 +29,25 @@ some adapters are provided as reference implementations:
 - [LINE](https://github.com/oklahomer/go-sarah-line)
 
 # At a Glance
+## General Command Execution
 ![hello world](/doc/img/hello.png)
 
 Above is a general use of `go-sarah`.
 Registered commands are checked against user input and matching one is executed;
 when a user inputs ".hello," hello command is executed and a message "Hello, 世界" is returned.
 
-Below image depicts how a command with user's **conversational context** works.
-The idea and implementation of "user's conversational context" is go-sarah's signature feature that makes bot command "**state-aware**."
+## Stateful Command Execution
+The below image depicts how a command with a user's **conversational context** works.
+The idea and implementation of "user's conversational context" is `go-sarah`'s signature feature that makes bot command "**state-aware**."
 
 ![](/doc/img/todo_captioned.png)
 
-Above example is a good way to let user input series of arguments in a conversational manner.
+The above example is a good way to let a user input a series of arguments in a conversational manner.
 Below is another example that uses a stateful command to entertain the user.
 
 ![](/doc/img/guess_captioned.png)
 
+## Example Code
 Following is the minimal code that implements such general command and stateful command introduced above.
 In this example, two ways to implement [`sarah.Command`](https://github.com/oklahomer/go-sarah/wiki/Command) are shown.
 One simply implements `sarah.Command` interface; while another uses `sarah.CommandPropsBuilder` for lazy construction.
@@ -216,17 +226,7 @@ func (hello *command) Match(input sarah.Input) bool {
 
 ```
 
-# Overview
-`go-sarah` is a general purpose bot framework that enables developers to create and customize their own bot experiences with any chat service.
-This comes with a unique feature called "_**stateful command**_" as well as some basic features such as _**command**_ and _**scheduled task**_.
-In addition to those features, this provides rich life cycle management including _**live configuration update**_, _**customizable alerting mechanism**_, _**automated command/task (re-)building**_ and _**concurrent command/task execution**_.
-
-`go-sarah` is composed of fine-grained components to provide the above features.
-Those components have their own interfaces and default implementations, so developers are free to customize bot behavior by supplying own implementation.
-
-![component diagram](/doc/uml/components.png)
-
-Follow below links for details:
+# Further Readings
 - [Project wiki](https://github.com/oklahomer/go-sarah/wiki)
 - [GoDoc](https://godoc.org/github.com/oklahomer/go-sarah)
 - [Example codes](https://github.com/oklahomer/go-sarah/tree/master/examples)
