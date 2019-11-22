@@ -280,8 +280,8 @@ func (r *runner) run(ctx context.Context) {
 
 		go func(b Bot) {
 			defer func() {
-				wg.Done()
 				runnerStatus.stopBot(b)
+				wg.Done()
 			}()
 
 			runnerStatus.addBot(b)
