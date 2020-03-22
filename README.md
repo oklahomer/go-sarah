@@ -226,6 +226,17 @@ func (hello *command) Match(input sarah.Input) bool {
 
 ```
 
+# Supported Golang Versions
+Official [Release Policy](https://golang.org/doc/devel/release.html#policy) says "each major Go release is supported
+until there are two newer major releases." Following this policy would help this project enjoy the improvements
+introduced in the later versions. However, not all projects can immediately switch to a newer environment. 
+Migration could especially be difficult when this project cuts off the older version's support right after a new major Go
+release.
+
+As a transition period, this project includes support for one older version than Go project does.
+Such a version is guaranteed to be listed in [.travis.ci](https://github.com/oklahomer/go-sarah/blob/master/.travis.yml).
+In other words, new features/interfaces introduced in 1.10 can be used in this project only after 1.12 is out.
+
 # Further Readings
 - [Project wiki](https://github.com/oklahomer/go-sarah/wiki)
 - [GoDoc](https://godoc.org/github.com/oklahomer/go-sarah)

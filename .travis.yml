@@ -2,9 +2,9 @@ language: go
 sudo: false
 
 go:
-  - "1.11.4"
   - "1.12"
   - "1.13"
+  - "1.14"
   - "tip"
 
 before_install:
