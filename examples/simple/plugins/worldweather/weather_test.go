@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"github.com/oklahomer/go-sarah/v2"
 	"github.com/oklahomer/go-sarah/v2/slack"
-	"github.com/oklahomer/golack/rtmapi"
-	"github.com/oklahomer/golack/slackobject"
-	"github.com/oklahomer/golack/webapi"
+	"github.com/oklahomer/golack/v2/event"
+	"github.com/oklahomer/golack/v2/rtmapi"
+	"github.com/oklahomer/golack/v2/webapi"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
@@ -39,9 +39,9 @@ func TestSlackCommandFunc(t *testing.T) {
 	response, err := SlackCommandFunc(
 		context.TODO(),
 		slack.NewMessageInput(
-			&rtmapi.Message{
-				ChannelID: slackobject.ChannelID("dummy"),
-				SenderID:  slackobject.UserID("user"),
+			&event.Message{
+				ChannelID: "dummy",
+				SenderID:  "user",
 				Text:      ".weather tokyo",
 			},
 		),
@@ -95,9 +95,9 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 		response, err := SlackCommandFunc(
 			context.TODO(),
 			slack.NewMessageInput(
-				&rtmapi.Message{
-					ChannelID: slackobject.ChannelID("dummy"),
-					SenderID:  slackobject.UserID("user"),
+				&event.Message{
+					ChannelID: "dummy",
+					SenderID:  "user",
 					Text:      ".weather tokyo",
 				},
 			),
@@ -139,9 +139,9 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 		response, err := response.UserContext.Next(
 			context.TODO(),
 			slack.NewMessageInput(
-				&rtmapi.Message{
-					ChannelID: slackobject.ChannelID("dummy"),
-					SenderID:  slackobject.UserID("user"),
+				&event.Message{
+					ChannelID: "dummy",
+					SenderID:  "user",
 					Text:      "tokyo",
 				},
 			),

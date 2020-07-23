@@ -7,9 +7,9 @@ import (
 	"github.com/oklahomer/go-sarah/v2"
 	"github.com/oklahomer/go-sarah/v2/log"
 	"github.com/oklahomer/go-sarah/v2/retry"
-	"github.com/oklahomer/golack/rtmapi"
-	"github.com/oklahomer/golack/slackobject"
-	"github.com/oklahomer/golack/webapi"
+	"github.com/oklahomer/golack/v2/event"
+	"github.com/oklahomer/golack/v2/rtmapi"
+	"github.com/oklahomer/golack/v2/webapi"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
@@ -34,17 +34,12 @@ func TestMain(m *testing.M) {
 }
 
 type DummyClient struct {
-	StartRTMSessionFunc func(context.Context) (*webapi.RTMStart, error)
-	ConnectRTMFunc      func(context.Context, string) (rtmapi.Connection, error)
-	PostMessageFunc     func(context.Context, *webapi.PostMessage) (*webapi.APIResponse, error)
+	ConnectRTMFunc  func(context.Context) (rtmapi.Connection, error)
+	PostMessageFunc func(context.Context, *webapi.PostMessage) (*webapi.APIResponse, error)
 }
 
-func (client *DummyClient) StartRTMSession(ctx context.Context) (*webapi.RTMStart, error) {
-	return client.StartRTMSessionFunc(ctx)
-}
-
-func (client *DummyClient) ConnectRTM(ctx context.Context, url string) (rtmapi.Connection, error) {
-	return client.ConnectRTMFunc(ctx, url)
+func (client *DummyClient) ConnectRTM(ctx context.Context) (rtmapi.Connection, error) {
+	return client.ConnectRTMFunc(ctx)
 }
 
 func (client *DummyClient) PostMessage(ctx context.Context, message *webapi.PostMessage) (*webapi.APIResponse, error) {
@@ -330,8 +325,8 @@ func TestAdapter_receivePayload_Error(t *testing.T) {
 
 	i := 0
 	errs := []error{
-		rtmapi.ErrEmptyPayload,
-		rtmapi.NewMalformedPayloadError("dummy"),
+		event.ErrEmptyPayload,
+		event.NewMalformedPayloadError("dummy"),
 		&rtmapi.UnexpectedMessageTypeError{},
 		errors.New("random error"),
 	}
@@ -370,12 +365,7 @@ func TestAdapter_Run(t *testing.T) {
 	}
 
 	client := &DummyClient{
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
-			return &webapi.RTMStart{
-				URL: "ws://localhost/dummy",
-			}, nil
-		},
-		ConnectRTMFunc: func(_ context.Context, _ string) (rtmapi.Connection, error) {
+		ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
 			return conn, nil
 		},
 	}
@@ -414,47 +404,6 @@ func TestAdapter_Run(t *testing.T) {
 	}
 }
 
-func TestAdapter_Run_ConnectionInitializationError(t *testing.T) {
-	client := &DummyClient{
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
-			return nil, errors.New("failed to fetch RTM information")
-		},
-	}
-
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-
-	adapter := &Adapter{
-		config: &Config{
-			RetryPolicy: &retry.Policy{
-				Trial: 1,
-			},
-		},
-		client: client,
-	}
-
-	errCh := make(chan error)
-	go adapter.Run(
-		ctx,
-		func(_ sarah.Input) error {
-			return nil
-		},
-		func(err error) {
-			errCh <- err
-		},
-	)
-
-	time.Sleep(100 * time.Millisecond)
-
-	cancel()
-
-	select {
-	case <-errCh:
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Expected error did not occur.")
-	}
-}
-
 func TestAdapter_Run_ConnectionAbortionError(t *testing.T) {
 	closeCh := make(chan struct{})
 	conn := &DummyConnection{
@@ -471,12 +420,7 @@ func TestAdapter_Run_ConnectionAbortionError(t *testing.T) {
 	}
 
 	client := &DummyClient{
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
-			return &webapi.RTMStart{
-				URL: "ws://localhost/dummy",
-			}, nil
-		},
-		ConnectRTMFunc: func(_ context.Context, _ string) (rtmapi.Connection, error) {
+		ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
 			return conn, nil
 		},
 	}
@@ -520,7 +464,7 @@ func TestAdapter_SendMessage_String(t *testing.T) {
 		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
 	}
 
-	output := sarah.NewOutputMessage(slackobject.ChannelID("ch"), "test")
+	output := sarah.NewOutputMessage(event.ChannelID("ch"), "test")
 	adapter.SendMessage(context.TODO(), output)
 	select {
 	case <-adapter.messageQueue:
@@ -545,7 +489,7 @@ func TestAdapter_SendMessage_OutgoingMessage(t *testing.T) {
 	}
 
 	message := rtmapi.NewOutgoingMessage("channel", "test")
-	output := sarah.NewOutputMessage(slackobject.ChannelID("channel"), message)
+	output := sarah.NewOutputMessage(event.ChannelID("channel"), message)
 	adapter.SendMessage(context.TODO(), output)
 	select {
 	case passed := <-adapter.messageQueue:
@@ -561,7 +505,7 @@ func TestAdapter_SendMessage_OutgoingMessage(t *testing.T) {
 
 func TestAdapter_SendMessage_PostMessage(t *testing.T) {
 	tests := []struct {
-		channelID slackobject.ChannelID
+		channelID event.ChannelID
 		err       error
 		response  *webapi.APIResponse
 	}{
@@ -635,7 +579,7 @@ func TestAdapter_SendMessage_CommandHelps(t *testing.T) {
 		t.Fatal("Invalid output reached Client.PostMessage.")
 	}
 
-	adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(slackobject.ChannelID("test"), helps))
+	adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(event.ChannelID("test"), helps))
 	if !called {
 		t.Fatal("Client.PostMessage is not called.")
 	}
@@ -653,7 +597,7 @@ func TestAdapter_SendMessage_IrrelevantType(t *testing.T) {
 		},
 	}
 
-	adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(slackobject.ChannelID("validID"), struct{}{}))
+	adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(event.ChannelID("validID"), struct{}{}))
 
 	if postMessageCalled {
 		t.Fatal("Invalid content reached Client.PostMessage")
@@ -672,14 +616,14 @@ func TestMessageInput(t *testing.T) {
 	senderID := "who"
 	content := "Hello, 世界"
 	timestamp := time.Now()
-	rtmMessage := &rtmapi.Message{
-		TypedEvent: rtmapi.TypedEvent{
-			Type: rtmapi.MessageEvent,
+	rtmMessage := &event.Message{
+		TypedEvent: event.TypedEvent{
+			Type: "message",
 		},
-		ChannelID: slackobject.ChannelID(channelID),
-		SenderID:  slackobject.UserID(senderID),
+		ChannelID: event.ChannelID(channelID),
+		SenderID:  event.UserID(senderID),
 		Text:      content,
-		TimeStamp: &rtmapi.TimeStamp{
+		TimeStamp: &event.TimeStamp{
 			Time:          timestamp,
 			OriginalValue: timestamp.String() + ".99999",
 		},
@@ -695,7 +639,7 @@ func TestMessageInput(t *testing.T) {
 		t.Errorf("Unexpected Message is returned: %s.", input.Message())
 	}
 
-	if string(input.ReplyTo().(slackobject.ChannelID)) != channelID {
+	if string(input.ReplyTo().(event.ChannelID)) != channelID {
 		t.Errorf("Unexpected ReplyTo is returned: %s.", input.ReplyTo())
 	}
 
@@ -706,11 +650,8 @@ func TestMessageInput(t *testing.T) {
 
 func TestAdapter_connect(t *testing.T) {
 	client := &DummyClient{
-		ConnectRTMFunc: func(_ context.Context, _ string) (rtmapi.Connection, error) {
+		ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
 			return &DummyConnection{}, nil
-		},
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
-			return &webapi.RTMStart{}, nil
 		},
 	}
 
@@ -736,7 +677,7 @@ func TestAdapter_connect(t *testing.T) {
 func TestAdapter_connect_error(t *testing.T) {
 	expected := errors.New("expected error")
 	client := &DummyClient{
-		StartRTMSessionFunc: func(_ context.Context) (*webapi.RTMStart, error) {
+		ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
 			return nil, expected
 		},
 	}
@@ -772,8 +713,8 @@ func Test_handlePayload(t *testing.T) {
 		inputType reflect.Type
 	}{
 		{
-			payload: &rtmapi.WebSocketOKReply{
-				WebSocketReply: rtmapi.WebSocketReply{
+			payload: &rtmapi.OKReply{
+				Reply: rtmapi.Reply{
 					ReplyTo: 1,
 					OK:      true,
 				},
@@ -782,12 +723,12 @@ func Test_handlePayload(t *testing.T) {
 			inputType: nil,
 		},
 		{
-			payload: &rtmapi.WebSocketNGReply{
-				WebSocketReply: rtmapi.WebSocketReply{
+			payload: &rtmapi.NGReply{
+				Reply: rtmapi.Reply{
 					ReplyTo: 1,
 					OK:      false,
 				},
-				ErrorReason: struct {
+				Error: struct {
 					Code    int    `json:"code"`
 					Message string `json:"msg"`
 				}{
@@ -802,40 +743,40 @@ func Test_handlePayload(t *testing.T) {
 			inputType: nil,
 		},
 		{
-			payload: &rtmapi.Message{
-				ChannelID: slackobject.ChannelID("abc"),
-				SenderID:  slackobject.UserID("cde"),
+			payload: &event.Message{
+				ChannelID: event.ChannelID("abc"),
+				SenderID:  event.UserID("cde"),
 				Text:      helpCommand,
-				TimeStamp: &rtmapi.TimeStamp{
+				TimeStamp: &event.TimeStamp{
 					Time: time.Now(),
 				},
 			},
 			inputType: reflect.ValueOf(&sarah.HelpInput{}).Type(),
 		},
 		{
-			payload: &rtmapi.Message{
-				ChannelID: slackobject.ChannelID("abc"),
-				SenderID:  slackobject.UserID("cde"),
+			payload: &event.Message{
+				ChannelID: event.ChannelID("abc"),
+				SenderID:  event.UserID("cde"),
 				Text:      abortCommand,
-				TimeStamp: &rtmapi.TimeStamp{
+				TimeStamp: &event.TimeStamp{
 					Time: time.Now(),
 				},
 			},
 			inputType: reflect.ValueOf(&sarah.AbortInput{}).Type(),
 		},
 		{
-			payload: &rtmapi.Message{
-				ChannelID: slackobject.ChannelID("abc"),
-				SenderID:  slackobject.UserID("cde"),
+			payload: &event.Message{
+				ChannelID: event.ChannelID("abc"),
+				SenderID:  event.UserID("cde"),
 				Text:      "foo",
-				TimeStamp: &rtmapi.TimeStamp{
+				TimeStamp: &event.TimeStamp{
 					Time: time.Now(),
 				},
 			},
 			inputType: reflect.ValueOf(&MessageInput{}).Type(),
 		},
 		{
-			payload:   &rtmapi.PinAdded{},
+			payload:   &event.PinAdded{},
 			inputType: nil,
 		},
 	}
@@ -892,7 +833,7 @@ func TestNewResponse(t *testing.T) {
 	}{
 		{
 			input: &MessageInput{
-				event: &rtmapi.Message{
+				event: &event.Message{
 					ChannelID: "dummy",
 				},
 			},
@@ -901,7 +842,7 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &MessageInput{
-				event: &rtmapi.Message{
+				event: &event.Message{
 					ChannelID: "dummy",
 				},
 			},
@@ -931,9 +872,9 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &MessageInput{
-				event: &rtmapi.Message{
+				event: &event.Message{
 					ChannelID: "dummy",
-					TimeStamp: &rtmapi.TimeStamp{
+					TimeStamp: &event.TimeStamp{
 						Time:          now,
 						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 					},
@@ -947,9 +888,9 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &MessageInput{
-				event: &rtmapi.Message{
+				event: &event.Message{
 					ChannelID: "dummy",
-					ThreadTimeStamp: &rtmapi.TimeStamp{
+					ThreadTimeStamp: &event.TimeStamp{
 						Time:          now,
 						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 					},
@@ -964,13 +905,13 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &MessageInput{
-				event: &rtmapi.Message{
+				event: &event.Message{
 					ChannelID: "dummy",
-					ThreadTimeStamp: &rtmapi.TimeStamp{
+					ThreadTimeStamp: &event.TimeStamp{
 						Time:          now,
 						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 					},
-					TimeStamp: &rtmapi.TimeStamp{
+					TimeStamp: &event.TimeStamp{
 						Time:          time.Now(),
 						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 					},
@@ -982,13 +923,13 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &MessageInput{
-				event: &rtmapi.Message{
+				event: &event.Message{
 					ChannelID: "dummy",
-					ThreadTimeStamp: &rtmapi.TimeStamp{
+					ThreadTimeStamp: &event.TimeStamp{
 						Time:          now,
 						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 					},
-					TimeStamp: &rtmapi.TimeStamp{
+					TimeStamp: &event.TimeStamp{
 						Time:          time.Now(),
 						OriginalValue: fmt.Sprintf("%d.999999", now.Unix()),
 					},
@@ -1154,7 +1095,7 @@ func TestRespWithUnfurlMedia(t *testing.T) {
 
 func TestIsThreadMessage(t *testing.T) {
 	now := time.Now()
-	ts := &rtmapi.TimeStamp{
+	ts := &event.TimeStamp{
 		Time:          now,
 		OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 	}
@@ -1168,14 +1109,14 @@ func TestIsThreadMessage(t *testing.T) {
 		},
 		{
 			input: &MessageInput{
-				event: &rtmapi.Message{},
+				event: &event.Message{},
 			},
 			expected: false,
 		},
 		{
 			// A parent message
 			input: &MessageInput{
-				event: &rtmapi.Message{
+				event: &event.Message{
 					ThreadTimeStamp: ts,
 					TimeStamp:       ts,
 				},
@@ -1186,9 +1127,9 @@ func TestIsThreadMessage(t *testing.T) {
 			// A reply to a parent message, which is posted in a thread
 			// https://api.slack.com/docs/message-threading
 			input: &MessageInput{
-				event: &rtmapi.Message{
+				event: &event.Message{
 					ThreadTimeStamp: ts,
-					TimeStamp: &rtmapi.TimeStamp{
+					TimeStamp: &event.TimeStamp{
 						Time:          now,
 						OriginalValue: fmt.Sprintf("%d.9999999999", now.Unix()),
 					},

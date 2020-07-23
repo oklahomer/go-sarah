@@ -6,10 +6,10 @@ import (
 	"github.com/oklahomer/go-sarah/v2"
 	"github.com/oklahomer/go-sarah/v2/log"
 	"github.com/oklahomer/go-sarah/v2/retry"
-	"github.com/oklahomer/golack"
-	"github.com/oklahomer/golack/rtmapi"
-	"github.com/oklahomer/golack/slackobject"
-	"github.com/oklahomer/golack/webapi"
+	"github.com/oklahomer/golack/v2"
+	"github.com/oklahomer/golack/v2/event"
+	"github.com/oklahomer/golack/v2/rtmapi"
+	"github.com/oklahomer/golack/v2/webapi"
 	"golang.org/x/xerrors"
 	"strings"
 	"time"
@@ -49,11 +49,11 @@ func WithSlackClient(client SlackClient) AdapterOption {
 //  slackConfig := slack.NewConfig()
 //  payloadHandler := func(connCtx context.Context, config *Config, paylad rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
 //    switch p := payload.(type) {
-//    case *rtmapi.PinAdded:
+//    case *event.PinAdded:
 //      // Do something with pre-defined SlackClient
 //      // slackClient.PostMessage(connCtx, ...)
 //
-//    case *rtmapi.Message:
+//    case *event.Message:
 //      // Convert RTM specific message to one that satisfies sarah.Input interface.
 //      input := &MessageInput{event: p}
 //
@@ -218,25 +218,12 @@ func (adapter *Adapter) superviseConnection(connCtx context.Context, payloadSend
 	}
 }
 
-// connect fetches WebSocket endpoint information via Rest API and establishes WebSocket connection.
 func (adapter *Adapter) connect(ctx context.Context) (rtmapi.Connection, error) {
-	// Get RTM session via Web API.
-	var rtmStart *webapi.RTMStart
-	err := retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
-		rtmStart, e = adapter.client.StartRTMSession(ctx)
-		return e
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Establish WebSocket connection with given RTM session.
 	var conn rtmapi.Connection
-	err = retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
-		conn, e = adapter.client.ConnectRTM(ctx, rtmStart.URL)
+	err := retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
+		conn, e = adapter.client.ConnectRTM(ctx)
 		return e
 	})
-
 	return conn, err
 }
 
@@ -250,9 +237,9 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 		default:
 			payload, err := payloadReceiver.Receive()
 			// TODO should io.EOF and io.ErrUnexpectedEOF treated differently than other errors?
-			if err == rtmapi.ErrEmptyPayload {
+			if err == event.ErrEmptyPayload {
 				continue
-			} else if _, ok := err.(*rtmapi.MalformedPayloadError); ok {
+			} else if _, ok := err.(*event.MalformedPayloadError); ok {
 				// Malformed payload was passed, but there is no programmable way to handle this error.
 				// Leave log and proceed.
 				log.Warnf("Ignore malformed payload: %+v", err)
@@ -276,18 +263,18 @@ func (adapter *Adapter) receivePayload(connCtx context.Context, payloadReceiver 
 
 func handlePayload(_ context.Context, config *Config, payload rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
 	switch p := payload.(type) {
-	case *rtmapi.WebSocketOKReply:
+	case *rtmapi.OKReply:
 		log.Debugf("Successfully sent. ID: %d. Text: %s.", p.ReplyTo, p.Text)
 
-	case *rtmapi.WebSocketNGReply:
+	case *rtmapi.NGReply:
 		log.Errorf(
 			"Something was wrong with previous message sending. id: %d. error code: %d. error message: %s.",
-			p.ReplyTo, p.ErrorReason.Code, p.ErrorReason.Message)
+			p.ReplyTo, p.Error.Code, p.Error.Message)
 
 	case *rtmapi.Pong:
 		log.Debug("Pong message received.")
 
-	case *rtmapi.Message:
+	case *event.Message:
 		// Convert RTM specific message to one that satisfies sarah.Input interface.
 		input := NewMessageInput(p)
 
@@ -335,7 +322,7 @@ func nonBlockSignal(id string, target chan<- struct{}) {
 func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	switch content := output.Content().(type) {
 	case string:
-		channel, ok := output.Destination().(slackobject.ChannelID)
+		channel, ok := output.Destination().(event.ChannelID)
 		if !ok {
 			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
@@ -359,7 +346,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 		}
 
 	case *sarah.CommandHelps:
-		channelID, ok := output.Destination().(slackobject.ChannelID)
+		channelID, ok := output.Destination().(event.ChannelID)
 		if !ok {
 			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
@@ -395,7 +382,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 
 // MessageInput satisfies Input interface
 type MessageInput struct {
-	event *rtmapi.Message
+	event *event.Message
 }
 
 // SenderKey returns string representing message sender.
@@ -419,7 +406,7 @@ func (message *MessageInput) ReplyTo() sarah.OutputDestination {
 }
 
 // NewMessageInput creates and returns MessageInput instance.
-func NewMessageInput(message *rtmapi.Message) *MessageInput {
+func NewMessageInput(message *event.Message) *MessageInput {
 	return &MessageInput{
 		event: message,
 	}
@@ -516,7 +503,7 @@ func replyInThread(input sarah.Input, options *respOptions) bool {
 	return false
 }
 
-func threadTimeStamp(m *rtmapi.Message) *rtmapi.TimeStamp {
+func threadTimeStamp(m *event.Message) *event.TimeStamp {
 	if m.ThreadTimeStamp != nil {
 		return m.ThreadTimeStamp
 	}
@@ -616,7 +603,6 @@ type respOptions struct {
 
 // SlackClient is an interface that covers golack's public methods.
 type SlackClient interface {
-	StartRTMSession(context.Context) (*webapi.RTMStart, error)
-	ConnectRTM(context.Context, string) (rtmapi.Connection, error)
+	ConnectRTM(ctx context.Context) (rtmapi.Connection, error)
 	PostMessage(context.Context, *webapi.PostMessage) (*webapi.APIResponse, error)
 }
