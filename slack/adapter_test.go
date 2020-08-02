@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/oklahomer/go-sarah/v2"
 	"github.com/oklahomer/go-sarah/v2/log"
-	"github.com/oklahomer/go-sarah/v2/retry"
 	"github.com/oklahomer/golack/v2/event"
+	"github.com/oklahomer/golack/v2/eventsapi"
 	"github.com/oklahomer/golack/v2/rtmapi"
 	"github.com/oklahomer/golack/v2/webapi"
 	"io/ioutil"
@@ -36,7 +36,10 @@ func TestMain(m *testing.M) {
 type DummyClient struct {
 	ConnectRTMFunc  func(context.Context) (rtmapi.Connection, error)
 	PostMessageFunc func(context.Context, *webapi.PostMessage) (*webapi.APIResponse, error)
+	RunServerFunc   func(context.Context, eventsapi.EventReceiver) <-chan error
 }
+
+var _ SlackClient = (*DummyClient)(nil)
 
 func (client *DummyClient) ConnectRTM(ctx context.Context) (rtmapi.Connection, error) {
 	return client.ConnectRTMFunc(ctx)
@@ -46,100 +49,140 @@ func (client *DummyClient) PostMessage(ctx context.Context, message *webapi.Post
 	return client.PostMessageFunc(ctx, message)
 }
 
-type DummyConnection struct {
-	ReceiveFunc func() (rtmapi.DecodedPayload, error)
-	SendFunc    func(message *rtmapi.OutgoingMessage) error
-	PingFunc    func() error
-	CloseFunc   func() error
+func (client *DummyClient) RunServer(ctx context.Context, receiver eventsapi.EventReceiver) <-chan error {
+	return client.RunServerFunc(ctx, receiver)
 }
 
-func (conn *DummyConnection) Receive() (rtmapi.DecodedPayload, error) {
-	return conn.ReceiveFunc()
+type DummyApiSpecificAdapter struct {
+	RunFunc func(_ context.Context, _ func(sarah.Input) error, _ func(error))
 }
 
-func (conn *DummyConnection) Send(message *rtmapi.OutgoingMessage) error {
-	return conn.SendFunc(message)
+var _ apiSpecificAdapter = (*DummyApiSpecificAdapter)(nil)
+
+func (d DummyApiSpecificAdapter) run(ctx context.Context, enqueueInput func(sarah.Input) error, notifyErr func(error)) {
+	d.RunFunc(ctx, enqueueInput, notifyErr)
 }
 
-func (conn *DummyConnection) Ping() error {
-	return conn.PingFunc()
-}
-
-func (conn *DummyConnection) Close() error {
-	return conn.CloseFunc()
-}
-
-func TestNewAdapter(t *testing.T) {
-	config := &Config{
-		Token:          "dummy",
-		RequestTimeout: time.Duration(10),
-	}
-	adapter, err := NewAdapter(config)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if adapter.config != config {
-		t.Errorf("Expected config struct is not set: %#v.", adapter.config)
-	}
-
-	if adapter.client == nil {
-		t.Error("Golack client instance is not set.")
-	}
-
-	if adapter.messageQueue == nil {
-		t.Error("Message queue channel is nil.")
-	}
-}
-
-func TestNewAdapter_WithUnConfigurableClient(t *testing.T) {
-	config := &Config{}
-	adapter, err := NewAdapter(config)
-
-	if err == nil {
-		t.Error("Expected error is not returned")
-	}
-
-	if adapter != nil {
-		t.Fatal("Adapter should not be returned.")
-	}
-}
-
-func TestNewAdapter_WithSlackClient(t *testing.T) {
-	config := &Config{}
+func TestWithSlackClient(t *testing.T) {
 	client := &DummyClient{}
 	opt := WithSlackClient(client)
-
-	adapter, err := NewAdapter(config, opt)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %s.", err.Error())
-	}
-
-	if adapter == nil {
-		t.Fatal("Adapter should be returned.")
-	}
-
-	if adapter.client != client {
-		t.Error("Provided SlackClient is not set.")
-	}
-}
-
-func TestNewAdapter_WithPayloadHandler(t *testing.T) {
-	fnc := func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {}
-	opt := WithPayloadHandler(fnc)
 	adapter := &Adapter{}
 
 	opt(adapter)
 
-	if adapter.payloadHandler == nil {
-		t.Fatal("PayloadHandler is not set.")
+	if adapter.client == nil {
+		t.Fatal("SlackClient is not set.")
 	}
 
-	if reflect.ValueOf(adapter.payloadHandler).Pointer() != reflect.ValueOf(fnc).Pointer() {
-		t.Fatal("Provided function is not set.")
+	if adapter.client != client {
+		t.Fatal("Given SlackClient is not set.")
 	}
+}
+
+func TestWithRTMPayloadHandler(t *testing.T) {
+	fnc := func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {}
+	opt := WithRTMPayloadHandler(fnc)
+	adapter := &Adapter{}
+
+	opt(adapter)
+
+	if adapter.apiSpecificAdapterBuilder == nil {
+		t.Fatal("apiSpecificAdapterBuilder is not set.")
+	}
+
+	if adapter.apiSpecificAdapterBuilder(nil, nil) == nil {
+		t.Error("apiSpecificAdapter could not be built.")
+	}
+}
+
+func TestWithEventsPayloadHandler(t *testing.T) {
+	fnc := func(_ context.Context, _ *Config, _ *eventsapi.EventWrapper, _ func(sarah.Input) error) {}
+	opt := WithEventsPayloadHandler(fnc)
+	adapter := &Adapter{}
+
+	opt(adapter)
+
+	if adapter.apiSpecificAdapterBuilder == nil {
+		t.Fatal("apiSpecificAdapterBuilder is not set.")
+	}
+
+	if adapter.apiSpecificAdapterBuilder(nil, nil) == nil {
+		t.Error("apiSpecificAdapter could not be built.")
+	}
+}
+
+func TestNewAdapter(t *testing.T) {
+	t.Run("Minimum option", func(t *testing.T) {
+		config := &Config{
+			Token:          "dummy",
+			RequestTimeout: time.Duration(10),
+		}
+		adapter, err := NewAdapter(config, WithEventsPayloadHandler(DefaultEventsPayloadHandler))
+
+		if err != nil {
+			t.Fatalf("Unexpected error is returned: %s.", err.Error())
+		}
+
+		if adapter.config != config {
+			t.Errorf("Expected config struct is not set: %#v.", adapter.config)
+		}
+
+		if adapter.client == nil {
+			t.Error("Golack client instance is not set.")
+		}
+	})
+
+	t.Run("Missing config or SlackClient", func(t *testing.T) {
+		config := &Config{}
+		adapter, err := NewAdapter(config, WithRTMPayloadHandler(DefaultRTMPayloadHandler))
+
+		if err == nil {
+			t.Error("Expected error is not returned")
+		}
+
+		if adapter != nil {
+			t.Fatal("Adapter should not be returned.")
+		}
+	})
+
+	t.Run("Missing apiSpecificAdapter option", func(t *testing.T) {
+		config := &Config{
+			Token:          "dummy",
+			RequestTimeout: time.Duration(10),
+		}
+		adapter, err := NewAdapter(config)
+
+		if err == nil {
+			t.Error("Expected error is not returned")
+		}
+
+		if adapter != nil {
+			t.Fatal("Adapter should not be returned.")
+		}
+	})
+
+	t.Run("With SlackClient", func(t *testing.T) {
+		config := &Config{}
+		client := &DummyClient{}
+		opts := []AdapterOption{
+			WithSlackClient(client),
+			WithEventsPayloadHandler(DefaultEventsPayloadHandler),
+		}
+
+		adapter, err := NewAdapter(config, opts...)
+
+		if err != nil {
+			t.Fatalf("Unexpected error is returned: %s.", err.Error())
+		}
+
+		if adapter == nil {
+			t.Fatal("Adapter should be returned.")
+		}
+
+		if adapter.client != client {
+			t.Error("Provided SlackClient is not set.")
+		}
+	})
 }
 
 func TestAdapter_BotType(t *testing.T) {
@@ -150,662 +193,136 @@ func TestAdapter_BotType(t *testing.T) {
 	}
 }
 
-func TestAdapter_superviseConnection(t *testing.T) {
-	send := make(chan struct{}, 1)
-	ping := make(chan struct{}, 1)
-	conn := &DummyConnection{
-		SendFunc: func(_ *rtmapi.OutgoingMessage) error {
-			send <- struct{}{}
-			return nil
-		},
-		PingFunc: func() error {
-			select {
-			case ping <- struct{}{}:
-			default:
-				// Duplicate entry. Just ignore.
-			}
-			return nil
-		},
-	}
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-
-	pingInterval := 10 * time.Millisecond
-	adapter := &Adapter{
-		config: &Config{
-			PingInterval: pingInterval,
-		},
-		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
-	}
-
-	conErr := make(chan error)
-	go func() {
-		err := adapter.superviseConnection(ctx, conn, make(chan struct{}, 1))
-		conErr <- err
-	}()
-
-	adapter.messageQueue <- &rtmapi.OutgoingMessage{
-		ChannelID: "dummy",
-		Text:      "Hello, 世界",
-	}
-
-	time.Sleep(pingInterval + 10*time.Millisecond) // Give long enough time to check ping.
-
-	cancel()
-	select {
-	case <-send:
-		// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Connection.Send was not called.")
-	}
-
-	select {
-	case <-ping:
-		// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Connection.Ping was not called.")
-	}
-
-	select {
-	case err := <-conErr:
-		if err != nil {
-			t.Errorf("Unexpected error was returned: %s.", err.Error())
-		}
-
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Context was canceled, but superviseConnection did not return.")
-
-	}
-}
-
-func TestAdapter_superviseConnection_ConnectionPingError(t *testing.T) {
-	conn := &DummyConnection{
-		PingFunc: func() error {
-			return errors.New("ping error")
-		},
-	}
-
-	pingInterval := 10 * time.Millisecond
-	adapter := &Adapter{
-		config: &Config{
-			PingInterval: pingInterval,
-		},
-	}
-
-	conErr := make(chan error)
-	go func() {
-		err := adapter.superviseConnection(context.TODO(), conn, make(chan struct{}, 1))
-		conErr <- err
-	}()
-
-	time.Sleep(pingInterval + 10*time.Millisecond) // Give long enough time to check ping.
-
-	select {
-	case err := <-conErr:
-		if err == nil {
-			t.Error("Expected error is not returned.")
-		}
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Error is not returned.")
-	}
-}
-
-func TestAdapter_superviseConnection_ConnectionSendError(t *testing.T) {
-	conn := &DummyConnection{
-		SendFunc: func(_ *rtmapi.OutgoingMessage) error {
-			return errors.New("send error")
-		},
-		PingFunc: func() error {
-			return errors.New("ping error")
-		},
-	}
-
-	adapter := &Adapter{
-		config: &Config{
-			PingInterval: 100 * time.Second, // not for scheduled ping test
-		},
-		messageQueue: make(chan *rtmapi.OutgoingMessage),
-	}
-
-	conErr := make(chan error)
-	go func() {
-		err := adapter.superviseConnection(context.TODO(), conn, make(chan struct{}, 1))
-		conErr <- err
-	}()
-
-	adapter.messageQueue <- &rtmapi.OutgoingMessage{
-		ChannelID: "dummy",
-		Text:      "Hello, 世界",
-	}
-
-	// Connection.Send error should trigger Connection.Ping, and Connection.Ping error triggers supervise failure.
-	select {
-	case err := <-conErr:
-		if err == nil {
-			t.Error("Expected error is not returned.")
-		}
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Error is not returned.")
-	}
-}
-
-func TestAdapter_receivePayload(t *testing.T) {
-	given := make(chan struct{})
-	adapter := &Adapter{
-		payloadHandler: func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {
-			given <- struct{}{}
-		},
-	}
-
-	conn := &DummyConnection{
-		ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
-			return struct{}{}, nil
-		},
-	}
-
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-
-	go adapter.receivePayload(ctx, conn, make(chan struct{}), func(_ sarah.Input) error { return nil })
-
-	select {
-	case <-given:
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("PayloadHandler is not called.")
-	}
-}
-
-func TestAdapter_receivePayload_Error(t *testing.T) {
-	adapter := &Adapter{
-		payloadHandler: func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {
-			t.Fatal("PayloadHandler should not be called.")
-		},
-	}
-
-	i := 0
-	errs := []error{
-		event.ErrEmptyPayload,
-		event.NewMalformedPayloadError("dummy"),
-		&rtmapi.UnexpectedMessageTypeError{},
-		errors.New("random error"),
-	}
-	conn := &DummyConnection{
-		ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
-			if i < len(errs) {
-				err := errs[i]
-				i++
-				return nil, err
-			}
-
-			i++
-			return nil, nil
-		},
-	}
-
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-
-	go adapter.receivePayload(ctx, conn, make(chan struct{}), func(_ sarah.Input) error { return nil })
-
-	time.Sleep(100 * time.Millisecond) // Give long enough time to receive all errors.
-}
-
 func TestAdapter_Run(t *testing.T) {
-	closeCh := make(chan struct{})
-	conn := &DummyConnection{
-		ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
-			return nil, nil
-		},
-		CloseFunc: func() error {
-			closeCh <- struct{}{}
-			return nil
-		},
-	}
-
-	client := &DummyClient{
-		ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
-			return conn, nil
-		},
-	}
-
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-
-	adapter := &Adapter{
-		config: &Config{
-			PingInterval: 100 * time.Second,
-			RetryPolicy: &retry.Policy{
-				Trial: 1,
-			},
-		},
-		client: client,
-	}
-
-	go adapter.Run(
-		ctx,
-		func(_ sarah.Input) error {
-			return nil
-		},
-		func(err error) {
-			t.Fatalf("Unexpected errr is returned: %s.", err.Error())
-		},
-	)
-
-	time.Sleep(100 * time.Millisecond)
-
-	cancel()
-
-	select {
-	case <-closeCh:
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Adapter.Close was not called after Context cancellation.")
-	}
-}
-
-func TestAdapter_Run_ConnectionAbortionError(t *testing.T) {
-	closeCh := make(chan struct{})
-	conn := &DummyConnection{
-		PingFunc: func() error {
-			return errors.New("ping error")
-		},
-		ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
-			return nil, errors.New("message reception error")
-		},
-		CloseFunc: func() error {
-			closeCh <- struct{}{}
-			return nil
-		},
-	}
-
-	client := &DummyClient{
-		ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
-			return conn, nil
-		},
-	}
-
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-
-	adapter := &Adapter{
-		config: &Config{
-			PingInterval: 100 * time.Second,
-			RetryPolicy: &retry.Policy{
-				Trial: 1,
-			},
-		},
-		client: client,
-	}
-
-	go adapter.Run(
-		ctx,
-		func(_ sarah.Input) error {
-			return nil
-		},
-		func(err error) {
-			t.Fatalf("Unexpected errr is returned: %s.", err.Error())
-		},
-	)
-
-	time.Sleep(100 * time.Millisecond)
-
-	cancel()
-
-	select {
-	case <-closeCh:
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("Adapter.Close was not called after Context cancellation.")
-	}
-}
-
-func TestAdapter_SendMessage_String(t *testing.T) {
-	adapter := &Adapter{
-		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
-	}
-
-	output := sarah.NewOutputMessage(event.ChannelID("ch"), "test")
-	adapter.SendMessage(context.TODO(), output)
-	select {
-	case <-adapter.messageQueue:
-		// O.K.
-	default:
-		t.Fatalf("Valid output was not enqueued.")
-	}
-
-	invalid := sarah.NewOutputMessage("invalid", "test")
-	adapter.SendMessage(context.TODO(), invalid)
-	select {
-	case <-adapter.messageQueue:
-		t.Fatalf("Invalid output was enqueued.")
-	default:
-		// O.K.
-	}
-}
-
-func TestAdapter_SendMessage_OutgoingMessage(t *testing.T) {
-	adapter := &Adapter{
-		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
-	}
-
-	message := rtmapi.NewOutgoingMessage("channel", "test")
-	output := sarah.NewOutputMessage(event.ChannelID("channel"), message)
-	adapter.SendMessage(context.TODO(), output)
-	select {
-	case passed := <-adapter.messageQueue:
-		if passed != message {
-			t.Errorf("Passed message is not enqueued: %#v", passed)
-		}
-
-	default:
-		t.Fatalf("Valid output was not enqueued.")
-
-	}
-}
-
-func TestAdapter_SendMessage_PostMessage(t *testing.T) {
-	tests := []struct {
-		channelID event.ChannelID
-		err       error
-		response  *webapi.APIResponse
-	}{
-		{
-			channelID: "channelID",
-			err:       nil,
-			response: &webapi.APIResponse{
-				OK:    true,
-				Error: "",
-			},
-		},
-		{
-			channelID: "channelID",
-			err:       errors.New("error"),
-			response:  nil,
-		},
-		{
-			channelID: "channelID",
-			err:       nil,
-			response: &webapi.APIResponse{
-				OK:    false,
-				Error: "error",
-			},
-		},
-	}
-
-	for i, tt := range tests {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			called := false
-			adapter := &Adapter{
-				client: &DummyClient{
-					PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
-						called = true
-						return tt.response, tt.err
-					},
-				},
-			}
-
-			postMessage := webapi.NewPostMessage(tt.channelID, "test")
-			output := sarah.NewOutputMessage(tt.channelID, postMessage)
-			adapter.SendMessage(context.TODO(), output)
-
-			if !called {
-				t.Fatal("Client.PostMessage is not called.")
-			}
-		})
-	}
-}
-
-func TestAdapter_SendMessage_CommandHelps(t *testing.T) {
 	called := false
 	adapter := &Adapter{
-		client: &DummyClient{
-			PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
-				called = true
-				return nil, errors.New("post error") // Should not cause panic.
-			},
+		apiSpecificAdapterBuilder: func(_ *Config, _ SlackClient) apiSpecificAdapter {
+			return DummyApiSpecificAdapter{
+				RunFunc: func(_ context.Context, _ func(sarah.Input) error, _ func(error)) {
+					called = true
+				},
+			}
 		},
 	}
 
-	helps := &sarah.CommandHelps{
-		&sarah.CommandHelp{
-			Identifier:  "id",
-			Instruction: ".help",
-		},
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	adapter.Run(ctx, func(_ sarah.Input) error { return nil }, func(err error) {})
 
-	invalid := sarah.NewOutputMessage("invalidID", helps)
-	adapter.SendMessage(context.TODO(), invalid)
-	if called {
-		t.Fatal("Invalid output reached Client.PostMessage.")
-	}
-
-	adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(event.ChannelID("test"), helps))
 	if !called {
-		t.Fatal("Client.PostMessage is not called.")
+		t.Error("apiSpecificAdapter is not run.")
 	}
 }
 
-func TestAdapter_SendMessage_IrrelevantType(t *testing.T) {
-	postMessageCalled := false
-	adapter := &Adapter{
-		messageQueue: make(chan *rtmapi.OutgoingMessage, 1),
-		client: &DummyClient{
-			PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
-				postMessageCalled = true
-				return nil, errors.New("post error") // Should not cause panic.
-			},
-		},
-	}
-
-	adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(event.ChannelID("validID"), struct{}{}))
-
-	if postMessageCalled {
-		t.Fatal("Invalid content reached Client.PostMessage")
-	}
-
-	select {
-	case <-adapter.messageQueue:
-		t.Fatal("Invalid content is sent as String.")
-	case <-time.NewTimer(100 * time.Millisecond).C:
-		// O.K.
-	}
-}
-
-func TestMessageInput(t *testing.T) {
-	channelID := "id"
-	senderID := "who"
-	content := "Hello, 世界"
-	timestamp := time.Now()
-	rtmMessage := &event.Message{
-		TypedEvent: event.TypedEvent{
-			Type: "message",
-		},
-		ChannelID: event.ChannelID(channelID),
-		SenderID:  event.UserID(senderID),
-		Text:      content,
-		TimeStamp: &event.TimeStamp{
-			Time:          timestamp,
-			OriginalValue: timestamp.String() + ".99999",
-		},
-	}
-
-	input := &MessageInput{event: rtmMessage}
-
-	if input.SenderKey() != channelID+"|"+senderID {
-		t.Errorf("Unexpected SenderKey is retuned: %s.", input.SenderKey())
-	}
-
-	if input.Message() != content {
-		t.Errorf("Unexpected Message is returned: %s.", input.Message())
-	}
-
-	if string(input.ReplyTo().(event.ChannelID)) != channelID {
-		t.Errorf("Unexpected ReplyTo is returned: %s.", input.ReplyTo())
-	}
-
-	if input.SentAt() != timestamp {
-		t.Errorf("Unexpected SentAt is returned: %s.", input.SentAt().String())
-	}
-}
-
-func TestAdapter_connect(t *testing.T) {
-	client := &DummyClient{
-		ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
-			return &DummyConnection{}, nil
-		},
-	}
-
-	adapter := &Adapter{
-		config: &Config{
-			RetryPolicy: &retry.Policy{
-				Trial: 1,
-			},
-		},
-		client: client,
-	}
-
-	conn, err := adapter.connect(context.TODO())
-	if err != nil {
-		t.Fatalf("Unexpected error returned: %s.", err.Error())
-	}
-
-	if conn == nil {
-		t.Error("Connection is not returned.")
-	}
-}
-
-func TestAdapter_connect_error(t *testing.T) {
-	expected := errors.New("expected error")
-	client := &DummyClient{
-		ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
-			return nil, expected
-		},
-	}
-
-	adapter := &Adapter{
-		config: &Config{
-			RetryPolicy: &retry.Policy{
-				Trial: 1,
-			},
-		},
-		client: client,
-	}
-
-	conn, err := adapter.connect(context.TODO())
-	if err == nil {
-		t.Fatal("Unexpected error is not returned.")
-	}
-
-	if conn != nil {
-		t.Fatal("Connection should not be returned.")
-	}
-}
-
-func Test_handlePayload(t *testing.T) {
-	helpCommand := ".help"
-	abortCommand := ".abort"
-	config := &Config{
-		HelpCommand:  helpCommand,
-		AbortCommand: ".abort",
-	}
-	inputs := []struct {
-		payload   rtmapi.DecodedPayload
-		inputType reflect.Type
-	}{
-		{
-			payload: &rtmapi.OKReply{
-				Reply: rtmapi.Reply{
-					ReplyTo: 1,
-					OK:      true,
-				},
-				Text: "OK",
-			},
-			inputType: nil,
-		},
-		{
-			payload: &rtmapi.NGReply{
-				Reply: rtmapi.Reply{
-					ReplyTo: 1,
-					OK:      false,
-				},
-				Error: struct {
-					Code    int    `json:"code"`
-					Message string `json:"msg"`
-				}{
-					Code:    404,
-					Message: "Not Found",
+func TestAdapter_SendMessage(t *testing.T) {
+	t.Run("Regular message", func(t *testing.T) {
+		tests := []struct {
+			channelID event.ChannelID
+			err       error
+			response  *webapi.APIResponse
+		}{
+			{
+				channelID: "channelID",
+				err:       nil,
+				response: &webapi.APIResponse{
+					OK:    true,
+					Error: "",
 				},
 			},
-			inputType: nil,
-		},
-		{
-			payload:   &rtmapi.Pong{},
-			inputType: nil,
-		},
-		{
-			payload: &event.Message{
-				ChannelID: event.ChannelID("abc"),
-				SenderID:  event.UserID("cde"),
-				Text:      helpCommand,
-				TimeStamp: &event.TimeStamp{
-					Time: time.Now(),
+			{
+				channelID: "channelID",
+				err:       errors.New("error"),
+				response:  nil,
+			},
+			{
+				channelID: "channelID",
+				err:       nil,
+				response: &webapi.APIResponse{
+					OK:    false,
+					Error: "error",
 				},
 			},
-			inputType: reflect.ValueOf(&sarah.HelpInput{}).Type(),
-		},
-		{
-			payload: &event.Message{
-				ChannelID: event.ChannelID("abc"),
-				SenderID:  event.UserID("cde"),
-				Text:      abortCommand,
-				TimeStamp: &event.TimeStamp{
-					Time: time.Now(),
-				},
-			},
-			inputType: reflect.ValueOf(&sarah.AbortInput{}).Type(),
-		},
-		{
-			payload: &event.Message{
-				ChannelID: event.ChannelID("abc"),
-				SenderID:  event.UserID("cde"),
-				Text:      "foo",
-				TimeStamp: &event.TimeStamp{
-					Time: time.Now(),
-				},
-			},
-			inputType: reflect.ValueOf(&MessageInput{}).Type(),
-		},
-		{
-			payload:   &event.PinAdded{},
-			inputType: nil,
-		},
-	}
-
-	for i, input := range inputs {
-		var receivedType reflect.Type
-		fnc := func(i sarah.Input) error {
-			receivedType = reflect.ValueOf(i).Type()
-			return nil
-		}
-		handlePayload(context.TODO(), config, input.payload, fnc)
-
-		if input.inputType == nil && receivedType != nil {
-			t.Errorf("Input shuold not be passed this time: %s.", receivedType.String())
-		} else if input.inputType == nil {
-			// No test
-			continue
 		}
 
-		if receivedType == nil {
-			t.Error("No payload is received")
-		} else if receivedType != input.inputType {
-			t.Errorf("Unexpected input type is given on %d test: %s.", i, receivedType.String())
+		for i, tt := range tests {
+			t.Run(strconv.Itoa(i), func(t *testing.T) {
+				called := false
+				adapter := &Adapter{
+					client: &DummyClient{
+						PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
+							called = true
+							return tt.response, tt.err
+						},
+					},
+				}
+
+				postMessage := webapi.NewPostMessage(tt.channelID, "test")
+				output := sarah.NewOutputMessage(tt.channelID, postMessage)
+				adapter.SendMessage(context.TODO(), output)
+
+				if !called {
+					t.Fatal("Client.PostMessage is not called.")
+				}
+			})
 		}
-	}
+	})
+
+	t.Run("String message", func(t *testing.T) {
+		called := false
+		adapter := &Adapter{
+			client: &DummyClient{
+				PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
+					called = true
+					return &webapi.APIResponse{
+						OK:    true,
+						Error: "",
+					}, nil
+				},
+			},
+		}
+
+		output := sarah.NewOutputMessage(event.ChannelID("channel"), "message")
+		adapter.SendMessage(context.TODO(), output)
+		if !called {
+			t.Fatal("Client.PostMessage is not called.")
+		}
+	})
+
+	t.Run("Help command", func(t *testing.T) {
+		called := false
+		adapter := &Adapter{
+			client: &DummyClient{
+				PostMessageFunc: func(_ context.Context, _ *webapi.PostMessage) (*webapi.APIResponse, error) {
+					called = true
+					return nil, errors.New("post error") // Should not cause panic.
+				},
+			},
+		}
+
+		helps := &sarah.CommandHelps{
+			&sarah.CommandHelp{
+				Identifier:  "id",
+				Instruction: ".help",
+			},
+		}
+
+		invalid := sarah.NewOutputMessage("invalidID", helps)
+		adapter.SendMessage(context.TODO(), invalid)
+		if called {
+			t.Fatal("Invalid output reached Client.PostMessage.")
+		}
+
+		adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(event.ChannelID("test"), helps))
+		if !called {
+			t.Fatal("Client.PostMessage is not called.")
+		}
+	})
 }
 
 type DummyInput struct {
 }
+
+var _ sarah.Input = (*DummyInput)(nil)
 
 func (*DummyInput) SenderKey() string {
 	return ""
@@ -832,19 +349,17 @@ func TestNewResponse(t *testing.T) {
 		hasErr  bool
 	}{
 		{
-			input: &MessageInput{
-				event: &event.Message{
-					ChannelID: "dummy",
-				},
+			input: &Input{
+				payload:   &event.Message{},
+				channelID: "dummy",
 			},
 			message: "dummy message",
 			hasErr:  false,
 		},
 		{
-			input: &MessageInput{
-				event: &event.Message{
-					ChannelID: "dummy",
-				},
+			input: &Input{
+				payload:   &event.Message{},
+				channelID: "dummy",
 			},
 			message: "dummy message",
 			options: []RespOption{
@@ -871,13 +386,12 @@ func TestNewResponse(t *testing.T) {
 			hasErr: true,
 		},
 		{
-			input: &MessageInput{
-				event: &event.Message{
-					ChannelID: "dummy",
-					TimeStamp: &event.TimeStamp{
-						Time:          now,
-						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
-					},
+			input: &Input{
+				payload:   &event.Message{},
+				channelID: "dummy",
+				timestamp: &event.TimeStamp{
+					Time:          now,
+					OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 				},
 			},
 			message: "dummy message",
@@ -887,13 +401,12 @@ func TestNewResponse(t *testing.T) {
 			hasErr: false,
 		},
 		{
-			input: &MessageInput{
-				event: &event.Message{
-					ChannelID: "dummy",
-					ThreadTimeStamp: &event.TimeStamp{
-						Time:          now,
-						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
-					},
+			input: &Input{
+				payload:   &event.Message{},
+				channelID: "dummy",
+				timestamp: &event.TimeStamp{
+					Time:          now,
+					OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 				},
 			},
 			message: "dummy message",
@@ -904,17 +417,16 @@ func TestNewResponse(t *testing.T) {
 			hasErr: false,
 		},
 		{
-			input: &MessageInput{
-				event: &event.Message{
-					ChannelID: "dummy",
-					ThreadTimeStamp: &event.TimeStamp{
-						Time:          now,
-						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
-					},
-					TimeStamp: &event.TimeStamp{
-						Time:          time.Now(),
-						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
-					},
+			input: &Input{
+				payload:   &event.Message{},
+				channelID: "dummy",
+				timestamp: &event.TimeStamp{
+					Time:          now,
+					OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
+				},
+				threadTimeStamp: &event.TimeStamp{
+					Time:          now,
+					OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 				},
 			},
 			message: "dummy message",
@@ -922,17 +434,16 @@ func TestNewResponse(t *testing.T) {
 			hasErr:  false,
 		},
 		{
-			input: &MessageInput{
-				event: &event.Message{
-					ChannelID: "dummy",
-					ThreadTimeStamp: &event.TimeStamp{
-						Time:          now,
-						OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
-					},
-					TimeStamp: &event.TimeStamp{
-						Time:          time.Now(),
-						OriginalValue: fmt.Sprintf("%d.999999", now.Unix()),
-					},
+			input: &Input{
+				payload:   &event.Message{},
+				channelID: "dummy",
+				timestamp: &event.TimeStamp{
+					Time:          time.Now(),
+					OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
+				},
+				threadTimeStamp: &event.TimeStamp{
+					Time:          time.Now(),
+					OriginalValue: fmt.Sprintf("%d.999999", now.Unix()),
 				},
 			},
 			message: "dummy message",
@@ -959,11 +470,6 @@ func TestNewResponse(t *testing.T) {
 			case string:
 				if tt.message != typed {
 					t.Errorf("Unxecpected string is set as message: %s", typed)
-				}
-
-			case *rtmapi.OutgoingMessage:
-				if tt.message != typed.Text {
-					t.Errorf("Unxecpected string is set as message: %s", typed.Text)
 				}
 
 			case *webapi.PostMessage:
@@ -1100,39 +606,33 @@ func TestIsThreadMessage(t *testing.T) {
 		OriginalValue: fmt.Sprintf("%d.123", now.Unix()),
 	}
 	tests := []struct {
-		input    sarah.Input
+		input    *Input
 		expected bool
 	}{
 		{
-			input:    &DummyInput{},
-			expected: false,
-		},
-		{
-			input: &MessageInput{
-				event: &event.Message{},
+			input: &Input{
+				timestamp: &event.TimeStamp{
+					OriginalValue: "1355517536.000001",
+				},
 			},
 			expected: false,
 		},
 		{
 			// A parent message
-			input: &MessageInput{
-				event: &event.Message{
-					ThreadTimeStamp: ts,
-					TimeStamp:       ts,
-				},
+			input: &Input{
+				threadTimeStamp: ts,
+				timestamp:       ts,
 			},
 			expected: false,
 		},
 		{
 			// A reply to a parent message, which is posted in a thread
 			// https://api.slack.com/docs/message-threading
-			input: &MessageInput{
-				event: &event.Message{
-					ThreadTimeStamp: ts,
-					TimeStamp: &event.TimeStamp{
-						Time:          now,
-						OriginalValue: fmt.Sprintf("%d.9999999999", now.Unix()),
-					},
+			input: &Input{
+				threadTimeStamp: ts,
+				timestamp: &event.TimeStamp{
+					Time:          now,
+					OriginalValue: fmt.Sprintf("%d.9999999999", now.Unix()),
 				},
 			},
 			expected: true,
@@ -1146,5 +646,19 @@ func TestIsThreadMessage(t *testing.T) {
 				t.Errorf("Unexpected value is returned: %t", isThread)
 			}
 		})
+	}
+}
+
+func Test_nonBlockSignal(t *testing.T) {
+	// Prepare a channel with a buffer of 1.
+	target := make(chan struct{}, 1)
+	defer close(target)
+
+	// Send twice. This exceed the target channel's cap, but the second call should not block.
+	nonBlockSignal("DUMMY ID", target)
+	nonBlockSignal("DUMMY ID", target)
+
+	if len(target) != 1 {
+		t.Errorf("The target channel should have exactly one signal: %d", len(target))
 	}
 }
