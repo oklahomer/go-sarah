@@ -63,28 +63,31 @@ func WithEventsPayloadHandler(fnc func(context.Context, *Config, *eventsapi.Even
 //    case *event.PinAdded:
 //      // Do something with pre-defined SlackClient
 //      // slackClient.PostMessage(connCtx, ...)
+//    default:
+//      input, err := EventToInput(p)
+//      if err == ErrNonSupportedEvent {
+//        log.Debugf("Event given, but no corresponding action is defined. %#v", payload)
+//        return
+//      }
 //
-//    case *event.Message:
-//      // Convert RTM specific message to one that satisfies sarah.Input interface.
-//      input := NewRTMMessageInput(p)
+//      if err != nil {
+//        log.Errorf("Failed to convert %T event: %s", p, err.Error())
+//        return
+//      }
 //
 //      trimmed := strings.TrimSpace(input.Message())
 //      if config.HelpCommand != "" && trimmed == config.HelpCommand {
 //        // Help command
-//        help := sarah.NewHelpInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
-//        enqueueInput(help)
+//        help := sarah.NewHelpInput(input)
+//        _ = enqueueInput(help)
 //      } else if config.AbortCommand != "" && trimmed == config.AbortCommand {
 //        // Abort command
-//        abort := sarah.NewAbortInput(input.SenderKey(), input.Message(), input.SentAt(), input.ReplyTo())
-//        enqueueInput(abort)
+//        abort := sarah.NewAbortInput(input)
+//        _ = enqueueInput(abort)
 //      } else {
 //        // Regular input
-//        enqueueInput(input)
+//        _ = enqueueInput(input)
 //      }
-//
-//    default:
-//      log.Debugf("Payload given, but no corresponding action is defined. %#v", p)
-//
 //    }
 //  }
 //
@@ -246,40 +249,6 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 		log.Errorf("Failed to post message %#v: %s", message, resp.Error)
 	}
 }
-
-//// MessageInput satisfies Input interface
-//type MessageInput struct {
-//	event *event.Message
-//}
-//
-//var _ sarah.Input = (*MessageInput)(nil)
-//
-//// SenderKey returns string representing message sender.
-//func (message *MessageInput) SenderKey() string {
-//	return fmt.Sprintf("%s|%s", message.event.ChannelID.String(), message.event.UserID.String())
-//}
-//
-//// Message returns sent message.
-//func (message *MessageInput) Message() string {
-//	return message.event.Text
-//}
-//
-//// SentAt returns message message's timestamp.
-//func (message *MessageInput) SentAt() time.Time {
-//	return message.event.TimeStamp.Time
-//}
-//
-//// ReplyTo returns slack channel to send reply to.
-//func (message *MessageInput) ReplyTo() sarah.OutputDestination {
-//	return message.event.ChannelID
-//}
-//
-//// NewMessageInput creates and returns MessageInput instance.
-//func NewMessageInput(message *event.Message) *MessageInput {
-//	return &MessageInput{
-//		event: message,
-//	}
-//}
 
 type Input struct {
 	payload         interface{}
