@@ -32,6 +32,12 @@ func WithSlackClient(client SlackClient) AdapterOption {
 	}
 }
 
+// WithEventsPayloadHandler creates an AdapterOption with the given function to handle incoming Events API payloads.
+// The simplest example to receive message payload is to use a default payload handler as below:
+//
+//  slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithEventsPayloadHandler(DefaultEventsPayloadHandler))
+//
+// See WithRTMPayloadHandler for detailed usage. WithEventsPayloadHandler is just another form of payload handler to work with Events API.
 func WithEventsPayloadHandler(fnc func(context.Context, *Config, *eventsapi.EventWrapper, func(sarah.Input) error)) AdapterOption {
 	return func(adapter *Adapter) {
 		adapter.apiSpecificAdapterBuilder = func(config *Config, client SlackClient) apiSpecificAdapter {
@@ -45,12 +51,15 @@ func WithEventsPayloadHandler(fnc func(context.Context, *Config, *eventsapi.Even
 }
 
 // WithRTMPayloadHandler creates an AdapterOption with the given function to handle incoming RTM payloads.
+// The simplest example to receive message payload is to use a default payload handler as below:
 //
-// Slack's RTM API defines relatively large amount of payload types.
-// To have better user experience, developers may provide customized callback function to handle received payload.
+//  slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithRTMPayloadHandler(DefaultRTMPayloadHandler))
 //
-// A developer may wish to have direct access to SlackClient to post some sort of message to Slack via Web API.
-// In that case, wrap this function like below so the SlackClient can be accessed within its scope.
+// However, Slack's RTM API defines relatively large amount of payload types.
+// To have better user experience, developers may provide customized callback function to handle different types of received payload.
+// In that case, one may implement an original payload handler and replace DefaultRTMPayloadHandler.
+// Inside the customized payload handler, a developer may wish to have direct access to SlackClient to post some sort of message to Slack via Web API.
+// To support such scenario, wrap this function like below so the SlackClient can be accessed within its scope.
 //
 //  // Setup golack instance, which implements SlackClient interface.
 //  golackConfig := golack.NewConfig()
@@ -250,6 +259,8 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	}
 }
 
+// Input represents a Slack-specific implementation of sarah.Input.
+// Pass incoming payload to EventToInput for conversion.
 type Input struct {
 	payload         interface{}
 	senderKey       string
@@ -259,22 +270,27 @@ type Input struct {
 	channelID       event.ChannelID
 }
 
+// SenderKey returns string representing message sender.
 func (i *Input) SenderKey() string {
 	return i.senderKey
 }
 
+// Message returns given message.
 func (i *Input) Message() string {
 	return i.text
 }
 
+// SentAt returns event's timestamp.
 func (i *Input) SentAt() time.Time {
 	return i.timestamp.Time
 }
 
+// ReplyTo returns slack channel to send reply to.
 func (i *Input) ReplyTo() sarah.OutputDestination {
 	return i.channelID
 }
 
+// EventToInput converts given event payload to *Input.
 func EventToInput(e interface{}) (sarah.Input, error) {
 	switch typed := e.(type) {
 	case *event.Message:

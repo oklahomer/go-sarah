@@ -39,6 +39,11 @@ func (e *eventsAPIAdapter) run(ctx context.Context, enqueueInput func(sarah.Inpu
 	}
 }
 
+// DefaultEventsPayloadHandler receives incoming events, convert them to sarah.Input and then pass them to enqueueInput.
+// To replace this default behavior, define a function with the same signature and replace this.
+//
+//   myHandler := func(_ context.Context, _ config *Config, _ *eventsapi.EventWrapper, _ func(sarah.Input) error)
+//   slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithEventsPayloadHandler(myHandler))
 func DefaultEventsPayloadHandler(_ context.Context, config *Config, payload *eventsapi.EventWrapper, enqueueInput func(input sarah.Input) error) {
 	input, err := EventToInput(payload.Event)
 	if err == ErrNonSupportedEvent {
