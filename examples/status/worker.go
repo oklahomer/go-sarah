@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2/workers"
+	"github.com/oklahomer/go-sarah/v3/workers"
 	"sync"
 	"time"
 )

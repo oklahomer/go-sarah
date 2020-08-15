@@ -18,7 +18,16 @@ An adapter developer may focus on implementing the protocol to interacting with 
 To take a look at those components and their relations, see [Components](https://github.com/oklahomer/go-sarah/wiki/Components).
 
 # IMPORTANT NOTICE
-This is the second major version of `go-sarah`. If you are using the previous version of it, take a look at [Migrating from v1.x to v2.x](https://github.com/oklahomer/go-sarah/wiki/Migrating-from-v1.x-to-v2.x) to migrate to the newer version.
+## v3 Release
+This is the third major version of `go-sarah`, which introduces the Slack adapter's improvement to support both RTM and Events API.
+Breaking interface change for Slack adapter was inevitable and that is the sole reason for this major version up.
+Other than that, this does not include any breaking change.
+See [Migrating from v2.x to v3.x](https://github.com/oklahomer/go-sarah/wiki/Migrating-from-v2.x-to-v3.x) for details.
+
+## v2 Release
+The second major version introduced some breaking changes to `go-sarah`.
+This version still supports and maintains all functionalities, better interfaces for easier integration are added.
+See [Migrating from v1.x to v2.x](https://github.com/oklahomer/go-sarah/wiki/Migrating-from-v1.x-to-v2.x) to migrate from the older version.
 
 # Supported Chat Services/Protocols
 Although a developer may implement `sarah.Adapter` to integrate with the desired chat service,
@@ -61,8 +70,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
 	
 	"os"
 	"os/signal"
@@ -102,7 +111,7 @@ func setupSlack() {
 	// Setup slack adapter.
 	slackConfig := slack.NewConfig()
 	slackConfig.Token = "REPLACE THIS"
-	adapter, err := slack.NewAdapter(slackConfig)
+	adapter, err := slack.NewAdapter(slackConfig, slack.WithRTMPayloadHandler(slack.DefaultRTMPayloadHandler))
 	if err != nil {
 		panic(fmt.Errorf("faileld to setup Slack Adapter: %s", err.Error()))
 	}
@@ -127,8 +136,8 @@ package guess
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -189,8 +198,8 @@ package hello
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
 	"strings"
 )
 

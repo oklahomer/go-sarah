@@ -9,9 +9,9 @@ package todo
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/log"
-	"github.com/oklahomer/go-sarah/v2/slack"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-sarah/v3/slack"
 	"regexp"
 	"strings"
 	"time"

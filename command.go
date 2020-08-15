@@ -2,7 +2,7 @@ package sarah
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2/log"
+	"github.com/oklahomer/go-sarah/v3/log"
 	"golang.org/x/xerrors"
 	"reflect"
 	"regexp"
