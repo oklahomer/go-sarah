@@ -33,7 +33,7 @@ import (
 	"github.com/oklahomer/go-sarah/v2"
 	"github.com/oklahomer/go-sarah/v2/log"
 	"github.com/oklahomer/go-sarah/v2/slack"
-	"github.com/oklahomer/golack/webapi"
+	"github.com/oklahomer/golack/v2/webapi"
 	"regexp"
 	"time"
 )

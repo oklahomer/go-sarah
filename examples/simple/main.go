@@ -115,7 +115,8 @@ func readConfig(path string) *myConfig {
 }
 
 func setupSlack(config *slack.Config, storage sarah.UserContextStorage) {
-	adapter, err := slack.NewAdapter(config)
+	//adapter, err := slack.NewAdapter(config, slack.WithEventsPayloadHandler(slack.DefaultEventsPayloadHandler))
+	adapter, err := slack.NewAdapter(config, slack.WithRTMPayloadHandler(slack.DefaultRTMPayloadHandler))
 	if err != nil {
 		panic(err)
 	}

@@ -10,7 +10,7 @@ import (
 	"context"
 	"github.com/oklahomer/go-sarah/v2"
 	"github.com/oklahomer/go-sarah/v2/slack"
-	"github.com/oklahomer/golack/slackobject"
+	"github.com/oklahomer/golack/v2/event"
 )
 
 func init() {
@@ -18,8 +18,8 @@ func init() {
 }
 
 type timerConfig struct {
-	TaskSchedule string                `yaml:"schedule"`
-	ChannelID    slackobject.ChannelID `yaml:"channel_id"`
+	TaskSchedule string          `yaml:"schedule"`
+	ChannelID    event.ChannelID `yaml:"channel_id"`
 }
 
 func (t *timerConfig) Schedule() string {
