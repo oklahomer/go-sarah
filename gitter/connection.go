@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v3"
 	"golang.org/x/xerrors"
 	"io"
 	"time"

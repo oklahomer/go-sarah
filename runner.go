@@ -3,8 +3,8 @@ package sarah
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v2/log"
-	"github.com/oklahomer/go-sarah/v2/workers"
+	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-sarah/v3/workers"
 	"golang.org/x/xerrors"
 	"runtime"
 	"strings"

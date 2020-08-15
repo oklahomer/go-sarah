@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
-	"github.com/oklahomer/go-sarah/v2/workers"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/go-sarah/v3/workers"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"

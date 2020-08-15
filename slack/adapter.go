@@ -3,8 +3,8 @@ package slack
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/log"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/golack/v2"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/eventsapi"

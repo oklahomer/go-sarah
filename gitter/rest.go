@@ -3,7 +3,7 @@ package gitter
 import (
 	"context"
 	"encoding/json"
-	"github.com/oklahomer/go-sarah/v2/log"
+	"github.com/oklahomer/go-sarah/v3/log"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"

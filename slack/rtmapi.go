@@ -2,9 +2,9 @@ package slack
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/log"
-	"github.com/oklahomer/go-sarah/v2/retry"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-sarah/v3/retry"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/rtmapi"
 	"golang.org/x/xerrors"

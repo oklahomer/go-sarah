@@ -61,8 +61,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
 	
 	"os"
 	"os/signal"
@@ -102,7 +102,7 @@ func setupSlack() {
 	// Setup slack adapter.
 	slackConfig := slack.NewConfig()
 	slackConfig.Token = "REPLACE THIS"
-	adapter, err := slack.NewAdapter(slackConfig)
+	adapter, err := slack.NewAdapter(slackConfig, slack.WithRTMPayloadHandler(slack.DefaultRTMPayloadHandler))
 	if err != nil {
 		panic(fmt.Errorf("faileld to setup Slack Adapter: %s", err.Error()))
 	}
@@ -127,8 +127,8 @@ package guess
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -189,8 +189,8 @@ package hello
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
 	"strings"
 )
 
