@@ -12,8 +12,8 @@ package guess
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -44,6 +44,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 			slack.RespWithNext(func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 				return guessFunc(c, i, answer)
 			}),
+			slack.RespAsThreadReply(true),
 		)
 	}).
 	MustBuild()
@@ -57,16 +58,16 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 	// See if user inputs valid number.
 	guess, err := strconv.Atoi(strings.TrimSpace(input.Message()))
 	if err != nil {
-		return slack.NewResponse(input, "Invalid input format.", slack.RespWithNext(retry))
+		return slack.NewResponse(input, "Invalid input format.", slack.RespWithNext(retry), slack.RespAsThreadReply(true))
 	}
 
 	// If guess is right, tell user and finish current user context.
 	// Otherwise let user input next guess with bit of a hint.
 	if guess == answer {
-		return slack.NewResponse(input, "Correct!")
+		return slack.NewResponse(input, "Correct!", slack.RespAsThreadReply(true))
 	} else if guess > answer {
-		return slack.NewResponse(input, "Smaller!", slack.RespWithNext(retry))
+		return slack.NewResponse(input, "Smaller!", slack.RespWithNext(retry), slack.RespAsThreadReply(true))
 	} else {
-		return slack.NewResponse(input, "Bigger!", slack.RespWithNext(retry))
+		return slack.NewResponse(input, "Bigger!", slack.RespWithNext(retry), slack.RespAsThreadReply(true))
 	}
 }

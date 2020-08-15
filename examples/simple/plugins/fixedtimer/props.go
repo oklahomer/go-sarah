@@ -9,9 +9,9 @@ package fixedtimer
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
-	"github.com/oklahomer/golack/slackobject"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/golack/v2/event"
 )
 
 func init() {
@@ -19,7 +19,7 @@ func init() {
 }
 
 type timerConfig struct {
-	ChannelID slackobject.ChannelID `yaml:"channel_id"`
+	ChannelID event.ChannelID `yaml:"channel_id"`
 }
 
 func (t *timerConfig) DefaultDestination() sarah.OutputDestination {

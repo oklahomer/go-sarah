@@ -1,7 +1,7 @@
 package gitter
 
 import (
-	"github.com/oklahomer/go-sarah/v2/retry"
+	"github.com/oklahomer/go-sarah/v3/retry"
 	"time"
 )
 

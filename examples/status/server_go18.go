@@ -4,7 +4,7 @@ package main
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v2/log"
+	"github.com/oklahomer/go-sarah/v3/log"
 	"net/http"
 	"runtime"
 )

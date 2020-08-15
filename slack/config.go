@@ -1,13 +1,15 @@
 package slack
 
 import (
-	"github.com/oklahomer/go-sarah/v2/retry"
+	"github.com/oklahomer/go-sarah/v3/retry"
 	"time"
 )
 
 // Config contains some configuration variables for slack Adapter.
 type Config struct {
 	Token            string        `json:"token" yaml:"token"`
+	AppSecret        string        `json:"app_secret" yaml:"app_secret"`
+	ListenPort       int           `json:"listen_port" yaml:"listen_port"`
 	HelpCommand      string        `json:"help_command" yaml:"help_command"`
 	AbortCommand     string        `json:"abort_command" yaml:"abort_command"`
 	SendingQueueSize uint          `json:"sending_queue_size" yaml:"sending_queue_size"`
@@ -22,6 +24,8 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		Token:            "",
+		AppSecret:        "",
+		ListenPort:       8080,
 		HelpCommand:      ".help",
 		AbortCommand:     ".abort",
 		SendingQueueSize: 100,

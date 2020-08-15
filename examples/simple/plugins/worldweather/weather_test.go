@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/oklahomer/go-sarah/v2"
-	"github.com/oklahomer/go-sarah/v2/slack"
-	"github.com/oklahomer/golack/rtmapi"
-	"github.com/oklahomer/golack/slackobject"
-	"github.com/oklahomer/golack/webapi"
+	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/golack/v2/event"
+	"github.com/oklahomer/golack/v2/webapi"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
@@ -36,15 +35,14 @@ func TestSlackCommandFunc(t *testing.T) {
 	})
 	defer resetClient()
 
+	input, _ := slack.EventToInput(&event.Message{
+		ChannelID: "dummy",
+		UserID:    "user",
+		Text:      ".weather tokyo",
+	})
 	response, err := SlackCommandFunc(
 		context.TODO(),
-		slack.NewMessageInput(
-			&rtmapi.Message{
-				ChannelID: slackobject.ChannelID("dummy"),
-				SenderID:  slackobject.UserID("user"),
-				Text:      ".weather tokyo",
-			},
-		),
+		input,
 		&CommandConfig{
 			APIKey: "dummy",
 		},
@@ -92,15 +90,16 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 		})
 		defer resetClient()
 
+		input, _ := slack.EventToInput(
+			&event.Message{
+				ChannelID: "dummy",
+				UserID:    "user",
+				Text:      ".weather tokyo",
+			},
+		)
 		response, err := SlackCommandFunc(
 			context.TODO(),
-			slack.NewMessageInput(
-				&rtmapi.Message{
-					ChannelID: slackobject.ChannelID("dummy"),
-					SenderID:  slackobject.UserID("user"),
-					Text:      ".weather tokyo",
-				},
-			),
+			input,
 			&CommandConfig{
 				APIKey: "dummy",
 			},
@@ -114,7 +113,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			t.Fatal("Expected response is not returned.")
 		}
 
-		if _, ok := response.Content.(*rtmapi.OutgoingMessage); !ok {
+		if _, ok := response.Content.(*webapi.PostMessage); !ok {
 			t.Errorf("Unexpected content type is returned %#v.", response.Content)
 		}
 
@@ -136,15 +135,16 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			}, nil
 		})
 
+		input, _ := slack.EventToInput(
+			&event.Message{
+				ChannelID: "dummy",
+				UserID:    "user",
+				Text:      "tokyo",
+			},
+		)
 		response, err := response.UserContext.Next(
 			context.TODO(),
-			slack.NewMessageInput(
-				&rtmapi.Message{
-					ChannelID: slackobject.ChannelID("dummy"),
-					SenderID:  slackobject.UserID("user"),
-					Text:      "tokyo",
-				},
-			),
+			input,
 		)
 
 		if err != nil {
@@ -155,7 +155,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			t.Fatal("Expected response is not returned.")
 		}
 
-		if _, ok := response.Content.(*rtmapi.OutgoingMessage); !ok {
+		if _, ok := response.Content.(*webapi.PostMessage); !ok {
 			t.Errorf("Unexpected content type is returned %#v.", response.Content)
 		}
 

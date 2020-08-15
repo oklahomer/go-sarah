@@ -6,7 +6,7 @@ package line
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v2"
+	"github.com/oklahomer/go-sarah/v3"
 	"golang.org/x/xerrors"
 	"net/http"
 	"net/url"

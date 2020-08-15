@@ -6,7 +6,7 @@ package workers
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v2/log"
+	"github.com/oklahomer/go-sarah/v3/log"
 	"golang.org/x/xerrors"
 	"runtime"
 	"strings"
