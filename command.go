@@ -282,18 +282,7 @@ func (builder *CommandPropsBuilder) Identifier(id string) *CommandPropsBuilder {
 // Use MatchFunc to set more customizable matching logic.
 func (builder *CommandPropsBuilder) MatchPattern(pattern *regexp.Regexp) *CommandPropsBuilder {
 	builder.props.matchFunc = func(input Input) bool {
-		// Copy regexp pattern
-		// https://golang.org/doc/go1.6#minor_library_changes
-		// Some high-concurrency servers using the same Regexp from many goroutines have seen degraded performance due to contention on that mutex.
-		// To help such servers, Regexp now has a Copy method, which makes a copy of a Regexp that shares most of the structure of the original
-		// but has its own scratch space cache.
-		//
-		// Copy() employed in above context is no longer required as of Golang 1.12.
-		// TODO Consider removing Copy() call when minimum supported version becomes 1.12 or most users switch to 1.12.
-		// https://golang.org/doc/go1.12#regexp
-		// Copy is no longer necessary to avoid lock contention, so it has been given a partial deprecation comment.
-		// Copy may still be appropriate if the reason for its use is to make two copies with different Longest settings.
-		return pattern.Copy().MatchString(input.Message())
+		return pattern.MatchString(input.Message())
 	}
 	return builder
 }
