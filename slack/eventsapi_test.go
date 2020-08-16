@@ -102,8 +102,8 @@ func TestDefaultEventsPayloadHandler(t *testing.T) {
 				t.Fatalf("Unexpected input is given: %#v", input)
 			}
 
-			if typed.payload != ev {
-				t.Errorf("Given payload does not match with the original one: %#v", typed.payload)
+			if typed.Event != ev {
+				t.Errorf("Given event does not match with the original one: %#v", typed.Event)
 			}
 		}
 	})

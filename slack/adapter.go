@@ -19,6 +19,7 @@ const (
 	SLACK sarah.BotType = "slack"
 )
 
+// ErrNonSupportedEvent is returned when given event is not supported by this adapter.
 var ErrNonSupportedEvent = xerrors.New("event not supported")
 
 // AdapterOption defines function signature that Adapter's functional option must satisfy.
@@ -262,7 +263,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 // Input represents a Slack-specific implementation of sarah.Input.
 // Pass incoming payload to EventToInput for conversion.
 type Input struct {
-	payload         interface{}
+	Event           interface{}
 	senderKey       string
 	text            string
 	timestamp       *event.TimeStamp
@@ -295,7 +296,7 @@ func EventToInput(e interface{}) (sarah.Input, error) {
 	switch typed := e.(type) {
 	case *event.Message:
 		return &Input{
-			payload:         e,
+			Event:           e,
 			senderKey:       fmt.Sprintf("%s|%s", typed.ChannelID.String(), typed.UserID.String()),
 			text:            typed.Text,
 			timestamp:       typed.TimeStamp,
@@ -305,7 +306,7 @@ func EventToInput(e interface{}) (sarah.Input, error) {
 
 	case *event.ChannelMessage:
 		return &Input{
-			payload:         e,
+			Event:           e,
 			senderKey:       fmt.Sprintf("%s|%s", typed.ChannelID.String(), typed.UserID.String()),
 			text:            typed.Text,
 			timestamp:       typed.TimeStamp,

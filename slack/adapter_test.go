@@ -350,7 +350,7 @@ func TestNewResponse(t *testing.T) {
 	}{
 		{
 			input: &Input{
-				payload:   &event.Message{},
+				Event:     &event.Message{},
 				channelID: "dummy",
 			},
 			message: "dummy message",
@@ -358,7 +358,7 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &Input{
-				payload:   &event.Message{},
+				Event:     &event.Message{},
 				channelID: "dummy",
 			},
 			message: "dummy message",
@@ -387,7 +387,7 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &Input{
-				payload:   &event.Message{},
+				Event:     &event.Message{},
 				channelID: "dummy",
 				timestamp: &event.TimeStamp{
 					Time:          now,
@@ -402,7 +402,7 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &Input{
-				payload:   &event.Message{},
+				Event:     &event.Message{},
 				channelID: "dummy",
 				timestamp: &event.TimeStamp{
 					Time:          now,
@@ -418,7 +418,7 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &Input{
-				payload:   &event.Message{},
+				Event:     &event.Message{},
 				channelID: "dummy",
 				timestamp: &event.TimeStamp{
 					Time:          now,
@@ -435,7 +435,7 @@ func TestNewResponse(t *testing.T) {
 		},
 		{
 			input: &Input{
-				payload:   &event.Message{},
+				Event:     &event.Message{},
 				channelID: "dummy",
 				timestamp: &event.TimeStamp{
 					Time:          time.Now(),
