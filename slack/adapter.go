@@ -19,6 +19,7 @@ const (
 	SLACK sarah.BotType = "slack"
 )
 
+// ErrNonSupportedEvent is returned when given event is not supported by this adapter.
 var ErrNonSupportedEvent = xerrors.New("event not supported")
 
 // AdapterOption defines function signature that Adapter's functional option must satisfy.
