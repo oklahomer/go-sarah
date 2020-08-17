@@ -23,7 +23,7 @@ func (e *alertErrs) isEmpty() bool {
 	return len(*e) == 0
 }
 
-// Error returns stringified form of all stored errors.
+// Error returns string field form of all stored errors.
 func (e *alertErrs) Error() string {
 	var errs []string
 	for _, err := range *e {

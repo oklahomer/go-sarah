@@ -69,7 +69,7 @@ type defaultBot struct {
 //
 // It is highly recommended to provide concrete implementation of sarah.UserContextStorage, so the users' conversational context can be stored and executed on next Input.
 // sarah.userContextStorage is provided by default to store user context in memory. This storage can be initialized by sarah.NewUserContextStorage like above example.
-func NewBot(adapter Adapter, options ...DefaultBotOption) (Bot, error) {
+func NewBot(adapter Adapter, options ...DefaultBotOption) Bot {
 	bot := &defaultBot{
 		botType:            adapter.BotType(),
 		runFunc:            adapter.Run,
@@ -82,7 +82,7 @@ func NewBot(adapter Adapter, options ...DefaultBotOption) (Bot, error) {
 		opt(bot)
 	}
 
-	return bot, nil
+	return bot
 }
 
 // DefaultBotOption defines function that defaultBot's functional option must satisfy.
@@ -132,10 +132,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 			res, err = bot.commands.ExecuteFirstMatched(ctx, input)
 		}
 	} else {
-		e := bot.userContextStorage.Delete(senderKey)
-		if e != nil {
-			log.Warnf("Failed to delete UserContext: BotType: %s. SenderKey: %s. Error: %+v", bot.BotType(), senderKey, e)
-		}
+		bot.userContextStorage.Delete(senderKey)
 
 		switch input.(type) {
 		case *AbortInput:

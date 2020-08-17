@@ -121,10 +121,7 @@ func setupSlack(config *slack.Config, storage sarah.UserContextStorage) {
 		panic(err)
 	}
 
-	bot, err := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
-	if err != nil {
-		panic(err)
-	}
+	bot := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
 
 	// Register bot to run.
 	sarah.RegisterBot(bot)

@@ -82,9 +82,7 @@ func setupSlackBot(cfg *config) (sarah.Bot, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to initialize Slack adapter: %w", err)
 	}
-	slackBot, err := sarah.NewBot(slackAdapter, sarah.BotWithStorage(storage))
-	if err != nil {
-		return nil, xerrors.Errorf("failed to initialize Bot with given Slack adapter: %w", err)
-	}
+	slackBot := sarah.NewBot(slackAdapter, sarah.BotWithStorage(storage))
+
 	return slackBot, nil
 }

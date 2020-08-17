@@ -40,14 +40,10 @@ func TestNewBot(t *testing.T) {
 	adapter := &DummyAdapter{}
 	storage := &DummyUserContextStorage{}
 	option := BotWithStorage(storage)
-	myBot, err := NewBot(
+	myBot := NewBot(
 		adapter,
 		option,
 	)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %#v.", err)
-	}
 
 	typedBot, ok := myBot.(*defaultBot)
 	if !ok {
@@ -211,9 +207,7 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 	responseContent := &struct{}{}
 	var givenNext ContextualFunc
 	dummyStorage := &DummyUserContextStorage{
-		DeleteFunc: func(_ string) error {
-			return nil
-		},
+		DeleteFunc: func(_ string) {},
 		GetFunc: func(_ string) (ContextualFunc, error) {
 			return func(_ context.Context, input Input) (*CommandResponse, error) {
 				return &CommandResponse{
@@ -269,9 +263,7 @@ func TestDefaultBot_Respond_WithContextStorageSetError(t *testing.T) {
 	}
 	var givenNext ContextualFunc
 	dummyStorage := &DummyUserContextStorage{
-		DeleteFunc: func(_ string) error {
-			return nil
-		},
+		DeleteFunc: func(_ string) {},
 		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nil, nil
 		},
@@ -327,9 +319,7 @@ func TestDefaultBot_Respond_WithContextStorageDeleteError(t *testing.T) {
 		}, nil
 	}
 	dummyStorage := &DummyUserContextStorage{
-		DeleteFunc: func(_ string) error {
-			return nil
-		},
+		DeleteFunc: func(_ string) {},
 		GetFunc: func(_ string) (ContextualFunc, error) {
 			return nextFunc, nil
 		},
@@ -397,9 +387,8 @@ func TestDefaultBot_Respond_UserContextWithoutStorage(t *testing.T) {
 func TestDefaultBot_Respond_Abort(t *testing.T) {
 	isStorageDeleted := false
 	dummyStorage := &DummyUserContextStorage{
-		DeleteFunc: func(_ string) error {
+		DeleteFunc: func(_ string) {
 			isStorageDeleted = true
-			return nil
 		},
 		GetFunc: func(_ string) (ContextualFunc, error) {
 			return func(_ context.Context, input Input) (*CommandResponse, error) {

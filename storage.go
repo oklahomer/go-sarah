@@ -70,8 +70,8 @@ func NewUserContext(next ContextualFunc) *UserContext {
 type UserContextStorage interface {
 	Get(string) (ContextualFunc, error)
 	Set(string, *UserContext) error
-	Delete(string) error
-	Flush() error
+	Delete(string)
+	Flush()
 }
 
 // defaultUserContextStorage is the default implementation of UserContexts.
@@ -90,7 +90,7 @@ func NewUserContextStorage(config *CacheConfig) UserContextStorage {
 // Get searches for user's stored state with given user key, and return it if any found.
 func (storage *defaultUserContextStorage) Get(key string) (ContextualFunc, error) {
 	val, hasKey := storage.cache.Get(key)
-	if !hasKey || val == nil {
+	if !hasKey {
 		return nil, nil
 	}
 
@@ -106,9 +106,8 @@ func (storage *defaultUserContextStorage) Get(key string) (ContextualFunc, error
 
 // Delete removes currently stored user's conversational context.
 // This does nothing if corresponding stored context is not found.
-func (storage *defaultUserContextStorage) Delete(key string) error {
+func (storage *defaultUserContextStorage) Delete(key string) {
 	storage.cache.Delete(key)
-	return nil
 }
 
 // Set stores given UserContext.
@@ -123,7 +122,6 @@ func (storage *defaultUserContextStorage) Set(key string, userContext *UserConte
 }
 
 // Flush removes all stored UserContext from its storage.
-func (storage *defaultUserContextStorage) Flush() error {
+func (storage *defaultUserContextStorage) Flush() {
 	storage.cache.Flush()
-	return nil
 }
