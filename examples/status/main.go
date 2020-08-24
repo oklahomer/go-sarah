@@ -1,6 +1,5 @@
 /*
 Package main provides an example that uses sarah.CurrentStatus() to get current go-sarah and its belonging Bot's status via HTTP server.
-
 In this example two bots, slack and nullBot, are registered to go-sarah and become subject to supervise.
 See handler.go for Runner.Status() usage.
 */
