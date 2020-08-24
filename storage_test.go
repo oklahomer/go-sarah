@@ -10,8 +10,8 @@ import (
 type DummyUserContextStorage struct {
 	GetFunc    func(string) (ContextualFunc, error)
 	SetFunc    func(string, *UserContext) error
-	DeleteFunc func(string)
-	FlushFunc  func()
+	DeleteFunc func(string) error
+	FlushFunc  func() error
 }
 
 func (storage *DummyUserContextStorage) Get(key string) (ContextualFunc, error) {
@@ -22,12 +22,12 @@ func (storage *DummyUserContextStorage) Set(key string, userContext *UserContext
 	return storage.SetFunc(key, userContext)
 }
 
-func (storage *DummyUserContextStorage) Delete(key string) {
-	storage.DeleteFunc(key)
+func (storage *DummyUserContextStorage) Delete(key string) error {
+	return storage.DeleteFunc(key)
 }
 
-func (storage *DummyUserContextStorage) Flush() {
-	storage.FlushFunc()
+func (storage *DummyUserContextStorage) Flush() error {
+	return storage.FlushFunc()
 }
 
 func TestNewUserContextStorage(t *testing.T) {
@@ -64,13 +64,13 @@ func TestDefaultUserContextStorage_CRUD(t *testing.T) {
 		t.Fatal("Expected value is not stored.")
 	}
 
-	storage.Delete(key)
+	_ = storage.Delete(key)
 	if empty, _ := storage.Get(key); empty != nil {
 		t.Fatalf("nil should return after deletion. %#v.", empty)
 	}
 
 	_ = storage.Set(key, NewUserContext(func(ctx context.Context, input Input) (*CommandResponse, error) { return nil, nil }))
-	storage.Flush()
+	_ = storage.Flush()
 	if storage.cache.ItemCount() > 0 {
 		t.Fatal("Some value is stored after flush.")
 	}

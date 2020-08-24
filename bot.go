@@ -132,7 +132,10 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 			res, err = bot.commands.ExecuteFirstMatched(ctx, input)
 		}
 	} else {
-		bot.userContextStorage.Delete(senderKey)
+		e := bot.userContextStorage.Delete(senderKey)
+		if e != nil {
+			log.Warnf("Failed to delete UserContext: BotType: %s. SenderKey: %s. Error: %+v", bot.BotType(), senderKey, e)
+		}
 
 		switch input.(type) {
 		case *AbortInput:
