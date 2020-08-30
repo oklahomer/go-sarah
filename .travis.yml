@@ -22,6 +22,3 @@ matrix:
 
 git:
   depth: 10
-
-env:
-  - GO111MODULE=on
