@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/go-sarah/v3/log"
@@ -10,7 +11,6 @@ import (
 	"github.com/oklahomer/golack/v2/eventsapi"
 	"github.com/oklahomer/golack/v2/rtmapi"
 	"github.com/oklahomer/golack/v2/webapi"
-	"golang.org/x/xerrors"
 	"time"
 )
 
@@ -20,7 +20,7 @@ const (
 )
 
 // ErrNonSupportedEvent is returned when given event is not supported by this adapter.
-var ErrNonSupportedEvent = xerrors.New("event not supported")
+var ErrNonSupportedEvent = errors.New("event not supported")
 
 // AdapterOption defines function signature that Adapter's functional option must satisfy.
 type AdapterOption func(adapter *Adapter)
@@ -146,7 +146,7 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	// If not, use golack with given configuration.
 	if adapter.client == nil {
 		if config.Token == "" {
-			return nil, xerrors.New("Slack client must be provided with WithSlackClient option or must be configurable with given *Config")
+			return nil, errors.New("Slack client must be provided with WithSlackClient option or must be configurable with given *Config")
 		}
 
 		golackConfig := golack.NewConfig()
@@ -161,7 +161,7 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	}
 
 	if adapter.apiSpecificAdapterBuilder == nil {
-		return nil, xerrors.New("RTM or Events API configuration must be applied with WithRTMPayloadHandler or WithEventsPayloadHandler")
+		return nil, errors.New("RTM or Events API configuration must be applied with WithRTMPayloadHandler or WithEventsPayloadHandler")
 	}
 
 	return adapter, nil
@@ -345,7 +345,7 @@ func IsThreadMessage(input *Input) bool {
 func NewResponse(input sarah.Input, msg string, options ...RespOption) (*sarah.CommandResponse, error) {
 	typed, ok := input.(*Input)
 	if !ok {
-		return nil, xerrors.Errorf("%T is not currently supported to automatically generate response", input)
+		return nil, fmt.Errorf("%T is not currently supported to automatically generate response", input)
 	}
 
 	stash := &respOptions{

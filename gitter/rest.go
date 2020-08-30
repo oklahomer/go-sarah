@@ -3,8 +3,8 @@ package gitter
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -138,7 +138,7 @@ func (client *RestAPIClient) PostMessage(ctx context.Context, room *Room, text s
 	message := &Message{}
 	err := client.Post(ctx, []string{"rooms", room.ID, "chatMessages"}, &PostingMessage{Text: text}, message)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to post message: %w", err)
+		return nil, fmt.Errorf("failed to post message: %w", err)
 	}
 	return message, nil
 }

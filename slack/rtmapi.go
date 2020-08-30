@@ -2,12 +2,12 @@ package slack
 
 import (
 	"context"
+	"fmt"
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/go-sarah/v3/retry"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/rtmapi"
-	"golang.org/x/xerrors"
 	"strings"
 	"time"
 )
@@ -122,7 +122,7 @@ func (r *rtmAPIAdapter) superviseConnection(connCtx context.Context, payloadSend
 			log.Debug("Send ping")
 			err := payloadSender.Ping()
 			if err != nil {
-				return xerrors.Errorf("error on ping: %w", err)
+				return fmt.Errorf("error on ping: %w", err)
 			}
 		}
 	}

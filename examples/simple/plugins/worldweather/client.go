@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -47,7 +46,7 @@ func (client *Client) buildEndpoint(apiType string, queryParams *url.Values) *ur
 
 	requestURL, err := url.Parse(fmt.Sprintf(weatherAPIEndpointFormat, apiType))
 	if err != nil {
-		panic(xerrors.Errorf("failed to parse construct URL for %s: %w", apiType, err))
+		panic(fmt.Errorf("failed to parse construct URL for %s: %w", apiType, err))
 	}
 	requestURL.RawQuery = queryParams.Encode()
 
@@ -59,26 +58,26 @@ func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.
 	endpoint := client.buildEndpoint(apiType, queryParams)
 	req, err := http.NewRequest(http.MethodGet, endpoint.String(), nil)
 	if err != nil {
-		return xerrors.Errorf("failed to build request: %w", err)
+		return fmt.Errorf("failed to build request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return xerrors.Errorf("failed on GET request for %s: %w", apiType, err)
+		return fmt.Errorf("failed on GET request for %s: %w", apiType, err)
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return xerrors.Errorf("response status %d is returned", resp.StatusCode)
+		return fmt.Errorf("response status %d is returned", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return xerrors.Errorf("failed to read response: %w", err)
+		return fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if err := json.Unmarshal(body, data); err != nil {
-		return xerrors.Errorf("failed to parse returned json data: %w", err)
+		return fmt.Errorf("failed to parse returned json data: %w", err)
 	}
 
 	return nil
@@ -90,7 +89,7 @@ func (client *Client) LocalWeather(ctx context.Context, location string) (*Local
 	queryParams.Add("q", location)
 	data := &LocalWeatherResponse{}
 	if err := client.Get(ctx, "weather", queryParams, data); err != nil {
-		return nil, xerrors.Errorf("failed getting weather data: %w", err)
+		return nil, fmt.Errorf("failed getting weather data: %w", err)
 	}
 
 	return data, nil

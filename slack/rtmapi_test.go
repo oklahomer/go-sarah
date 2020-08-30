@@ -7,7 +7,6 @@ import (
 	"github.com/oklahomer/go-sarah/v3/retry"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/rtmapi"
-	"golang.org/x/xerrors"
 	"reflect"
 	"testing"
 	"time"
@@ -119,7 +118,7 @@ func Test_rtmAPIAdapter_run(t *testing.T) {
 		select {
 		case err := <-errCh:
 			var target *sarah.BotNonContinuableError
-			if !xerrors.As(err, &target) {
+			if !errors.As(err, &target) {
 				t.Errorf("Expected error is not returned: %#v", err)
 			}
 
@@ -328,7 +327,7 @@ func Test_rtmAPIAdapter_superviseConnection(t *testing.T) {
 
 	t.Run("Ping error", func(t *testing.T) {
 		// Prepare a connection that returns error on Ping.
-		expectedErr := xerrors.New("PING ERROR")
+		expectedErr := errors.New("PING ERROR")
 		conn := &DummyConnection{
 			PingFunc: func() error {
 				return expectedErr
@@ -358,7 +357,7 @@ func Test_rtmAPIAdapter_superviseConnection(t *testing.T) {
 		// See if expected error is returned.
 		select {
 		case err := <-conErr:
-			if !xerrors.Is(err, expectedErr) {
+			if !errors.Is(err, expectedErr) {
 				t.Errorf("Expected error is not returned: %#v", err)
 			}
 

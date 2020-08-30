@@ -3,11 +3,11 @@ package watchers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -36,7 +36,7 @@ type subscription struct {
 func NewFileWatcher(ctx context.Context, baseDir string) (sarah.ConfigWatcher, error) {
 	fsWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return nil, xerrors.Errorf("failed to start file watcher: %w", err)
+		return nil, fmt.Errorf("failed to start file watcher: %w", err)
 	}
 
 	w := &fileWatcher{
@@ -72,7 +72,7 @@ func (w *fileWatcher) Read(ctx context.Context, botType sarah.BotType, id string
 
 	buf, err := ioutil.ReadFile(file.absPath)
 	if err != nil {
-		return xerrors.Errorf("failed to read configuration file at %s: %w", file.absPath, err)
+		return fmt.Errorf("failed to read configuration file at %s: %w", file.absPath, err)
 	}
 
 	switch file.fileType {
@@ -84,7 +84,7 @@ func (w *fileWatcher) Read(ctx context.Context, botType sarah.BotType, id string
 
 	default:
 		// Should never come. findPluginConfigFile guarantees that.
-		return xerrors.Errorf("unsupported file type: %s", file.absPath)
+		return fmt.Errorf("unsupported file type: %s", file.absPath)
 
 	}
 }
@@ -93,7 +93,7 @@ func (w *fileWatcher) Watch(_ context.Context, botType sarah.BotType, id string,
 	configDir := filepath.Join(w.baseDir, botType.String())
 	absDir, err := filepath.Abs(configDir)
 	if err != nil {
-		return xerrors.Errorf("failed to construct absolute config absPath for %s: %w", botType, err)
+		return fmt.Errorf("failed to construct absolute config absPath for %s: %w", botType, err)
 	}
 
 	s := &subscription{
@@ -148,7 +148,7 @@ OP:
 				log.Infof("Received %s event for %s.", event.Op.String(), event.Name)
 
 				configFile, err := plainPathToFile(event.Name)
-				if xerrors.Is(err, errUnableToDetermineConfigFileFormat) || xerrors.Is(err, errUnsupportedConfigFileFormat) {
+				if errors.Is(err, errUnableToDetermineConfigFileFormat) || errors.Is(err, errUnsupportedConfigFileFormat) {
 					// Irrelevant file is updated
 					continue OP
 				} else if err != nil {
@@ -236,8 +236,8 @@ const (
 )
 
 var (
-	errUnableToDetermineConfigFileFormat = xerrors.New("can not determine file format")
-	errUnsupportedConfigFileFormat       = xerrors.New("unsupported file format")
+	errUnableToDetermineConfigFileFormat = errors.New("can not determine file format")
+	errUnsupportedConfigFileFormat       = errors.New("unsupported file format")
 	configFileCandidates                 = []struct {
 		ext      string
 		fileType fileType
@@ -291,7 +291,7 @@ func findPluginConfigFile(configDir, id string) *pluginConfigFile {
 func plainPathToFile(path string) (*pluginConfigFile, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to get absolute path of %s: %w", path, err)
+		return nil, fmt.Errorf("failed to get absolute path of %s: %w", path, err)
 	}
 
 	ext := filepath.Ext(absPath)

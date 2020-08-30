@@ -2,7 +2,8 @@ package sarah
 
 import (
 	"context"
-	"golang.org/x/xerrors"
+	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 )
@@ -325,11 +326,11 @@ func Test_buildScheduledTask(t *testing.T) {
 			validateConfig: func(cfg interface{}) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
-					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+					return fmt.Errorf("unexpected type is passed: %T", cfg)
 				}
 
 				if config.ScheduleValue != "" {
-					return xerrors.Errorf("Unexpected value is set: %s", config.ScheduleValue)
+					return fmt.Errorf("unexpected value is set: %s", config.ScheduleValue)
 				}
 
 				return nil
@@ -363,11 +364,11 @@ func Test_buildScheduledTask(t *testing.T) {
 			validateConfig: func(cfg interface{}) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
-					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+					return fmt.Errorf("unexpected type is passed: %T", cfg)
 				}
 
 				if config.ScheduleValue != "@every 1m" {
-					return xerrors.Errorf("Unexpected value is set: %s", config.ScheduleValue)
+					return fmt.Errorf("unexpected value is set: %s", config.ScheduleValue)
 				}
 
 				return nil
@@ -397,11 +398,11 @@ func Test_buildScheduledTask(t *testing.T) {
 			validateConfig: func(cfg interface{}) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
-					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+					return fmt.Errorf("unexpected type is passed: %T", cfg)
 				}
 
 				if config.ScheduleValue != "" {
-					return xerrors.Errorf("Unexpected value is set: %s", config.ScheduleValue)
+					return fmt.Errorf("unexpected value is set: %s", config.ScheduleValue)
 				}
 
 				return nil
@@ -436,11 +437,11 @@ func Test_buildScheduledTask(t *testing.T) {
 			validateConfig: func(cfg interface{}) error {
 				config, ok := cfg.(DummyScheduledTaskConfig) // Value is passed
 				if !ok {
-					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+					return fmt.Errorf("unexpected type is passed: %T", cfg)
 				}
 
 				if config.ScheduleValue != "@every 1m" {
-					return xerrors.Errorf("Unexpected value is set: %s", config.ScheduleValue)
+					return fmt.Errorf("unexpected value is set: %s", config.ScheduleValue)
 				}
 
 				return nil
@@ -461,7 +462,7 @@ func Test_buildScheduledTask(t *testing.T) {
 			},
 			watcher: &DummyConfigWatcher{
 				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
-					return xerrors.New("unacceptable error")
+					return errors.New("unacceptable error")
 				},
 			},
 			hasErr: true,

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
@@ -663,20 +662,20 @@ func Test_runner_superviseBot(t *testing.T) {
 			shutdown:  true,
 		},
 		{
-			escalated: xerrors.New("plain error"),
+			escalated: errors.New("plain error"),
 			directive: nil,
 			shutdown:  false,
 		},
 		{
-			escalated: xerrors.New("plain error"),
+			escalated: errors.New("plain error"),
 			directive: &SupervisionDirective{
-				AlertingErr: xerrors.New("this is sent via alerter"),
+				AlertingErr: errors.New("this is sent via alerter"),
 				StopBot:     true,
 			},
 			shutdown: true,
 		},
 		{
-			escalated: xerrors.New("plain error"),
+			escalated: errors.New("plain error"),
 			directive: &SupervisionDirective{
 				AlertingErr: nil,
 				StopBot:     true,
@@ -684,15 +683,15 @@ func Test_runner_superviseBot(t *testing.T) {
 			shutdown: true,
 		},
 		{
-			escalated: xerrors.New("plain error"),
+			escalated: errors.New("plain error"),
 			directive: &SupervisionDirective{
-				AlertingErr: xerrors.New("this is sent via alerter"),
+				AlertingErr: errors.New("this is sent via alerter"),
 				StopBot:     false,
 			},
 			shutdown: false,
 		},
 		{
-			escalated: xerrors.New("plain error"),
+			escalated: errors.New("plain error"),
 			directive: &SupervisionDirective{
 				AlertingErr: nil,
 				StopBot:     false,
@@ -781,7 +780,7 @@ func Test_runner_superviseBot(t *testing.T) {
 			// See if a succeeding call block
 			nonBlocking := make(chan bool)
 			go func() {
-				errSupervisor(xerrors.New("succeeding calls should never block"))
+				errSupervisor(errors.New("succeeding calls should never block"))
 				nonBlocking <- true
 			}()
 			select {
@@ -929,10 +928,10 @@ func Test_registerCommands(t *testing.T) {
 			{
 				configWatcher: &DummyConfigWatcher{
 					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
-						return xerrors.Errorf("configuration error")
+						return errors.New("configuration error")
 					},
 					WatchFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
-						return xerrors.New("subscription error")
+						return errors.New("subscription error")
 					},
 				},
 				props: []*CommandProps{
@@ -1106,7 +1105,7 @@ func Test_registerScheduledTasks(t *testing.T) {
 			{
 				configWatcher: &DummyConfigWatcher{
 					WatchFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
-						return xerrors.New("subscription error")
+						return errors.New("subscription error")
 					},
 				},
 				props: []*ScheduledTaskProps{
@@ -1137,7 +1136,7 @@ func Test_registerScheduledTasks(t *testing.T) {
 					scheduler: &DummyScheduler{
 						UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
 							if tt.updateError {
-								return xerrors.New("update error")
+								return errors.New("update error")
 							}
 							regNum++
 							return nil

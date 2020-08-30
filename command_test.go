@@ -2,7 +2,8 @@ package sarah
 
 import (
 	"context"
-	"golang.org/x/xerrors"
+	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -489,11 +490,11 @@ func Test_buildCommand(t *testing.T) {
 			validateConfig: func(cfg interface{}) error {
 				config, ok := cfg.(*config)
 				if !ok {
-					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+					return fmt.Errorf("unexpected type is passed: %T", cfg)
 				}
 
 				if config.text != "texts" {
-					return xerrors.Errorf("Unexpected value is set: %s", config.text)
+					return fmt.Errorf("nexpected value is set: %s", config.text)
 				}
 
 				return nil
@@ -531,11 +532,11 @@ func Test_buildCommand(t *testing.T) {
 			validateConfig: func(cfg interface{}) error {
 				config, ok := cfg.(config) // Value is passed
 				if !ok {
-					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+					return fmt.Errorf("unexpected type is passed: %T", cfg)
 				}
 
 				if config.text != "texts" {
-					return xerrors.Errorf("Unexpected value is set: %s", config.text)
+					return fmt.Errorf("unexpected value is set: %s", config.text)
 				}
 
 				return nil
@@ -568,11 +569,11 @@ func Test_buildCommand(t *testing.T) {
 			validateConfig: func(cfg interface{}) error {
 				config, ok := cfg.(*config)
 				if !ok {
-					return xerrors.Errorf("Unexpected type is passed: %T.", cfg)
+					return fmt.Errorf("unexpected type is passed: %T", cfg)
 				}
 
 				if config.text != "" {
-					return xerrors.Errorf("Unexpected value is set: %s", config.text)
+					return fmt.Errorf("unexpected value is set: %s", config.text)
 				}
 
 				return nil
@@ -596,7 +597,7 @@ func Test_buildCommand(t *testing.T) {
 			},
 			watcher: &DummyConfigWatcher{
 				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
-					return xerrors.New("unacceptable error")
+					return errors.New("unacceptable error")
 				},
 			},
 			hasErr: true,

@@ -2,15 +2,15 @@ package sarah
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"golang.org/x/xerrors"
 )
 
 // ErrWatcherNotRunning is returned when ConfigWatcher.Unwatch() is called but the context is already canceled.
-var ErrWatcherNotRunning = xerrors.New("context is already canceled")
+var ErrWatcherNotRunning = errors.New("context is already canceled")
 
 // ErrAlreadySubscribing is returned when duplicated calls to ConfigWatcher.Watch() occur.
-var ErrAlreadySubscribing = xerrors.New("already subscribing")
+var ErrAlreadySubscribing = errors.New("already subscribing")
 
 // ConfigNotFoundError is returned when corresponding configuration is not found.
 // This is typically returned when the caller tries to see if there is any configuration available via ConfigWatcher.Read().

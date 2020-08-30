@@ -2,8 +2,9 @@ package sarah
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"golang.org/x/xerrors"
 	"reflect"
 	"regexp"
 	"strings"
@@ -13,7 +14,7 @@ import (
 var (
 	// ErrCommandInsufficientArgument depicts an error that not enough arguments are set to CommandProps.
 	// This is returned on CommandProps.Build() inside of runner.Run()
-	ErrCommandInsufficientArgument = xerrors.New("BotType, Identifier, InstructionFunc, MatchFunc and (Configurable)Func must be set.")
+	ErrCommandInsufficientArgument = errors.New("BotType, Identifier, InstructionFunc, MatchFunc and (Configurable)Func must be set")
 )
 
 // CommandResponse is returned by Command or Task when the execution is finished.
@@ -118,9 +119,9 @@ func buildCommand(ctx context.Context, props *CommandProps, watcher ConfigWatche
 	}()
 
 	var notFoundErr *ConfigNotFoundError
-	if err != nil && !xerrors.As(err, &notFoundErr) {
+	if err != nil && !errors.As(err, &notFoundErr) {
 		// Unacceptable error
-		return nil, xerrors.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
+		return nil, fmt.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
 	}
 
 	return &defaultCommand{
@@ -361,7 +362,7 @@ func (builder *CommandPropsBuilder) Build() (*CommandProps, error) {
 func (builder *CommandPropsBuilder) MustBuild() *CommandProps {
 	props, err := builder.Build()
 	if err != nil {
-		panic(xerrors.Errorf("error on building CommandProps: %w", err))
+		panic(fmt.Errorf("error on building CommandProps: %w", err))
 	}
 
 	return props

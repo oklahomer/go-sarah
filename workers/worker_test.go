@@ -3,9 +3,9 @@ package workers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	stdLogger "log"
@@ -164,7 +164,7 @@ func TestRun_ErrEnqueueAfterShutdown(t *testing.T) {
 
 	err = worker.Enqueue(func() {})
 
-	if !xerrors.Is(err, ErrEnqueueAfterWorkerShutdown) {
+	if !errors.Is(err, ErrEnqueueAfterWorkerShutdown) {
 		t.Errorf("Expected error is not returned: %+v", err)
 	}
 }
@@ -193,7 +193,7 @@ func TestRun_ErrQueueOverflow(t *testing.T) {
 
 	// Next job should be blocked with no buffered channel.
 	err = worker.Enqueue(func() {})
-	if !xerrors.Is(err, ErrQueueOverflow) {
+	if !errors.Is(err, ErrQueueOverflow) {
 		t.Errorf("Expected error is not returned: %+v", err)
 	}
 }
