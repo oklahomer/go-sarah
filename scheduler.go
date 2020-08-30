@@ -2,9 +2,9 @@ package sarah
 
 import (
 	"context"
+	"fmt"
 	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/robfig/cron/v3"
-	"golang.org/x/xerrors"
 	"time"
 )
 
@@ -100,7 +100,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 
 		case add := <-s.updatingTask:
 			if add.task.Schedule() == "" {
-				add.err <- xerrors.Errorf("empty schedule is given for %s", add.task.Identifier())
+				add.err <- fmt.Errorf("empty schedule is given for %s", add.task.Identifier())
 				continue
 			}
 

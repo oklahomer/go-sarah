@@ -1,10 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/go-sarah/v3/slack"
 	"github.com/oklahomer/go-sarah/v3/workers"
-	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 )
@@ -12,7 +12,7 @@ import (
 func readConfig(path string) (*config, error) {
 	body, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to read file: %w", err)
+		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	// Populate with default configuration value by calling each constructor.
@@ -24,7 +24,7 @@ func readConfig(path string) (*config, error) {
 	}
 	err = yaml.Unmarshal(body, c)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to read yaml: %w", err)
+		return nil, fmt.Errorf("failed to read yaml: %w", err)
 	}
 
 	return c, nil

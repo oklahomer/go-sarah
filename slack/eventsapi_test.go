@@ -2,10 +2,10 @@ package slack
 
 import (
 	"context"
+	"errors"
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/eventsapi"
-	"golang.org/x/xerrors"
 	"testing"
 	"time"
 )
@@ -44,7 +44,7 @@ func Test_eventsAPIAdapter_run(t *testing.T) {
 
 	t.Run("Running server returns an error", func(t *testing.T) {
 		// Prepare an adapter with a client that fails to run a server.
-		expectedErr := xerrors.New("ERROR")
+		expectedErr := errors.New("ERROR")
 		client := &DummyClient{
 			RunServerFunc: func(_ context.Context, _ eventsapi.EventReceiver) <-chan error {
 				ch := make(chan error, 1)
@@ -70,7 +70,7 @@ func Test_eventsAPIAdapter_run(t *testing.T) {
 		select {
 		case err := <-errCh:
 			var target *sarah.BotNonContinuableError
-			if !xerrors.As(err, &target) {
+			if !errors.As(err, &target) {
 				t.Errorf("Expected error is not returned: %#v", err)
 			}
 

@@ -5,9 +5,9 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"golang.org/x/xerrors"
 	"runtime"
 	"strings"
 	"time"
@@ -15,10 +15,10 @@ import (
 
 var (
 	// ErrEnqueueAfterWorkerShutdown is returned when job is given after worker context cancellation.
-	ErrEnqueueAfterWorkerShutdown = xerrors.New("job can not be enqueued after worker shutdown")
+	ErrEnqueueAfterWorkerShutdown = errors.New("job can not be enqueued after worker shutdown")
 
 	// ErrQueueOverflow is returned when job is given, but all workers are busy and queue is full.
-	ErrQueueOverflow = xerrors.New("queue is full")
+	ErrQueueOverflow = errors.New("queue is full")
 )
 
 // Config contains some configuration variables.

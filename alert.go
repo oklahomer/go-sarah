@@ -2,7 +2,7 @@ package sarah
 
 import (
 	"context"
-	"golang.org/x/xerrors"
+	"fmt"
 	"strings"
 )
 
@@ -46,7 +46,14 @@ func (a *alerters) alertAll(ctx context.Context, botType BotType, err error) err
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					alertErrs.appendError(xerrors.Errorf("panic on Alerter.Alert: %w", r))
+					e, ok := r.(error)
+					var err error
+					if ok {
+						err = fmt.Errorf("panic on Alerter.Alert: %w", e)
+					} else {
+						err = fmt.Errorf("panic on Alerter.Alert: %+v", r)
+					}
+					alertErrs.appendError(err)
 				}
 			}()
 			err := alerter.Alert(ctx, botType, err)

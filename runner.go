@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/go-sarah/v3/workers"
-	"golang.org/x/xerrors"
 	"runtime"
 	"strings"
 	"sync"
@@ -171,12 +170,12 @@ func RegisterBotErrorSupervisor(fnc func(BotType, error) *SupervisionDirective) 
 func Run(ctx context.Context, config *Config) error {
 	err := runnerStatus.start()
 	if err != nil {
-		return xerrors.Errorf("failed to start bot process: %w", err)
+		return fmt.Errorf("failed to start bot process: %w", err)
 	}
 
 	runner, err := newRunner(ctx, config)
 	if err != nil {
-		return xerrors.Errorf("failed to start bot process: %w", err)
+		return fmt.Errorf("failed to start bot process: %w", err)
 	}
 	go runner.run(ctx)
 
@@ -186,7 +185,7 @@ func Run(ctx context.Context, config *Config) error {
 func newRunner(ctx context.Context, config *Config) (*runner, error) {
 	loc, err := time.LoadLocation(config.TimeZone)
 	if err != nil {
-		return nil, xerrors.Errorf(`given timezone "%s" cannot be converted to time.Location: %w`, config.TimeZone, err)
+		return nil, fmt.Errorf(`given timezone "%s" cannot be converted to time.Location: %w`, config.TimeZone, err)
 	}
 
 	r := &runner{
@@ -208,7 +207,7 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 	if r.worker == nil {
 		w, e := workers.Run(ctx, workers.NewConfig())
 		if e != nil {
-			return nil, xerrors.Errorf("worker could not run: %w", e)
+			return nil, fmt.Errorf("worker could not run: %w", e)
 		}
 
 		r.worker = w

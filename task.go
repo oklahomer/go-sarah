@@ -2,17 +2,18 @@ package sarah
 
 import (
 	"context"
-	"golang.org/x/xerrors"
+	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 )
 
 var (
 	// ErrTaskInsufficientArgument is returned when required parameters are not set.
-	ErrTaskInsufficientArgument = xerrors.New("one or more of required fields -- BotType, Identifier or Func -- are empty")
+	ErrTaskInsufficientArgument = errors.New("one or more of required fields -- BotType, Identifier or Func -- are empty")
 
 	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskPropsBuilder's parameter nor config.
-	ErrTaskScheduleNotGiven = xerrors.New("task schedule is not set or given from config struct")
+	ErrTaskScheduleNotGiven = errors.New("task schedule is not set or given from config struct")
 )
 
 // ScheduledTaskResult is a struct that ScheduledTask returns on its execution.
@@ -144,9 +145,9 @@ func buildScheduledTask(ctx context.Context, props *ScheduledTaskProps, watcher 
 	}()
 
 	var notFoundErr *ConfigNotFoundError
-	if err != nil && !xerrors.As(err, &notFoundErr) {
+	if err != nil && !errors.As(err, &notFoundErr) {
 		// Unacceptable error
-		return nil, xerrors.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
+		return nil, fmt.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
 	}
 
 	// Setup execution schedule
@@ -286,7 +287,7 @@ func (builder *ScheduledTaskPropsBuilder) Build() (*ScheduledTaskProps, error) {
 func (builder *ScheduledTaskPropsBuilder) MustBuild() *ScheduledTaskProps {
 	task, err := builder.Build()
 	if err != nil {
-		panic(xerrors.Errorf("error on building ScheduledTaskProps: %w", err))
+		panic(fmt.Errorf("error on building ScheduledTaskProps: %w", err))
 	}
 
 	return task

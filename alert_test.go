@@ -78,7 +78,13 @@ func TestAlerters_alertAll(t *testing.T) {
 		t.Errorf("Expected no error to be returned, but got %s.", err.Error())
 	}
 
+	wrappedErr := errors.New("panic with an error")
 	a = &alerters{
+		&DummyAlerter{
+			AlertFunc: func(_ context.Context, _ BotType, _ error) error {
+				panic(wrappedErr)
+			},
+		},
 		&DummyAlerter{
 			AlertFunc: func(_ context.Context, _ BotType, _ error) error {
 				panic("PANIC!!")
@@ -100,9 +106,17 @@ func TestAlerters_alertAll(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error to be returned")
 	}
-	if e, ok := err.(*alertErrs); !ok {
+
+	typed, ok := err.(*alertErrs)
+	if !ok {
 		t.Fatalf("Expected error type of *alertErrs, but was %T.", err)
-	} else if len(*e) != 2 {
-		t.Errorf("Expected 2 errors to be stored: %#v.", err)
+	}
+	if len(*typed) != 3 {
+		t.Fatalf("Expected 3 errors to be stored: %#v.", err)
+	}
+
+	e := errors.Unwrap((*typed)[0])
+	if e != wrappedErr {
+		t.Errorf("Expected error is not wrapped: %+v", e)
 	}
 }

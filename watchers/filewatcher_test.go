@@ -2,11 +2,11 @@ package watchers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"golang.org/x/xerrors"
 	"io/ioutil"
 	stdLogger "log"
 	"os"
@@ -121,7 +121,7 @@ func TestFileWatcher_Watch(t *testing.T) {
 		err error
 	}{
 		{
-			err: xerrors.New("err"),
+			err: errors.New("err"),
 		},
 		{
 			err: nil,
@@ -233,7 +233,7 @@ func TestFileWatcher_run(t *testing.T) {
 		{
 			absdir:     invalidDir,
 			id:         "error",
-			watcherErr: xerrors.New("error"),
+			watcherErr: errors.New("error"),
 			notify:     nil,
 		},
 	}
@@ -268,7 +268,7 @@ func TestFileWatcher_run(t *testing.T) {
 	errs := make(chan error, 1)
 	go w.run(ctx, events, errs)
 	go func() {
-		e := xerrors.New("watccher error")
+		e := errors.New("watcher error")
 		for {
 			select {
 			case <-ctx.Done():
@@ -393,7 +393,7 @@ func TestFileWatcher_run_cancel(t *testing.T) {
 		err error
 	}{
 		{
-			err: xerrors.New(""),
+			err: errors.New(""),
 		},
 		{
 			err: nil,

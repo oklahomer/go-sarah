@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/oklahomer/go-sarah/v3"
-	"golang.org/x/xerrors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -84,7 +83,7 @@ func (c *Client) Alert(ctx context.Context, botType sarah.BotType, err error) er
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return xerrors.Errorf("response status %d is returned", resp.StatusCode)
+		return fmt.Errorf("response status %d is returned", resp.StatusCode)
 	}
 
 	return nil

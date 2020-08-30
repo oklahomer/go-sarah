@@ -2,10 +2,11 @@ package gitter
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/go-sarah/v3/retry"
-	"golang.org/x/xerrors"
 )
 
 const (
@@ -119,21 +120,21 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 		message, err := messageReceiver.Receive()
 
 		var malformedErr *MalformedPayloadError
-		if xerrors.Is(err, ErrEmptyPayload) {
+		if errors.Is(err, ErrEmptyPayload) {
 			// https://developer.gitter.im/docs/streaming-api
 			// Parsers must be tolerant of occasional extra newline characters placed between messages.
 			// These characters are sent as periodic "keep-alive" messages to tell clients and NAT firewalls
 			// that the connection is still alive during low message volume periods.
 			continue
 
-		} else if xerrors.As(err, &malformedErr) {
+		} else if errors.As(err, &malformedErr) {
 			log.Warnf("Skipping malformed input: %+v", err)
 			continue
 
 		} else if err != nil {
 			// At this point, assume connection is unstable or is closed.
 			// Let caller proceed to reconnect or quit.
-			return xerrors.Errorf("failed to receive input: %w", err)
+			return fmt.Errorf("failed to receive input: %w", err)
 
 		}
 

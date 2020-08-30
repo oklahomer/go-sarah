@@ -1,8 +1,8 @@
 package sarah
 
 import (
+	"errors"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"golang.org/x/xerrors"
 	"sync"
 )
 
@@ -10,7 +10,7 @@ var runnerStatus = &status{}
 
 // ErrRunnerAlreadyRunning indicates that sarah.Run() is already called and the process is already running.
 // When this is returned, a second or later activations are prevented so the initially activated process is still protected.
-var ErrRunnerAlreadyRunning = xerrors.New("go-sarah's process is already running")
+var ErrRunnerAlreadyRunning = errors.New("go-sarah's process is already running")
 
 // CurrentStatus returns the current status of go-sarah.
 // This can still be called even if sarah.Run() is not called, yet.
