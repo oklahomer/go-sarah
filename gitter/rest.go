@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/oklahomer/go-sarah/v3/log"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -70,12 +69,9 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 	defer resp.Body.Close()
 
 	// Handle response
-	body, err := ioutil.ReadAll(resp.Body)
+	err = json.NewDecoder(resp.Body).Decode(&intf)
 	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(body, &intf); err != nil {
-		log.Errorf("Can not unmarshal given JSON structure: %s. Error: %+v", string(body), err)
+		log.Errorf("Can not unmarshal given JSON structure: %+v", err)
 		return err
 	}
 
@@ -111,12 +107,9 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 	// TODO check status code
 
 	// Handle response
-	body, err := ioutil.ReadAll(resp.Body)
+	err = json.NewDecoder(resp.Body).Decode(&responsePayload)
 	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(body, &responsePayload); err != nil {
-		log.Errorf("Can not unmarshal given JSON structure: %s. Error: %+v", string(body), err)
+		log.Errorf("Can not unmarshal given JSON structure: %+v", err)
 		return err
 	}
 
