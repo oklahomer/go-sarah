@@ -91,7 +91,7 @@ func NewUserContextStorage(config *CacheConfig) UserContextStorage {
 // Get searches for user's stored state with given user key, and return it if any found.
 func (storage *defaultUserContextStorage) Get(key string) (ContextualFunc, error) {
 	val, hasKey := storage.cache.Get(key)
-	if !hasKey || val == nil {
+	if !hasKey {
 		return nil, nil
 	}
 
