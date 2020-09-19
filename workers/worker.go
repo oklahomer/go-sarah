@@ -143,11 +143,11 @@ func runChild(ctx context.Context, job <-chan func(), workerID uint) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debugf("Stopping worker id: %d", workerID)
+			log.Debugf("Stop worker id: %d.", workerID)
 			return
 
 		case job := <-job:
-			log.Debugf("Receiving job on worker: %d", workerID)
+			log.Debugf("Receive job on worker: %d.", workerID)
 			// To avoid given job's panic affect later jobs, wrap them with recover.
 			func() {
 				defer func() {

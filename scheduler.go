@@ -91,7 +91,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info("Stop cron jobs due to context cancel.")
+			log.Info("Stop cron jobs due to context cancellation.")
 			s.cron.Stop()
 			return
 

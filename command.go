@@ -166,14 +166,14 @@ func (commands *Commands) Append(command Command) {
 	// See if command with the same identifier exists.
 	for i, cmd := range commands.collection {
 		if cmd.Identifier() == command.Identifier() {
-			log.Infof("replacing old command in favor of newly appending one: %s.", command.Identifier())
+			log.Infof("Replace old command in favor of newly appending one: %s.", command.Identifier())
 			commands.collection[i] = command
 			return
 		}
 	}
 
 	// Not stored, then append to the last.
-	log.Infof("appending new command: %s.", command.Identifier())
+	log.Infof("Append new command: %s.", command.Identifier())
 	commands.collection = append(commands.collection, command)
 }
 
