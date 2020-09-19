@@ -84,15 +84,23 @@ func (r *rtmAPIAdapter) receivePayload(connCtx context.Context, payloadReceiver 
 			// TODO should io.EOF and io.ErrUnexpectedEOF treated differently than other errors?
 			if err == event.ErrEmptyPayload {
 				continue
-			} else if _, ok := err.(*event.MalformedPayloadError); ok {
-				// Malformed payload was passed, but there is no programmable way to handle this error.
-				// Leave log and proceed.
+			}
+
+			switch err.(type) {
+			case nil:
+				// O.K. Do nothing and proceed to the payload handling
+
+			case *event.MalformedPayloadError:
 				log.Warnf("Ignore malformed payload: %+v", err)
-			} else if _, ok := err.(*rtmapi.UnexpectedMessageTypeError); ok {
+				continue
+
+			case *rtmapi.UnexpectedMessageTypeError:
 				log.Warnf("Ignore a payload with unexpected message type: %+v", err)
-			} else if err != nil {
+				continue
+
+			default:
 				// Connection might not be stable or is closed already.
-				log.Debugf("Ping caused by error: %+v", err)
+				log.Infof("Try ping caused by error: %+v", err)
 				nonBlockSignal(pingSignalChannelID, tryPing)
 				continue
 			}
