@@ -39,7 +39,7 @@ func (a *alerters) appendAlerter(alerter Alerter) {
 }
 
 func (a *alerters) alertAll(ctx context.Context, botType BotType, err error) error {
-	alertErrs := &alertErrs{}
+	errs := &alertErrs{}
 	for _, alerter := range *a {
 		// Considering the irregular state of Bot's lifecycle and importance of alert,
 		// it is safer to be panic-proof.
@@ -47,24 +47,24 @@ func (a *alerters) alertAll(ctx context.Context, botType BotType, err error) err
 			defer func() {
 				if r := recover(); r != nil {
 					e, ok := r.(error)
-					var err error
 					if ok {
-						err = fmt.Errorf("panic on Alerter.Alert: %w", e)
-					} else {
-						err = fmt.Errorf("panic on Alerter.Alert: %+v", r)
+						errs.appendError(fmt.Errorf("panic on alerting via %T: %w", alerter, e))
+						return
 					}
-					alertErrs.appendError(err)
+
+					errs.appendError(fmt.Errorf("panic on alerting via %T: %+v", alerter, r))
 				}
 			}()
+
 			err := alerter.Alert(ctx, botType, err)
 			if err != nil {
-				alertErrs.appendError(err)
+				errs.appendError(fmt.Errorf("failed to seend alert via %T: %w", alerter, err))
 			}
 		}()
 	}
 
-	if alertErrs.isEmpty() {
+	if errs.isEmpty() {
 		return nil
 	}
-	return alertErrs
+	return errs
 }
