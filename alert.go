@@ -58,7 +58,7 @@ func (a *alerters) alertAll(ctx context.Context, botType BotType, err error) err
 
 			err := alerter.Alert(ctx, botType, err)
 			if err != nil {
-				errs.appendError(fmt.Errorf("failed to seend alert via %T: %w", alerter, err))
+				errs.appendError(fmt.Errorf("failed to send alert via %T: %w", alerter, err))
 			}
 		}()
 	}
