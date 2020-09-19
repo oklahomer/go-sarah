@@ -92,7 +92,7 @@ func TestAlerters_alertAll(t *testing.T) {
 		},
 		&DummyAlerter{
 			AlertFunc: func(_ context.Context, _ BotType, _ error) error {
-				return errors.New("error")
+				return wrappedErr
 			},
 		},
 		&DummyAlerter{
@@ -115,8 +115,18 @@ func TestAlerters_alertAll(t *testing.T) {
 		t.Fatalf("Expected 3 errors to be stored: %#v.", err)
 	}
 
-	e := errors.Unwrap((*typed)[0])
-	if e != wrappedErr {
-		t.Errorf("Expected error is not wrapped: %+v", e)
+	// The first error contains an error derived from panic
+	if !errors.Is((*typed)[0], wrappedErr) {
+		t.Errorf("Expected error is not wrapped: %+v", (*typed)[0])
+	}
+
+	// The second error contains a string derived from panic
+	if !strings.HasSuffix((*typed)[1].Error(), "PANIC!!") {
+		t.Errorf("Expected string is not wrapped: %+v", (*typed)[1])
+	}
+
+	// The third error wraps a error derived from Alerter.Alert
+	if !errors.Is((*typed)[2], wrappedErr) {
+		t.Errorf("Expected error is not wrapped: %+v", (*typed)[2])
 	}
 }

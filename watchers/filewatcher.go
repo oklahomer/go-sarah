@@ -9,7 +9,6 @@ import (
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/go-sarah/v3/log"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,17 +69,18 @@ func (w *fileWatcher) Read(ctx context.Context, botType sarah.BotType, id string
 		}
 	}
 
-	buf, err := ioutil.ReadFile(file.absPath)
+	f, err := os.Open(file.absPath)
 	if err != nil {
 		return fmt.Errorf("failed to read configuration file at %s: %w", file.absPath, err)
 	}
+	defer f.Close()
 
 	switch file.fileType {
 	case yamlFile:
-		return yaml.Unmarshal(buf, configPtr)
+		return yaml.NewDecoder(f).Decode(configPtr)
 
 	case jsonFile:
-		return json.Unmarshal(buf, configPtr)
+		return json.NewDecoder(f).Decode(configPtr)
 
 	default:
 		// Should never come. findPluginConfigFile guarantees that.

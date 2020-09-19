@@ -68,7 +68,7 @@ func (c *Client) Alert(ctx context.Context, botType sarah.BotType, err error) er
 	v := url.Values{"message": {msg}}
 	req, err := http.NewRequest(http.MethodPost, Endpoint, strings.NewReader(v.Encode()))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to construct HTTP request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.config.Token)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -79,7 +79,7 @@ func (c *Client) Alert(ctx context.Context, botType sarah.BotType, err error) er
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed executing HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
