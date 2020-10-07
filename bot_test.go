@@ -40,14 +40,10 @@ func TestNewBot(t *testing.T) {
 	adapter := &DummyAdapter{}
 	storage := &DummyUserContextStorage{}
 	option := BotWithStorage(storage)
-	myBot, err := NewBot(
+	myBot := NewBot(
 		adapter,
 		option,
 	)
-
-	if err != nil {
-		t.Fatalf("Unexpected error is returned: %#v.", err)
-	}
 
 	typedBot, ok := myBot.(*defaultBot)
 	if !ok {
