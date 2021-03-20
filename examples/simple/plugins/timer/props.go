@@ -8,8 +8,8 @@ package timer
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/go-sarah/v4"
+	"github.com/oklahomer/go-sarah/v4/slack"
 	"github.com/oklahomer/golack/v2/event"
 )
 

@@ -2,8 +2,8 @@ package slack
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
+	"github.com/oklahomer/go-sarah/v4"
 	"github.com/oklahomer/golack/v2/eventsapi"
 	"net/http"
 	"strings"
@@ -47,12 +47,12 @@ func (e *eventsAPIAdapter) run(ctx context.Context, enqueueInput func(sarah.Inpu
 func DefaultEventsPayloadHandler(_ context.Context, config *Config, payload *eventsapi.EventWrapper, enqueueInput func(input sarah.Input) error) {
 	input, err := EventToInput(payload.Event)
 	if err == ErrNonSupportedEvent {
-		log.Debugf("Event given, but no corresponding action is defined. %#v", payload)
+		logger.Debugf("Event given, but no corresponding action is defined. %#v", payload)
 		return
 	}
 
 	if err != nil {
-		log.Errorf("Failed to convert %T event: %s", payload.Event, err.Error())
+		logger.Errorf("Failed to convert %T event: %s", payload.Event, err.Error())
 		return
 	}
 

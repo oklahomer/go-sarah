@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
+	"github.com/oklahomer/go-sarah/v4"
 	"net/http"
 	"runtime"
 )
@@ -82,7 +82,7 @@ func setStatusHandler(mux *http.ServeMux, ws *workerStats) {
 			writer.Header().Set("Content-Type", "application/json")
 			_, _ = writer.Write(bytes)
 		} else {
-			log.Errorf("Failed to parse json: %+v", err)
+			logger.Errorf("Failed to parse json: %+v", err)
 			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	})

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
 	"io/ioutil"
-	stdLogger "log"
+	"log"
 	"os"
 	"reflect"
 	"regexp"
@@ -17,13 +17,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	oldLogger := log.GetLogger()
-	defer log.SetLogger(oldLogger)
+	oldLogger := logger.GetLogger()
+	defer logger.SetLogger(oldLogger)
 
 	// Suppress log output in test by default
-	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
-	logger := log.NewWithStandardLogger(l)
-	log.SetLogger(logger)
+	l := log.New(ioutil.Discard, "dummyLog", 0)
+	logger.SetLogger(logger.NewWithStandardLogger(l))
 
 	code := m.Run()
 

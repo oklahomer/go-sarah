@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
+	"github.com/oklahomer/go-sarah/v4"
 )
 
 type nullBot struct {
@@ -27,5 +27,5 @@ func (*nullBot) AppendCommand(sarah.Command) {
 
 func (*nullBot) Run(ctx context.Context, input func(sarah.Input) error, errNotifier func(error)) {
 	<-ctx.Done()
-	log.Info("Stop bot")
+	logger.Info("Stop bot")
 }

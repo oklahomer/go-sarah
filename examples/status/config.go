@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/slack"
-	"github.com/oklahomer/go-sarah/v3/workers"
+	"github.com/oklahomer/go-kasumi/worker"
+	"github.com/oklahomer/go-sarah/v4"
+	"github.com/oklahomer/go-sarah/v4/slack"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 )
@@ -20,7 +20,7 @@ func readConfig(path string) (*config, error) {
 		Runner:       sarah.NewConfig(),
 		Slack:        slack.NewConfig(),
 		ContextCache: sarah.NewCacheConfig(),
-		Worker:       workers.NewConfig(),
+		Worker:       worker.NewConfig(),
 	}
 	err = yaml.Unmarshal(body, c)
 	if err != nil {
@@ -34,5 +34,5 @@ type config struct {
 	Runner       *sarah.Config      `json:"runner" yaml:"runner"`
 	Slack        *slack.Config      `json:"slack" yaml:"slack"`
 	ContextCache *sarah.CacheConfig `json:"context_cache" yaml:"context_cache"`
-	Worker       *workers.Config    `json:"worker" yaml:"worker"`
+	Worker       *worker.Config     `json:"worker" yaml:"worker"`
 }

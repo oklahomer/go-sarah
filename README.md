@@ -18,6 +18,11 @@ An adapter developer may focus on implementing the protocol to interacting with 
 To take a look at those components and their relations, see [Components](https://github.com/oklahomer/go-sarah/wiki/Components).
 
 # IMPORTANT NOTICE
+## v4 Release
+This is the fourth major version of `go-sarah`, which involves some architectural changes:
+- `sarah.NewBot` now returns a single value: `sarah.Bot`
+- Utility packages including logger, retry, and worker are now hosted at `github.com/oklahomer/go-kasumi`
+
 ## v3 Release
 This is the third major version of `go-sarah`, which introduces the Slack adapter's improvement to support both RTM and Events API.
 Breaking interface change for Slack adapter was inevitable and that is the sole reason for this major version up.
@@ -70,8 +75,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/go-sarah/v4"
+	"github.com/oklahomer/go-sarah/v4/slack"
 	
 	"os"
 	"os/signal"
@@ -121,10 +126,8 @@ func setupSlack() {
 	storage := sarah.NewUserContextStorage(cacheConfig)
 
 	// Setup Bot with slack adapter and default storage.
-	bot, err := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
-	if err != nil {
-		panic(fmt.Errorf("faileld to setup Slack Bot: %s", err.Error()))
-	}
+	bot := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
+	
 	sarah.RegisterBot(bot)
 }
 ```
@@ -136,8 +139,8 @@ package guess
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/go-sarah/v4"
+	"github.com/oklahomer/go-sarah/v4/slack"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -198,8 +201,8 @@ package hello
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/go-sarah/v4"
+	"github.com/oklahomer/go-sarah/v4/slack"
 	"strings"
 )
 

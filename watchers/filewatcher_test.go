@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
+	"github.com/oklahomer/go-sarah/v4"
 	"io/ioutil"
-	stdLogger "log"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,12 +17,11 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	oldLogger := log.GetLogger()
-	defer log.SetLogger(oldLogger)
+	oldLogger := logger.GetLogger()
+	defer logger.SetLogger(oldLogger)
 
-	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
-	logger := log.NewWithStandardLogger(l)
-	log.SetLogger(logger)
+	l := log.New(ioutil.Discard, "dummyLog", 0)
+	logger.SetLogger(logger.NewWithStandardLogger(l))
 
 	code := m.Run()
 

@@ -10,9 +10,9 @@ package count
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/gitter"
-	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/go-sarah/v4"
+	"github.com/oklahomer/go-sarah/v4/gitter"
+	"github.com/oklahomer/go-sarah/v4/slack"
 	"regexp"
 	"sync"
 )

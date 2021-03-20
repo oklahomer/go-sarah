@@ -6,7 +6,7 @@ package line
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v4"
 	"net/http"
 	"net/url"
 	"strings"

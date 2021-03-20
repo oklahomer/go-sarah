@@ -1,7 +1,7 @@
 package slack
 
 import (
-	"github.com/oklahomer/go-sarah/v3/retry"
+	"github.com/oklahomer/go-kasumi/retry"
 	"time"
 )
 
