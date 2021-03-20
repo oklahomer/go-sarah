@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3/log"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -54,7 +52,7 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 	endpoint := client.buildEndpoint(resourceFragments)
 	req, err := http.NewRequest("GET", endpoint.String(), nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to construct HTTP request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+client.token)
 	req.Header.Set("Accept", "application/json")
@@ -64,19 +62,15 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 	// Do request
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed executing HTTP request: %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	// Handle response
-	body, err := ioutil.ReadAll(resp.Body)
+	err = json.NewDecoder(resp.Body).Decode(&intf)
 	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(body, &intf); err != nil {
-		log.Errorf("Can not unmarshal given JSON structure: %s. Error: %+v", string(body), err)
-		return err
+		return fmt.Errorf("can not unmarshal given JSON structure: %w", err)
 	}
 
 	// Done
@@ -87,14 +81,14 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []string, sendingPayload interface{}, responsePayload interface{}) error {
 	reqBody, err := json.Marshal(sendingPayload)
 	if err != nil {
-		return err
+		return fmt.Errorf("can not marshal given payload: %w", err)
 	}
 
 	// Set up sending request
 	endpoint := client.buildEndpoint(resourceFragments)
 	req, err := http.NewRequest("POST", endpoint.String(), strings.NewReader(string(reqBody)))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to construct HTTP request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+client.token)
 	req.Header.Set("Accept", "application/json")
@@ -103,7 +97,7 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed executing HTTP request: %w", err)
 	}
 
 	defer resp.Body.Close()
@@ -111,13 +105,9 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 	// TODO check status code
 
 	// Handle response
-	body, err := ioutil.ReadAll(resp.Body)
+	err = json.NewDecoder(resp.Body).Decode(&responsePayload)
 	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(body, &responsePayload); err != nil {
-		log.Errorf("Can not unmarshal given JSON structure: %s. Error: %+v", string(body), err)
-		return err
+		return fmt.Errorf("can not unmarshal given JSON structure: %w", err)
 	}
 
 	// Done
