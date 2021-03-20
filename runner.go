@@ -205,6 +205,18 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 	options.apply(r)
 
 	if r.worker == nil {
+		// When the jobs are CPU-intensive, the number of workers can be equal to the number of CPUs.
+		// However, in general, bot interaction involves more IO-intensive jobs such as calling an external Weather API
+		// on user request. With such a premise, this setting expects up to a hundred jobs can work concurrently.
+		//
+		// The queue size is set to ten, which is relatively small.
+		// Instead of having a bigger queue size to allow more latency, messages will soon be ignored when the worker is busy.
+		// Users usually do not expect to have belated responses.
+		//
+		// To customize the setting, provide a worker.Worker implementation with RegisterWorker().
+		workerConfig := worker.NewConfig()
+		workerConfig.WorkerNum = 100
+		workerConfig.QueueSize = 10
 		r.worker = worker.Run(ctx, worker.NewConfig())
 	}
 
