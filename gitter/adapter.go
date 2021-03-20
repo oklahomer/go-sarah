@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/oklahomer/go-kasumi/logger"
+	"github.com/oklahomer/go-kasumi/retry"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
-	"github.com/oklahomer/go-sarah/v3/retry"
 )
 
 const (
@@ -69,14 +69,14 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	case string:
 		room, ok := output.Destination().(*Room)
 		if !ok {
-			log.Errorf("Destination is not instance of Room. %#v.", output.Destination())
+			logger.Errorf("Destination is not instance of Room. %#v.", output.Destination())
 			return
 		}
 		_, err := adapter.apiClient.PostMessage(ctx, room, content)
-		log.Errorf("Failed posting message to %s: %+v", room.ID, err)
+		logger.Errorf("Failed posting message to %s: %+v", room.ID, err)
 
 	default:
-		log.Warnf("Unexpected output %#v", output)
+		logger.Warnf("Unexpected output %#v", output)
 
 	}
 }
@@ -88,7 +88,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			return
 
 		default:
-			log.Infof("Connecting to room: %s", room.ID)
+			logger.Infof("Connecting to room: %s", room.ID)
 
 			var conn Connection
 			err := retry.WithPolicy(adapter.config.RetryPolicy, func() (e error) {
@@ -96,7 +96,7 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 				return e
 			})
 			if err != nil {
-				log.Warnf("Could not connect to room: %s. Error: %+v", room.ID, err)
+				logger.Warnf("Could not connect to room: %s. Error: %+v", room.ID, err)
 				return
 			}
 
@@ -108,14 +108,14 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			// But, the truth is, given error is just a privately defined error instance given by http package.
 			// var errRequestCanceled = errors.New("net/http: request canceled")
 			// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
-			log.Errorf("Disconnected from room %s: %+v", room.ID, connErr)
+			logger.Errorf("Disconnected from room %s: %+v", room.ID, connErr)
 
 		}
 	}
 }
 
 func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(sarah.Input) error) error {
-	log.Infof("Start receiving message")
+	logger.Infof("Start receiving message")
 	for {
 		message, err := messageReceiver.Receive()
 
@@ -128,7 +128,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 			continue
 
 		} else if errors.As(err, &malformedErr) {
-			log.Warnf("Skipping malformed input: %+v", err)
+			logger.Warnf("Skipping malformed input: %+v", err)
 			continue
 
 		} else if err != nil {

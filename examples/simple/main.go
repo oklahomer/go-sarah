@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"flag"
+	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-sarah/v3"
 	"github.com/oklahomer/go-sarah/v3/alerter/line"
 	_ "github.com/oklahomer/go-sarah/v3/examples/simple/plugins/count"
@@ -16,7 +17,6 @@ import (
 	_ "github.com/oklahomer/go-sarah/v3/examples/simple/plugins/morning"
 	_ "github.com/oklahomer/go-sarah/v3/examples/simple/plugins/timer"
 	"github.com/oklahomer/go-sarah/v3/examples/simple/plugins/todo"
-	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/go-sarah/v3/slack"
 	"github.com/oklahomer/go-sarah/v3/watchers"
 	"gopkg.in/yaml.v2"
@@ -93,7 +93,7 @@ func main() {
 
 	select {
 	case <-c:
-		log.Info("Stopping due to signal reception.")
+		logger.Info("Stopping due to signal reception.")
 		cancel()
 
 	}

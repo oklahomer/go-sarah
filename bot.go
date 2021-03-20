@@ -2,7 +2,7 @@ package sarah
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
 )
 
 // Bot provides an interface that each bot implementation must satisfy.
@@ -134,7 +134,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	} else {
 		e := bot.userContextStorage.Delete(senderKey)
 		if e != nil {
-			log.Warnf("Failed to delete UserContext: BotType: %s. SenderKey: %s. Error: %+v", bot.BotType(), senderKey, e)
+			logger.Warnf("Failed to delete UserContext: BotType: %s. SenderKey: %s. Error: %+v", bot.BotType(), senderKey, e)
 		}
 
 		switch input.(type) {
@@ -158,7 +158,7 @@ func (bot *defaultBot) Respond(ctx context.Context, input Input) error {
 	// This may damage user experience since user is left in conversational context set by CommandResponse without any sort of notification.
 	if res.UserContext != nil && bot.userContextStorage != nil {
 		if err := bot.userContextStorage.Set(senderKey, res.UserContext); err != nil {
-			log.Errorf("Failed to store UserContext. BotType: %s. SenderKey: %s. UserContext: %#v. Error: %+v", bot.BotType(), senderKey, res.UserContext, err)
+			logger.Errorf("Failed to store UserContext. BotType: %s. SenderKey: %s. UserContext: %#v. Error: %+v", bot.BotType(), senderKey, res.UserContext, err)
 		}
 	}
 	if res.Content != nil {

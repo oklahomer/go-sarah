@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v3/workers"
+	"github.com/oklahomer/go-kasumi/worker"
 	"sync"
 	"time"
 )
@@ -11,7 +11,7 @@ var workerMutex = sync.RWMutex{}
 
 type workerStats []workerStatsElem
 
-func (ws *workerStats) Report(_ context.Context, s *workers.Stats) {
+func (ws *workerStats) Report(_ context.Context, s *worker.Stats) {
 	workerMutex.Lock()
 	defer workerMutex.Unlock()
 

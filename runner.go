@@ -3,8 +3,8 @@ package sarah
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3/log"
-	"github.com/oklahomer/go-sarah/v3/workers"
+	"github.com/oklahomer/go-kasumi/logger"
+	"github.com/oklahomer/go-kasumi/worker"
 	"runtime"
 	"strings"
 	"sync"
@@ -124,7 +124,7 @@ func RegisterConfigWatcher(watcher ConfigWatcher) {
 
 // RegisterWorker registers given workers.Worker implementation.
 // When this is not called, a worker instance with default setting is used.
-func RegisterWorker(worker workers.Worker) {
+func RegisterWorker(worker worker.Worker) {
 	options.register(func(r *runner) {
 		r.worker = worker
 	})
@@ -205,12 +205,7 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 	options.apply(r)
 
 	if r.worker == nil {
-		w, e := workers.Run(ctx, workers.NewConfig())
-		if e != nil {
-			return nil, fmt.Errorf("worker could not run: %w", e)
-		}
-
-		r.worker = w
+		r.worker = worker.Run(ctx, worker.NewConfig())
 	}
 
 	return r, nil
@@ -219,7 +214,7 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 type runner struct {
 	config             *Config
 	bots               []Bot
-	worker             workers.Worker
+	worker             worker.Worker
 	configWatcher      ConfigWatcher
 	commands           map[BotType][]Command
 	commandProps       map[BotType][]*CommandProps
@@ -294,19 +289,19 @@ func (r *runner) run(ctx context.Context) {
 func unsubscribeConfigWatcher(watcher ConfigWatcher, botType BotType) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, r)
+			logger.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, r)
 		}
 	}()
 	err := watcher.Unwatch(botType)
 	if err != nil {
-		log.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, err)
+		logger.Errorf("Failed to unsubscribe ConfigWatcher for %s: %+v", botType, err)
 	}
 }
 
 // runBot runs given Bot implementation in a blocking manner.
 // This returns when bot stops.
 func (r *runner) runBot(runnerCtx context.Context, bot Bot) {
-	log.Infof("Starting %s", bot.BotType())
+	logger.Infof("Starting %s", bot.BotType())
 	botCtx, errNotifier := r.superviseBot(runnerCtx, bot.BotType())
 
 	// Build commands with stashed CommandProps.
@@ -354,13 +349,13 @@ func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (conte
 	sendAlert := func(err error) {
 		e := r.alerters.alertAll(runnerCtx, botType, err)
 		if e != nil {
-			log.Errorf("Failed to send alert for %s: %+v", botType, e)
+			logger.Errorf("Failed to send alert for %s: %+v", botType, e)
 		}
 	}
 
 	stopBot := func() {
 		cancel()
-		log.Infof("Stop supervising bot's critical error due to its context cancellation: %s.", botType)
+		logger.Infof("Stop supervising bot's critical error due to its context cancellation: %s.", botType)
 	}
 
 	// A function that receives an escalated error from Bot.
@@ -369,7 +364,7 @@ func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (conte
 	handleError := func(err error) {
 		switch err.(type) {
 		case *BotNonContinuableError:
-			log.Errorf("Stop unrecoverable bot. BotType: %s. Error: %+v", botType, err)
+			logger.Errorf("Stop unrecoverable bot. BotType: %s. Error: %+v", botType, err)
 
 			stopBot()
 
@@ -383,7 +378,7 @@ func (r *runner) superviseBot(runnerCtx context.Context, botType BotType) (conte
 				}
 
 				if directive.StopBot {
-					log.Errorf("Stop bot due to given directive. BotType: %s. Reason: %+v", botType, err)
+					logger.Errorf("Stop bot due to given directive. BotType: %s. Reason: %+v", botType, err)
 					stopBot()
 				}
 
@@ -418,7 +413,7 @@ func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
 	reg := func(p *CommandProps) {
 		command, err := buildCommand(botCtx, p, r.configWatcher)
 		if err != nil {
-			log.Errorf("Failed to build command %#v: %+v", p, err)
+			logger.Errorf("Failed to build command %#v: %+v", p, err)
 			return
 		}
 		bot.AppendCommand(command)
@@ -426,7 +421,7 @@ func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
 
 	callback := func(p *CommandProps) func() {
 		return func() {
-			log.Infof("Updating command: %s", p.identifier)
+			logger.Infof("Updating command: %s", p.identifier)
 			reg(p)
 		}
 	}
@@ -435,7 +430,7 @@ func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
 		reg(p)
 		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
 		if err != nil {
-			log.Errorf("Failed to subscribe configuration for command %s: %+v", p.identifier, err)
+			logger.Errorf("Failed to subscribe configuration for command %s: %+v", p.identifier, err)
 			continue
 		}
 	}
@@ -451,7 +446,7 @@ func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
 
 		task, err := buildScheduledTask(botCtx, p, r.configWatcher)
 		if err != nil {
-			log.Errorf("Failed to build scheduled task %s: %+v", p.identifier, err)
+			logger.Errorf("Failed to build scheduled task %s: %+v", p.identifier, err)
 			return
 		}
 
@@ -459,13 +454,13 @@ func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
 			executeScheduledTask(botCtx, bot, task)
 		})
 		if err != nil {
-			log.Errorf("Failed to schedule a task. ID: %s: %+v", task.Identifier(), err)
+			logger.Errorf("Failed to schedule a task. ID: %s: %+v", task.Identifier(), err)
 		}
 	}
 
 	callback := func(p *ScheduledTaskProps) func() {
 		return func() {
-			log.Infof("Updating scheduled task: %s", p.identifier)
+			logger.Infof("Updating scheduled task: %s", p.identifier)
 			reg(p)
 		}
 	}
@@ -474,14 +469,14 @@ func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
 		reg(p)
 		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
 		if err != nil {
-			log.Errorf("Failed to subscribe configuration for scheduled task %s: %+v", p.identifier, err)
+			logger.Errorf("Failed to subscribe configuration for scheduled task %s: %+v", p.identifier, err)
 			continue
 		}
 	}
 
 	for _, task := range r.botScheduledTasks(bot.BotType()) {
 		if task.Schedule() == "" {
-			log.Errorf("Failed to schedule a task. ID: %s. Reason: %s.", task.Identifier(), "No schedule given.")
+			logger.Errorf("Failed to schedule a task. ID: %s. Reason: %s.", task.Identifier(), "No schedule given.")
 			continue
 		}
 
@@ -489,7 +484,7 @@ func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
 			executeScheduledTask(botCtx, bot, task)
 		})
 		if err != nil {
-			log.Errorf("Failed to schedule a task. id: %s: %+v", task.Identifier(), err)
+			logger.Errorf("Failed to schedule a task. id: %s: %+v", task.Identifier(), err)
 		}
 	}
 }
@@ -497,7 +492,7 @@ func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
 func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	results, err := task.Execute(ctx)
 	if err != nil {
-		log.Errorf("Error on scheduled task: %s", task.Identifier())
+		logger.Errorf("Error on scheduled task: %s", task.Identifier())
 		return
 	} else if results == nil {
 		return
@@ -513,7 +508,7 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 			// e.g. Weather forecast task always sends weather information to #goodmorning room.
 			presetDest := task.DefaultDestination()
 			if presetDest == nil {
-				log.Errorf("Task was completed, but destination was not set: %s.", task.Identifier())
+				logger.Errorf("Task was completed, but destination was not set: %s.", task.Identifier())
 				continue
 			}
 			dest = presetDest
@@ -524,13 +519,13 @@ func executeScheduledTask(ctx context.Context, bot Bot, task ScheduledTask) {
 	}
 }
 
-func setupInputReceiver(botCtx context.Context, bot Bot, worker workers.Worker) func(Input) error {
+func setupInputReceiver(botCtx context.Context, bot Bot, wkr worker.Worker) func(Input) error {
 	continuousEnqueueErrCnt := 0
 	return func(input Input) error {
-		err := worker.Enqueue(func() {
+		err := wkr.Enqueue(func() {
 			err := bot.Respond(botCtx, input)
 			if err != nil {
-				log.Errorf("Error on message handling. Input: %#v. Error: %+v", input, err)
+				logger.Errorf("Error on message handling. Input: %#v. Error: %+v", input, err)
 			}
 		})
 

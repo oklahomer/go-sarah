@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
 	"reflect"
 	"regexp"
 	"strings"
@@ -166,14 +166,14 @@ func (commands *Commands) Append(command Command) {
 	// See if command with the same identifier exists.
 	for i, cmd := range commands.collection {
 		if cmd.Identifier() == command.Identifier() {
-			log.Infof("Replace old command in favor of newly appending one: %s.", command.Identifier())
+			logger.Infof("Replace old command in favor of newly appending one: %s.", command.Identifier())
 			commands.collection[i] = command
 			return
 		}
 	}
 
 	// Not stored, then append to the last.
-	log.Infof("Append new command: %s.", command.Identifier())
+	logger.Infof("Append new command: %s.", command.Identifier())
 	commands.collection = append(commands.collection, command)
 }
 

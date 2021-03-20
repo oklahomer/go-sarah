@@ -2,7 +2,7 @@ package sarah
 
 import (
 	"errors"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
 	"sync"
 )
 
@@ -121,7 +121,7 @@ func (s *status) stop() {
 			// Comes here when channel is already closed.
 			// stop() is not expected to be called multiple times,
 			// but recover here to avoid panic.
-			log.Warn("Multiple status.stop() calls occurred.")
+			logger.Warn("Multiple status.stop() calls occurred.")
 		}
 	}()
 
@@ -151,7 +151,7 @@ func (bs *botStatus) stop() {
 			// Comes here when channel is already closed.
 			// stop() is not expected to be called multiple times,
 			// but recover here to avoid panic.
-			log.Warnf("Multiple botStatus.stop() calls for %s occurred.", bs.botType)
+			logger.Warnf("Multiple botStatus.stop() calls for %s occurred.", bs.botType)
 		}
 	}()
 

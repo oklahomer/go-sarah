@@ -3,9 +3,9 @@ package slack
 import (
 	"context"
 	"fmt"
+	"github.com/oklahomer/go-kasumi/logger"
+	"github.com/oklahomer/go-kasumi/retry"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
-	"github.com/oklahomer/go-sarah/v3/retry"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/rtmapi"
 	"strings"
@@ -59,7 +59,7 @@ func (r *rtmAPIAdapter) run(ctx context.Context, enqueueInput func(sarah.Input) 
 			return
 		}
 
-		log.Errorf("Will try re-connection due to previous connection's fatal state: %+v", connErr)
+		logger.Errorf("Will try re-connection due to previous connection's fatal state: %+v", connErr)
 	}
 }
 
@@ -76,7 +76,7 @@ func (r *rtmAPIAdapter) receivePayload(connCtx context.Context, payloadReceiver 
 	for {
 		select {
 		case <-connCtx.Done():
-			log.Info("Stop receiving payload due to context cancel")
+			logger.Info("Stop receiving payload due to context cancel")
 			return
 
 		default:
@@ -91,16 +91,16 @@ func (r *rtmAPIAdapter) receivePayload(connCtx context.Context, payloadReceiver 
 				// O.K. Do nothing and proceed to the payload handling
 
 			case *event.MalformedPayloadError:
-				log.Warnf("Ignore malformed payload: %+v", err)
+				logger.Warnf("Ignore malformed payload: %+v", err)
 				continue
 
 			case *rtmapi.UnexpectedMessageTypeError:
-				log.Warnf("Ignore a payload with unexpected message type: %+v", err)
+				logger.Warnf("Ignore a payload with unexpected message type: %+v", err)
 				continue
 
 			default:
 				// Connection might not be stable or is closed already.
-				log.Infof("Try ping caused by error: %+v", err)
+				logger.Infof("Try ping caused by error: %+v", err)
 				nonBlockSignal(pingSignalChannelID, tryPing)
 				continue
 			}
@@ -127,7 +127,7 @@ func (r *rtmAPIAdapter) superviseConnection(connCtx context.Context, payloadSend
 			nonBlockSignal(pingSignalChannelID, tryPing)
 
 		case <-tryPing:
-			log.Debug("Send ping")
+			logger.Debug("Send ping")
 			err := payloadSender.Ping()
 			if err != nil {
 				return fmt.Errorf("error on ping: %w", err)
@@ -144,28 +144,28 @@ func (r *rtmAPIAdapter) superviseConnection(connCtx context.Context, payloadSend
 func DefaultRTMPayloadHandler(_ context.Context, config *Config, payload rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
 	switch p := payload.(type) {
 	case *rtmapi.OKReply:
-		log.Debugf("Successfully sent. ID: %d. Text: %s.", p.ReplyTo, p.Text)
+		logger.Debugf("Successfully sent. ID: %d. Text: %s.", p.ReplyTo, p.Text)
 
 	case *rtmapi.NGReply:
-		log.Errorf(
+		logger.Errorf(
 			"Something was wrong with previous message sending. id: %d. error code: %d. error message: %s.",
 			p.ReplyTo, p.Error.Code, p.Error.Message)
 
 	case *rtmapi.Pong:
-		log.Debug("Pong message received.")
+		logger.Debug("Pong message received.")
 
 	case *event.Hello:
-		log.Debugf("Successfully connected.")
+		logger.Debugf("Successfully connected.")
 
 	default:
 		input, err := EventToInput(p)
 		if err == ErrNonSupportedEvent {
-			log.Debugf("Event given, but no corresponding action is defined. %#v", payload)
+			logger.Debugf("Event given, but no corresponding action is defined. %#v", payload)
 			return
 		}
 
 		if err != nil {
-			log.Errorf("Failed to convert %T event: %s", p, err.Error())
+			logger.Errorf("Failed to convert %T event: %s", p, err.Error())
 			return
 		}
 

@@ -3,8 +3,8 @@ package slack
 import (
 	"context"
 	"errors"
+	"github.com/oklahomer/go-kasumi/retry"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/retry"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/rtmapi"
 	"reflect"

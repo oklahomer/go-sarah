@@ -3,7 +3,7 @@ package sarah
 import (
 	"context"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/robfig/cron/v3"
 	"time"
 )
@@ -91,7 +91,7 @@ func (s *taskScheduler) receiveEvent(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info("Stop cron jobs due to context cancellation.")
+			logger.Info("Stop cron jobs due to context cancellation.")
 			s.cron.Stop()
 			return
 
