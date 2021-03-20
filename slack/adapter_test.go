@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/eventsapi"
 	"github.com/oklahomer/golack/v2/rtmapi"
 	"github.com/oklahomer/golack/v2/webapi"
 	"io/ioutil"
-	stdLogger "log"
+	"log"
 	"os"
 	"reflect"
 	"strconv"
@@ -20,13 +20,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	oldLogger := log.GetLogger()
-	defer log.SetLogger(oldLogger)
+	oldLogger := logger.GetLogger()
+	defer logger.SetLogger(oldLogger)
 
 	// Suppress log output in test by default
-	l := stdLogger.New(ioutil.Discard, "dummyLog", 0)
-	logger := log.NewWithStandardLogger(l)
-	log.SetLogger(logger)
+	l := log.New(ioutil.Discard, "dummyLog", 0)
+	logger.SetLogger(logger.NewWithStandardLogger(l))
 
 	code := m.Run()
 

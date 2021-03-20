@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/golack/v2"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/eventsapi"
@@ -199,7 +199,7 @@ func nonBlockSignal(id string, target chan<- struct{}) {
 
 	default:
 		// couldn't send because no goroutine is receiving channel or is busy.
-		log.Debugf("Not sending signal to channel: %s", id)
+		logger.Debugf("Not sending signal to channel: %s", id)
 
 	}
 }
@@ -214,7 +214,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	case string:
 		channel, ok := output.Destination().(event.ChannelID)
 		if !ok {
-			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
+			logger.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
 		}
 		message = webapi.NewPostMessage(channel, content)
@@ -222,7 +222,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	case *sarah.CommandHelps:
 		channelID, ok := output.Destination().(event.ChannelID)
 		if !ok {
-			log.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
+			logger.Errorf("Destination is not instance of Channel. %#v.", output.Destination())
 			return
 		}
 
@@ -245,18 +245,18 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 		message = webapi.NewPostMessage(channelID, "").WithAttachments(attachments)
 
 	default:
-		log.Warnf("Unexpected output %#v", output)
+		logger.Warnf("Unexpected output %#v", output)
 		return
 	}
 
 	resp, err := adapter.client.PostMessage(ctx, message)
 	if err != nil {
-		log.Errorf("Something went wrong with Web API posting: %+v. %+v", err, message)
+		logger.Errorf("Something went wrong with Web API posting: %+v. %+v", err, message)
 		return
 	}
 
 	if !resp.OK {
-		log.Errorf("Failed to post message %#v: %s", message, resp.Error)
+		logger.Errorf("Failed to post message %#v: %s", message, resp.Error)
 	}
 }
 

@@ -9,8 +9,8 @@ package todo
 import (
 	"context"
 	"fmt"
+	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/go-sarah/v3/slack"
 	"regexp"
 	"strings"
@@ -140,7 +140,7 @@ func (cmd *command) inputTime(_ context.Context, input sarah.Input, validDate st
 	due, err := time.Parse("2006-01-02 15:04", fmt.Sprintf("%s %s", validDate, t))
 	if err != nil {
 		// Should not reach here since previous time parse succeeded.
-		log.Error("Failed to parse due date: %+v", err)
+		logger.Error("Failed to parse due date: %+v", err)
 		return slack.NewResponse(input, "Fatal error occurred")
 	}
 

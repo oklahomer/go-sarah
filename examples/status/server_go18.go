@@ -4,7 +4,7 @@ package main
 
 import (
 	"context"
-	"github.com/oklahomer/go-sarah/v3/log"
+	"github.com/oklahomer/go-kasumi/logger"
 	"net/http"
 	"runtime"
 )
@@ -28,6 +28,6 @@ func (s *server) Run(ctx context.Context) {
 	<-ctx.Done()
 	err := s.sv.Shutdown(ctx)
 	if err != nil {
-		log.Errorf("Failed to stop HTTP server: %+v", err)
+		logger.Errorf("Failed to stop HTTP server: %+v", err)
 	}
 }

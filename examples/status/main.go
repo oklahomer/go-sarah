@@ -10,10 +10,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/oklahomer/go-kasumi/logger"
+	"github.com/oklahomer/go-kasumi/worker"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/go-sarah/v3/slack"
-	"github.com/oklahomer/go-sarah/v3/workers"
 	"os"
 	"os/signal"
 	"time"
@@ -48,12 +48,9 @@ func main() {
 
 	// Setup worker
 	workerReporter := &workerStats{}
-	reporterOpt := workers.WithReporter(workerReporter)
-	worker, err := workers.Run(ctx, cfg.Worker, reporterOpt)
-	if err != nil {
-		panic(err)
-	}
-	sarah.RegisterWorker(worker)
+	reporterOpt := worker.WithReporter(workerReporter)
+	wkr := worker.Run(ctx, cfg.Worker, reporterOpt)
+	sarah.RegisterWorker(wkr)
 
 	// Setup a Runner to run and supervise above bots
 	err = sarah.Run(ctx, cfg.Runner)
@@ -71,7 +68,7 @@ func main() {
 	<-c
 
 	// Stop
-	log.Info("Stopping due to signal reception.")
+	logger.Info("Stopping due to signal reception.")
 	cancel()
 	time.Sleep(1 * time.Second) // Wait a bit til things finish
 }

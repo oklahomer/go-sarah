@@ -30,8 +30,8 @@ package worldweather
 import (
 	"context"
 	"fmt"
+	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
 	"github.com/oklahomer/go-sarah/v3/slack"
 	"github.com/oklahomer/golack/v2/webapi"
 	"regexp"
@@ -81,7 +81,7 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 
 	// If error is returned with HTTP request level, just let it know and quit.
 	if err != nil {
-		log.Errorf("Error on weather api request: %+v", err)
+		logger.Errorf("Error on weather api request: %+v", err)
 		return slack.NewResponse(input, "Something went wrong with weather API request.")
 	}
 	// If status code of 200 is returned, which means successful API request, but still the content contains error message,

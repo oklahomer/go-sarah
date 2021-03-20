@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
+	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/log"
 	"gopkg.in/yaml.v2"
 	"os"
 	"path/filepath"
@@ -130,9 +130,9 @@ OP:
 		case <-ctx.Done():
 			err := w.fsWatcher.Close()
 			if err == nil {
-				log.Info("Stop subscribing to file system event due to context cancel.")
+				logger.Info("Stop subscribing to file system event due to context cancel.")
 			} else {
-				log.Warnf("Error on subscription cancellation: %+v", err)
+				logger.Warnf("Error on subscription cancellation: %+v", err)
 			}
 
 			// Explicitly close unsubscribeGroup to make sure enqueueing does not block forever, but panics instead.
@@ -145,14 +145,14 @@ OP:
 		case event := <-events:
 			switch {
 			case event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create:
-				log.Infof("Received %s event for %s.", event.Op.String(), event.Name)
+				logger.Infof("Received %s event for %s.", event.Op.String(), event.Name)
 
 				configFile, err := plainPathToFile(event.Name)
 				if errors.Is(err, errUnableToDetermineConfigFileFormat) || errors.Is(err, errUnsupportedConfigFileFormat) {
 					// Irrelevant file is updated
 					continue OP
 				} else if err != nil {
-					log.Warnf("Failed to locate %s: %+v", event.Name, err)
+					logger.Warnf("Failed to locate %s: %+v", event.Name, err)
 					continue OP
 				}
 
@@ -171,12 +171,12 @@ OP:
 
 			default:
 				// Do nothing
-				log.Debugf("Received %s event for %s.", event.Op.String(), event.Name)
+				logger.Debugf("Received %s event for %s.", event.Op.String(), event.Name)
 
 			}
 
 		case subscribe := <-w.subscribe:
-			log.Infof("Start subscribing to %s", subscribe.absDir)
+			logger.Infof("Start subscribing to %s", subscribe.absDir)
 
 			err := w.fsWatcher.Add(subscribe.absDir)
 			if err != nil {
@@ -198,7 +198,7 @@ OP:
 			subscribe.initErr <- nil
 
 		case botType := <-w.unsubscribe:
-			log.Infof("Stop subscribing config files for %s", botType)
+			logger.Infof("Stop subscribing config files for %s", botType)
 
 			for dir, subscribeDirs := range subscriptions {
 				// Exclude all watches that are tied to given group, and stash those should be kept.
@@ -221,7 +221,7 @@ OP:
 			}
 
 		case err := <-errs:
-			log.Errorf("Error on subscribing to directory change: %+v", err)
+			logger.Errorf("Error on subscribing to directory change: %+v", err)
 
 		}
 	}
