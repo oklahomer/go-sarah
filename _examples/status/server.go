@@ -1,10 +1,10 @@
-// +build !go1.8
-
 package main
 
 import (
 	"context"
+	"github.com/oklahomer/go-kasumi/logger"
 	"net/http"
+	"runtime"
 )
 
 type server struct {
@@ -20,8 +20,12 @@ func newServer(wsr *workerStats) *server {
 }
 
 func (s *server) Run(ctx context.Context) {
+	runtime.Version()
 	go s.sv.ListenAndServe()
 
 	<-ctx.Done()
-	//s.sv.Shutdown(ctx)
+	err := s.sv.Shutdown(ctx)
+	if err != nil {
+		logger.Errorf("Failed to stop HTTP server: %+v", err)
+	}
 }
