@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/oklahomer/go-kasumi/worker"
-	"github.com/oklahomer/go-sarah/v3"
-	"github.com/oklahomer/go-sarah/v3/slack"
+	"github.com/oklahomer/go-sarah/v4"
+	"github.com/oklahomer/go-sarah/v4/slack"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 )

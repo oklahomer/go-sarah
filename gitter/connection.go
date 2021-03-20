@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v4"
 	"io"
 	"time"
 )

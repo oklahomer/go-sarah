@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/oklahomer/go-kasumi/logger"
-	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v4"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/eventsapi"
 	"github.com/oklahomer/golack/v2/rtmapi"

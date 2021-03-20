@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/oklahomer/go-kasumi/logger"
-	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v4"
 	"io/ioutil"
 	"log"
 	"os"

@@ -1,4 +1,4 @@
-module github.com/oklahomer/go-sarah/v3
+module github.com/oklahomer/go-sarah/v4
 
 go 1.11
 

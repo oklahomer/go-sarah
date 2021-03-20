@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"github.com/oklahomer/go-kasumi/logger"
-	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v4"
 )
 
 type nullBot struct {

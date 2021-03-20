@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-kasumi/retry"
-	"github.com/oklahomer/go-sarah/v3"
+	"github.com/oklahomer/go-sarah/v4"
 	"io/ioutil"
 	"log"
 	"os"
