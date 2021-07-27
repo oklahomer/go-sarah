@@ -1,4 +1,4 @@
-[![GoDoc](https://godoc.org/github.com/oklahomer/go-sarah?status.svg)](https://godoc.org/github.com/oklahomer/go-sarah)
+[![Go Reference](https://pkg.go.dev/badge/github.com/oklahomer/go-sarah/v4.svg)](https://pkg.go.dev/github.com/oklahomer/go-sarah/v4)
 [![Go Report Card](https://goreportcard.com/badge/github.com/oklahomer/go-sarah)](https://goreportcard.com/report/github.com/oklahomer/go-sarah)
 [![Build Status](https://travis-ci.org/oklahomer/go-sarah.svg?branch=master)](https://travis-ci.org/oklahomer/go-sarah)
 [![Coverage Status](https://coveralls.io/repos/github/oklahomer/go-sarah/badge.svg?branch=master)](https://coveralls.io/github/oklahomer/go-sarah?branch=master)
