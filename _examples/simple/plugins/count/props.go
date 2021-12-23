@@ -1,10 +1,8 @@
-/*
-Package count provides example code to setup sarah.CommandProps.
-
-One counter instance is shared between two CommandPropsBuilder.Func,
-which means resulting Slack/Gitter Commands access to same counter instance.
-This illustrates that, when multiple Bots are registered to Runner, same memory space can be shared.
-*/
+// Package count provides an example to set up sarah.CommandProps.
+//
+// One counter instance is shared between two CommandPropsBuilder.Func,
+// which means both Slack command and Gitter command access to the same counter instance.
+// This illustrates that, when multiple Bots are registered to Runner, same memory space can be shared.
 package count
 
 import (

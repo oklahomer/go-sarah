@@ -5,39 +5,52 @@ import (
 	"github.com/oklahomer/go-kasumi/logger"
 )
 
-// Bot provides an interface that each bot implementation must satisfy.
-// Instance of concrete type can be registered via sarah.RegisterBot() to have its lifecycle under control.
-// Multiple Bot implementation may be registered by multiple sarah.RegisterBot() calls.
+// Bot defines an interface that each interacting bot must satisfy.
+// Its implementation can be registered to Sarah with RegisterBot, and the lifecycle will be managed by Sarah.
+// Multiple Bot implementations can be registered by multiple RegisterBot calls.
 type Bot interface {
-	// BotType represents what this Bot implements. e.g. slack, gitter, cli, etc...
-	// This can be used as a unique ID to distinguish one from another.
+	// BotType returns a BotType this Bot implementation represents,
+	// which can be used as a unique ID to distinguish one Bot implementation from another.
 	BotType() BotType
 
-	// Respond receives user input, look for the corresponding command, execute it, and send the result back to the user if possible.
+	// Respond receives a user input, executes a "task" against it, and sends the result back to the user when necessary.
+	// A task can be one of the below depending on the user's current state:
+	//   - When the user is in the middle of stateful command execution, the given input is treated as part of the instruction given in a user-interactive manner.
+	//     - Respond executes a function tied to the current user state and sends the result back to the user.
+	//   - When no user context is stored, then the input is treated as a brand new command execution.
+	//     - Respond finds a Command, executes it, and sends the result back to the user.
+	// In either way, a new user state is set to the storage when the task's result tells to do so.
 	Respond(context.Context, Input) error
 
-	// SendMessage sends given message to the destination depending on the Bot implementation.
+	// SendMessage sends a given message to the destination depending on the Bot implementation.
 	// This is mainly used to send scheduled task's result.
-	// Be advised: this method may be called simultaneously from multiple workers.
 	SendMessage(context.Context, Output)
 
-	// AppendCommand appends given Command implementation to Bot internal stash.
-	// Stashed commands are checked against user input in Bot.Respond, and if Command.Match returns true, the
-	// Command is considered as "corresponds" to the input, hence its Command.Execute is called and the result is
-	// sent back to the user.
+	// AppendCommand receives a Command to be registered to this Bot implementation.
+	// The Bot implementation must append the given Command to its internal stash so the corresponding Command can be found when the user gives an Input.
+	//
+	// Stashed commands are checked against user input in Bot.Respond.
+	// If Command.Match returns true, the Command is considered to "correspond" to the given Input.
+	// Then the corresponding Command's Command.Execute is called and the result is sent back to the user.
+	//
+	// A developer may call this method by oneself to register a Command.
+	// Or one can register a Command with sarah package's public function, RegisterCommand.
+	// The use of RegisterCommand would be easier because one does not have to carry around the reference to Bot implementation's instance to call its method.
+	// A more advanced way is to call sarah package's RegisterCommandProps.
+	// In this way, a Command is built and set when Sarah boots up or when the Command's configuration is updated.
 	AppendCommand(Command)
 
-	// Run is called on sarah.Run() to let this Bot start interacting with corresponding service provider.
-	// When the service provider sends a message to us, convert that message payload to sarah.Input and send to inputReceiver.
-	// An internal worker will receive the Input instance and proceed to find and execute the corresponding command.
-	// The worker is managed by go-sarah's core; Bot/Adapter developers do not have to worry about implementing one.
+	// Run is called when Sarah boots up.
+	// On this execution, Bot implementation initiates its interaction with the corresponding chat service.
+	// When the chat service sends a message, convert that message payload into Input implementation and send it to inputReceiver.
+	// Sarah's internal worker receives the Input and proceeds to find and execute the corresponding command.
 	//
-	// sarah.Run() allocates a new goroutine for each bot so this method can block til interaction ends.
+	// The initiation of Sarah allocates a new goroutine for each bot so this method can block until when the interaction ends.
 	// When this method returns, the interaction is considered finished.
 	//
-	// The bot lifecycle is entirely managed by go-sarah's core.
-	// On critical situation, notify such event via notifyErr and let go-sarah's core handle the error.
-	// When the bot is indeed in a critical state and cannot proceed further operation, ctx is canceled by go-sarah.
+	// The bot lifecycle is entirely managed by Sarah.
+	// On critical situation, notify such event via notifyErr and let Sarah handle the error.
+	// When the bot is indeed in a critical state and can not proceed further operation, ctx is canceled by Sarah.
 	// Bot/Adapter developers may listen to this ctx.Done() to clean up its internal resources.
 	Run(ctx context.Context, inputReceiver func(Input) error, notifyErr func(error))
 }
@@ -50,25 +63,28 @@ type defaultBot struct {
 	userContextStorage UserContextStorage
 }
 
-// NewBot creates and returns new defaultBot instance with given Adapter.
-// While Adapter takes care of actual collaboration with each chat service provider,
+// NewBot creates a new defaultBot instance with the given Adapter implementation.
+// While an Adapter takes care of actual collaboration with each chat service provider,
 // defaultBot takes care of some common tasks including:
-//   - receive Input
+//   - receive an Input
 //   - see if sending user is in the middle of conversational context
-//     - if so, execute the next step with given Input
-//     - if not, find corresponding Command for given Input and execute it
-//   - call Adapter.SendMessage to send output
-// The aim of defaultBot is to lessen the tasks of Adapter developer by providing some common tasks' implementations, and achieve easier creation of Bot implementation.
-// Hence this method returns Bot interface instead of any concrete instance so this can be ONLY treated as Bot implementation to be fed to Runner.RegisterBot.
+//     - if so, execute the next step with the given Input
+//     - if not, find a corresponding Command for the given Input and execute it
+//   - call Adapter.SendMessage to send an output
+// The purpose of defaultBot is to lessen the tasks of Adapter developers by providing some common tasks' implementations
+// and ease the creation of Bot implementation.
+// Instead of passing an Adapter implementation to NewBot, Developers can also develop a Bot implementation from scratch to highly customize the behavior.
 //
-// Some optional settings can be supplied by passing sarah.WithStorage and others that return DefaultBotOption.
+// Some optional settings can be supplied by passing DefaultBotOption values returned by functions including BotWithStorage.
 //
-//  // Use pre-defined storage.
+//  // Use a storage.
 //  storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
-//  bot, err := sarah.NewBot(myAdapter, sarah.WithStorage(sarah.NewUserContextStorage(sarah.NewCacheConfig())))
+//  opt := sarah.BotWithStorage(storage)
+//  bot, err := sarah.NewBot(myAdapter, opt)
 //
-// It is highly recommended to provide concrete implementation of sarah.UserContextStorage, so the users' conversational context can be stored and executed on next Input.
-// sarah.userContextStorage is provided by default to store user context in memory. This storage can be initialized by sarah.NewUserContextStorage like above example.
+// It is highly recommended to provide an implementation of UserContextStorage, so the users' conversational context can be stored and executed on the next message reception.
+// A reference implementation of UserContextStorage can be initialized with NewUserContextStorage.
+// This caches user context information in process memory, so the stored context information is lost on process restart.
 func NewBot(adapter Adapter, options ...DefaultBotOption) Bot {
 	bot := &defaultBot{
 		botType:            adapter.BotType(),
@@ -85,11 +101,11 @@ func NewBot(adapter Adapter, options ...DefaultBotOption) Bot {
 	return bot
 }
 
-// DefaultBotOption defines function that defaultBot's functional option must satisfy.
+// DefaultBotOption defines a type that a functional option of NewBot must satisfy.
 type DefaultBotOption func(bot *defaultBot)
 
-// BotWithStorage creates and returns DefaultBotOption to set preferred UserContextStorage implementation.
-// Below example utilizes pre-defined in-memory storage.
+// BotWithStorage creates and returns a DefaultBotOption to register a preferred UserContextStorage implementation.
+// The below example utilizes pre-defined in-memory storage.
 //
 //  config := sarah.NewCacheConfig()
 //  configBuf, _ := ioutil.ReadFile("/path/to/storage/config.yaml")
@@ -181,7 +197,8 @@ func (bot *defaultBot) Run(ctx context.Context, enqueueInput func(Input) error, 
 	bot.runFunc(ctx, enqueueInput, notifyErr)
 }
 
-// NewSuppressedResponseWithNext creates new sarah.CommandResponse instance with no message and next function to continue
+// NewSuppressedResponseWithNext creates a new CommandResponse without a returning message but with a next step to continue.
+// When this is returned by Command execution, no response is returned to the user but the user context is still set.
 func NewSuppressedResponseWithNext(next ContextualFunc) *CommandResponse {
 	return &CommandResponse{
 		Content:     nil,

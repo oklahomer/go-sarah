@@ -1,9 +1,7 @@
-/*
-Package timer provides example code to setup ScheduledTaskProps with re-configurable schedule and sending room.
-
-The configuration struct, timerConfig, implements both ScheduledConfig and DestinatedConfig interface.
-The configuration values are read from timer.yaml and Command is re-built when configuration file is updated.
-*/
+// Package timer provides an example to set up ScheduledTaskProps with re-configurable schedule and sending destination.
+//
+// The configuration struct, timerConfig, implements both sarah.ScheduledConfig and sarah.DestinatedConfig interface.
+// The configuration values are read from timer.yaml and the command is rebuilt when the configuration file is updated.
 package timer
 
 import (

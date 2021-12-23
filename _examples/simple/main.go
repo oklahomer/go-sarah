@@ -1,6 +1,4 @@
-/*
-Package main provides a simple bot experience using slack.Adapter with multiple plugin commands and scheduled tasks.
-*/
+// Package main provides a simple bot experience using slack.Adapter with multiple plugin commands and scheduled tasks.
 package main
 
 import (
@@ -35,7 +33,7 @@ type myConfig struct {
 }
 
 func newMyConfig() *myConfig {
-	// Use constructor for each config struct, so default values are pre-set.
+	// Use a constructor function for each config struct, so default values are pre-set.
 	return &myConfig{
 		CacheConfig: sarah.NewCacheConfig(),
 		Slack:       slack.NewConfig(),
@@ -51,20 +49,20 @@ func main() {
 		panic("./bin/examples -config=/path/to/config/app.yml")
 	}
 
-	// Read configuration file.
+	// Read a configuration file.
 	config := readConfig(*path)
 
-	// When Bot encounters critical states, send alert to LINE.
-	// Any number of Alerter implementation can be registered.
+	// When the Bot encounters critical states, send an alert to LINE.
+	// Any number of Alerter implementations can be registered.
 	sarah.RegisterAlerter(line.New(config.LineAlerter))
 
-	// Setup storage that can be shared among different Bot implementation.
+	// Set up a storage that can be shared among different Bot implementations.
 	storage := sarah.NewUserContextStorage(config.CacheConfig)
 
-	// Setup Slack Bot.
+	// Set up Slack Bot.
 	setupSlack(config.Slack, storage)
 
-	// Setup some commands.
+	// Set up some commands.
 	todoCmd := todo.BuildCommand(&todo.DummyStorage{})
 	sarah.RegisterCommand(slack.SLACK, todoCmd)
 
@@ -72,16 +70,16 @@ func main() {
 	// This Command is not subject to config file supervision.
 	sarah.RegisterCommand(slack.SLACK, echo.Command)
 
-	// Prepare go-sarah's core context
+	// Prepare Sarah's core context.
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Prepare watcher that reads configuration from filesystem
+	// Prepare a watcher that reads configuration from filesystem.
 	if config.PluginConfigDir != "" {
 		configWatcher, _ := watchers.NewFileWatcher(ctx, config.PluginConfigDir)
 		sarah.RegisterConfigWatcher(configWatcher)
 	}
 
-	// Run
+	// Run.
 	err := sarah.Run(ctx, config.Runner)
 	if err != nil {
 		panic(err)
@@ -123,6 +121,6 @@ func setupSlack(config *slack.Config, storage sarah.UserContextStorage) {
 
 	bot := sarah.NewBot(adapter, sarah.BotWithStorage(storage))
 
-	// Register bot to run.
+	// Register the bot to run.
 	sarah.RegisterBot(bot)
 }

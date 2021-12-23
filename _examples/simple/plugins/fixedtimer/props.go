@@ -1,10 +1,8 @@
-/*
-Package fixedtimer provides example code to setup ScheduledTaskProps with fixed schedule.
-
-The configuration struct, timerConfig, does not implement ScheduledConfig interface,
-but instead fixed schedule is provided via ScheduledTaskPropsBuilder.Schedule.
-Schedule never changes no matter how many times the configuration file, fixed_timer.yaml, is updated.
-*/
+// Package fixedtimer provides an example to set up sarah.ScheduledTaskProps with fixed schedule.
+//
+// The configuration struct, timerConfig, does not implement sarah.ScheduledConfig interface,
+// but instead fixed schedule is provided via sarah.ScheduledTaskPropsBuilder's Schedule method.
+// The schedule never changes no matter how many times the configuration file, fixed_timer.yaml, is updated.
 package fixedtimer
 
 import (

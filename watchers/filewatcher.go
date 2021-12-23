@@ -1,3 +1,4 @@
+// Package watchers provides a sarah.ConfigWatcher implementation that subscribes to changes on the filesystem.
 package watchers
 
 import (
@@ -15,7 +16,7 @@ import (
 )
 
 // abstractFsWatcher defines an interface to abstract fsnotify.Watcher.
-// Its sole purpose is to ease test by replacing fsnotify.Watcher with dummy implementation.
+// Its sole purpose is to ease the test by replacing fsnotify.Watcher with a dummy implementation.
 type abstractFsWatcher interface {
 	Add(string) error
 	Remove(string) error
@@ -30,8 +31,8 @@ type subscription struct {
 	initErr  chan error
 }
 
-// NewFileWatcher creates and returns new instance of sarah.ConfigWatcher implementation.
-// This subscribes to changes on filesystem.
+// NewFileWatcher creates and a returns a new instance of sarah.ConfigWatcher implementation.
+// This watcher subscribes to changes on the filesystem.
 func NewFileWatcher(ctx context.Context, baseDir string) (sarah.ConfigWatcher, error) {
 	fsWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -110,7 +111,7 @@ func (w *fileWatcher) Watch(_ context.Context, botType sarah.BotType, id string,
 
 func (w *fileWatcher) Unwatch(botType sarah.BotType) (err error) {
 	defer func() {
-		// Panics if and only if unsubscribeGroup channel is closed due to root context cancellation.
+		// Panics if and only if unsubscribe channel is closed due to the root context cancellation.
 		if r := recover(); r != nil {
 			err = sarah.ErrWatcherNotRunning
 		}

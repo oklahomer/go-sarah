@@ -8,22 +8,23 @@ import (
 )
 
 const (
-	// StreamingAPIEndpointFormat defines basic url format of gitter streaming API.
+	// StreamingAPIEndpointFormat defines the basic URL format of Gitter streaming API.
 	StreamingAPIEndpointFormat = "https://stream.gitter.im/%s/rooms/%s/chatMessages"
 )
 
-// StreamConnector defines an interface that connects to given gitter room
+// StreamConnector defines an interface that connects to the given Gitter room.
 type StreamConnector interface {
+	// Connect connects to the given Gitter room and returns the Connection.
 	Connect(context.Context, *Room) (Connection, error)
 }
 
-// StreamingAPIClient utilizes gitter streaming API.
+// StreamingAPIClient utilizes Gitter streaming API.
 type StreamingAPIClient struct {
 	token      string
 	apiVersion string
 }
 
-// NewVersionSpecificStreamingAPIClient creates and returns API client instance.
+// NewVersionSpecificStreamingAPIClient creates and returns a new Streaming API client instance.
 func NewVersionSpecificStreamingAPIClient(apiVersion string, token string) *StreamingAPIClient {
 	return &StreamingAPIClient{
 		token:      token,
@@ -31,8 +32,8 @@ func NewVersionSpecificStreamingAPIClient(apiVersion string, token string) *Stre
 	}
 }
 
-// NewStreamingAPIClient creates and returns API client instance.
-// API version is fixed to v1.
+// NewStreamingAPIClient creates and returns a new Streaming API client instance.
+// The API version is fixed to v1.
 func NewStreamingAPIClient(token string) *StreamingAPIClient {
 	return NewVersionSpecificStreamingAPIClient("v1", token)
 }
@@ -42,11 +43,11 @@ func (client *StreamingAPIClient) buildEndpoint(room *Room) *url.URL {
 	return endpoint
 }
 
-// Connect initiates request to streaming API and returns established connection.
+// Connect initiates a connection to the Streaming API server and returns an established Connection.
 func (client *StreamingAPIClient) Connect(ctx context.Context, room *Room) (Connection, error) {
 	requestURL := client.buildEndpoint(room)
 
-	// Set up sending request
+	// Set up a sending request
 	req, err := http.NewRequest("GET", requestURL.String(), nil)
 	if err != nil {
 		return nil, err

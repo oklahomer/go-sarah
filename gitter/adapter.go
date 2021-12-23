@@ -10,21 +10,24 @@ import (
 )
 
 const (
-	// GITTER is a dedicated BotType for gitter implementation.
+	// GITTER is a dedicated sarah.BotType for Gitter integration.
 	GITTER sarah.BotType = "gitter"
 )
 
-// AdapterOption defines function signature that Adapter's functional option must satisfy.
+// AdapterOption defines a function's signature that Adapter's functional options must satisfy.
 type AdapterOption func(adapter *Adapter)
 
-// Adapter stores REST/Streaming API clients' instances to let users interact with gitter.
+// Adapter is a sarah.Adapter implementation for Gitter.
+// This holds REST/Streaming API clients' instances.
 type Adapter struct {
 	config          *Config
 	apiClient       APIClient
 	streamingClient StreamingClient
 }
 
-// NewAdapter creates and returns new Adapter instance.
+var _ sarah.Adapter = (*Adapter)(nil)
+
+// NewAdapter creates and returns a new Adapter instance.
 func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	adapter := &Adapter{
 		config:          config,
@@ -39,12 +42,13 @@ func NewAdapter(config *Config, options ...AdapterOption) (*Adapter, error) {
 	return adapter, nil
 }
 
-// BotType returns gitter designated BotType.
+// BotType returns a designated BotType for Gitter integration.
 func (adapter *Adapter) BotType() sarah.BotType {
 	return GITTER
 }
 
-// Run fetches all belonging Room and connects to them.
+// Run fetches all belonging Room information and connects to them.
+// New goroutines are activated for each Room to connect, and the interactions run in a concurrent manner.
 func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) error, notifyErr func(error)) {
 	// Get belonging rooms.
 	var rooms *Rooms
@@ -63,7 +67,7 @@ func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) 
 	}
 }
 
-// SendMessage let Bot send message to gitter.
+// SendMessage lets sarah.Bot send a message to Gitter.
 func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 	switch content := output.Content().(type) {
 	case string:
@@ -104,10 +108,10 @@ func (adapter *Adapter) runEachRoom(ctx context.Context, room *Room, enqueueInpu
 			_ = conn.Close()
 
 			// TODO: Intentional connection close such as context.cancel also comes here.
-			// It would be nice if we could detect such event to distinguish intentional behaviour and unintentional connection error.
-			// But, the truth is, given error is just a privately defined error instance given by http package.
-			// var errRequestCanceled = errors.New("net/http: request canceled")
-			// For now, let error log appear and proceed to next loop, select case with ctx.Done() will eventually return.
+			// It would be nice if we could detect such an event to distinguish an intentional behaviour and an unintentional connection error.
+			// But, the truth is, the given error is just a privately defined error instance given by http package:
+			//   var errRequestCanceled = errors.New("net/http: request canceled")
+			// For now, let an error log appear and proceed to the next loop, select case with ctx.Done() will eventually return.
 			logger.Errorf("Disconnected from room %s: %+v", room.ID, connErr)
 
 		}
@@ -122,7 +126,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 		var malformedErr *MalformedPayloadError
 		if errors.Is(err, ErrEmptyPayload) {
 			// https://developer.gitter.im/docs/streaming-api
-			// Parsers must be tolerant of occasional extra newline characters placed between messages.
+			// Parsers must be tolerant of extra newline characters occasionally placed in between messages.
 			// These characters are sent as periodic "keep-alive" messages to tell clients and NAT firewalls
 			// that the connection is still alive during low message volume periods.
 			continue
@@ -132,8 +136,8 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 			continue
 
 		} else if err != nil {
-			// At this point, assume connection is unstable or is closed.
-			// Let caller proceed to reconnect or quit.
+			// At this point, assume the connection is unstable or is closed.
+			// Let the caller proceed to reconnect or quit.
 			return fmt.Errorf("failed to receive input: %w", err)
 
 		}
@@ -142,7 +146,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 	}
 }
 
-// NewResponse creates *sarah.CommandResponse with given arguments.
+// NewResponse creates *sarah.CommandResponse with the given arguments.
 func NewResponse(content string, options ...RespOption) (*sarah.CommandResponse, error) {
 	stash := &respOptions{
 		userContext: nil,
@@ -158,9 +162,9 @@ func NewResponse(content string, options ...RespOption) (*sarah.CommandResponse,
 	}, nil
 }
 
-// RespWithNext sets given fnc as part of the response's *sarah.UserContext.
+// RespWithNext sets a given fnc as part of the response's *sarah.UserContext.
 // The next input from the same user will be passed to this fnc.
-// See sarah.UserContextStorage must be present or otherwise, fnc will be ignored.
+// sarah.UserContextStorage must be configured or otherwise, the function will be ignored.
 func RespWithNext(fnc sarah.ContextualFunc) RespOption {
 	return func(options *respOptions) {
 		options.userContext = &sarah.UserContext{
@@ -169,9 +173,9 @@ func RespWithNext(fnc sarah.ContextualFunc) RespOption {
 	}
 }
 
-// RespWithNextSerializable sets given arg as part of the response's *sarah.UserContext.
+// RespWithNextSerializable sets the given arg as part of the response's *sarah.UserContext.
 // The next input from the same user will be passed to the function defined in the arg.
-// See sarah.UserContextStorage must be present or otherwise, arg will be ignored.
+// sarah.UserContextStorage must be configured or otherwise, the function will be ignored.
 func RespWithNextSerializable(arg *sarah.SerializableArgument) RespOption {
 	return func(options *respOptions) {
 		options.userContext = &sarah.UserContext{
@@ -180,21 +184,24 @@ func RespWithNextSerializable(arg *sarah.SerializableArgument) RespOption {
 	}
 }
 
-// RespOption defines function signature that NewResponse's functional option must satisfy.
+// RespOption defines a function's signature that NewResponse's functional option must satisfy.
 type RespOption func(*respOptions)
 
 type respOptions struct {
 	userContext *sarah.UserContext
 }
 
-// APIClient is an interface that Rest API client must satisfy.
+// APIClient is an interface that a Rest API client must satisfy.
 // This is mainly defined to ease tests.
 type APIClient interface {
+	// Rooms fetch the list of rooms the token's owner belongs.
 	Rooms(context.Context) (*Rooms, error)
+
+	// PostMessage sends message to a given Room.
 	PostMessage(context.Context, *Room, string) (*Message, error)
 }
 
-// StreamingClient is an interface that HTTP Streaming client must satisfy.
+// StreamingClient is an interface that an HTTP Streaming client must satisfy.
 // This is mainly defined to ease tests.
 type StreamingClient interface {
 	Connect(context.Context, *Room) (Connection, error)

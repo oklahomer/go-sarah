@@ -11,22 +11,23 @@ import (
 )
 
 const (
-	// RestAPIEndpoint defines base url of gitter REST API.
+	// RestAPIEndpoint defines base url of Gitter REST API.
 	RestAPIEndpoint = "https://api.gitter.im/"
 )
 
-// RoomsFetcher defines interface that fetch gitter rooms.
+// RoomsFetcher defines an interface that fetches Gitter rooms.
 type RoomsFetcher interface {
+	// Rooms fetch the list of rooms the token's owner belongs.
 	Rooms(context.Context) (*Rooms, error)
 }
 
-// RestAPIClient utilizes gitter REST API.
+// RestAPIClient utilizes Gitter REST API.
 type RestAPIClient struct {
 	token      string
 	apiVersion string
 }
 
-// NewVersionSpecificRestAPIClient creates API client instance with given API version.
+// NewVersionSpecificRestAPIClient creates a new API client instance with the given API version.
 func NewVersionSpecificRestAPIClient(token string, apiVersion string) *RestAPIClient {
 	return &RestAPIClient{
 		token:      token,
@@ -34,7 +35,7 @@ func NewVersionSpecificRestAPIClient(token string, apiVersion string) *RestAPICl
 	}
 }
 
-// NewRestAPIClient creates and returns API client instance. Version is fixed to v1.
+// NewRestAPIClient creates and returns a new API client instance. The version is fixed to v1.
 func NewRestAPIClient(token string) *RestAPIClient {
 	return NewVersionSpecificRestAPIClient(token, "v1")
 }
@@ -46,7 +47,7 @@ func (client *RestAPIClient) buildEndpoint(resourceFragments []string) *url.URL 
 	return endpoint
 }
 
-// Get sends GET request with given path and parameters.
+// Get sends an HTTP GET request with the given path and parameters.
 func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string, intf interface{}) error {
 	// Set up sending request
 	endpoint := client.buildEndpoint(resourceFragments)
@@ -77,7 +78,7 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 	return nil
 }
 
-// Post sends POST requests to gitter with given parameters.
+// Post sends an HTTP POST request to Gitter with the given parameters.
 func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []string, sendingPayload interface{}, responsePayload interface{}) error {
 	reqBody, err := json.Marshal(sendingPayload)
 	if err != nil {
@@ -114,7 +115,7 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 	return nil
 }
 
-// Rooms fetches belonging rooms information.
+// Rooms fetches belonging rooms' information.
 func (client *RestAPIClient) Rooms(ctx context.Context) (*Rooms, error) {
 	rooms := &Rooms{}
 	if err := client.Get(ctx, []string{"rooms"}, &rooms); err != nil {
@@ -123,7 +124,7 @@ func (client *RestAPIClient) Rooms(ctx context.Context) (*Rooms, error) {
 	return rooms, nil
 }
 
-// PostMessage sends message to gitter.
+// PostMessage sends a message to Gitter.
 func (client *RestAPIClient) PostMessage(ctx context.Context, room *Room, text string) (*Message, error) {
 	message := &Message{}
 	err := client.Post(ctx, []string{"rooms", room.ID, "chatMessages"}, &PostingMessage{Text: text}, message)
@@ -134,7 +135,7 @@ func (client *RestAPIClient) PostMessage(ctx context.Context, room *Room, text s
 }
 
 // PostingMessage represents the sending message.
-// This can be marshaled and sent as JSON-styled payload.
+// This can be marshaled and be sent as a JSON-styled payload.
 type PostingMessage struct {
 	Text string `json:"text"`
 }
