@@ -2,23 +2,22 @@ package sarah
 
 import "context"
 
-// Adapter defines interface that each bot adapter implementation has to satisfy.
-// Instance of its concrete struct and series of sarah.DefaultBotOptions can be fed to defaultBot via sarah.NewBot() to have sarah.Bot.
-// Returned bot instance can be fed to Runner to have its life cycle managed.
+// Adapter defines an interface that each bot adapter implementation must satisfy.
+// An instance of its implementation and DefaultBotOption values can be passed to NewBot to set up a bot.
+// The returned bot can be fed to Sarah via RegisterBot to have its life cycle managed.
 type Adapter interface {
-	// BotType represents what this Bot implements. e.g. slack, gitter, cli, etc...
-	// This can be used as a unique ID to distinguish one from another.
+	// BotType tells what type of chat service this bot is integrating with. e.g. slack, gitter, cli, etc...
+	// This can also be used as a unique ID to distinguish one bot from another.
 	BotType() BotType
 
-	// Run is called on Runner.Run by wrapping bot instance.
-	// On this call, start interacting with corresponding service provider.
-	// This may run in a blocking manner til given context is canceled since a new goroutine is allocated for this task.
-	// When the service provider sends message to us, convert that message payload to Input and send to Input channel.
-	// Runner will receive the Input instance and proceed to find and execute corresponding command.
+	// Run is called on Sarah's initiation, and the Adapter initiates its interaction with the corresponding chat service.
+	// Sarah allocates a new goroutine for this task, so this execution can block until the given context is canceled.
+	// When the chat service sends a message, this implementation receives the message, converts into Input, and sends it to the Input channel.
+	// Sarah then receives the Input and sees if the input must be applied to the currently cached user context or if there is any matching Command.
 	Run(context.Context, func(Input) error, func(error))
 
-	// SendMessage sends message to corresponding service provider.
-	// This can be called by scheduled task or in response to input from service provider.
-	// Be advised: this method may be called simultaneously from multiple workers.
+	// SendMessage sends the given message to the chat service.
+	// Sarah calls this method when ScheduledTask.Execute or Command.Execute returns a non-nil response.
+	// This must be capable of being called simultaneously by multiple workers.
 	SendMessage(context.Context, Output)
 }

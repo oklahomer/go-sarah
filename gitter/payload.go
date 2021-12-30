@@ -5,18 +5,21 @@ import (
 )
 
 const (
-	// TimeFormat defines gitter-styled timestamp format.
+	// TimeFormat defines the Gitter-styled timestamp format.
 	// https://golang.org/pkg/time/#Time.Format
 	TimeFormat = "2006-01-02T15:04:05.999Z"
 )
 
-// TimeStamp represents gitter timestamp.
+// TimeStamp represents the timestamp when its belonging event occurred.
 type TimeStamp struct {
-	Time          time.Time
+	// Time is the time.Time representation of the timestamp.
+	Time time.Time
+
+	// OriginalValue is the original timestamp value given by Gitter.
 	OriginalValue string // e.g. "2014-03-24T15:41:18.991Z"
 }
 
-// UnmarshalText unmarshals given gitter-styled timestamp to TimeStamp
+// UnmarshalText unmarshals the given Gitter-styled timestamp to TimeStamp.
 func (timeStamp *TimeStamp) UnmarshalText(b []byte) error {
 	str := string(b)
 	timeStamp.OriginalValue = str
@@ -30,17 +33,17 @@ func (timeStamp *TimeStamp) UnmarshalText(b []byte) error {
 	return nil
 }
 
-// String returns original gitter-styled timestamp value.
+// String returns the original Gitter-styled timestamp value.
 func (timeStamp *TimeStamp) String() string {
 	return timeStamp.OriginalValue
 }
 
-// MarshalText marshals TimeStamp to gitter-styled one.
+// MarshalText marshals TimeStamp to a Gitter-styled one.
 func (timeStamp *TimeStamp) MarshalText() ([]byte, error) {
 	return []byte(timeStamp.String()), nil
 }
 
-// Room represents gitter room resource.
+// Room represents Gitter's room resource.
 // https://developer.gitter.im/docs/rooms-resource
 type Room struct {
 	ID             string    `json:"id"`
@@ -60,10 +63,10 @@ type Room struct {
 	Version        uint      `json:"v"`
 }
 
-// Rooms is a group of Room
+// Rooms represents a group of Room instances.
 type Rooms []*Room
 
-// User represents gitter user resource.
+// User represents Gitter's user resource.
 // https://developer.gitter.im/docs/user-resource
 type User struct {
 	ID              string `json:"id"`
@@ -74,7 +77,7 @@ type User struct {
 	AvatarURLMedium string `json:"avatarUrlMedium"`
 }
 
-// Message represents gitter message resource.
+// Message represents Gitter's message resource.
 // https://developer.gitter.im/docs/messages-resource
 type Message struct {
 	ID            string    `json:"id"`
@@ -92,7 +95,7 @@ type Message struct {
 	Version       uint      `json:"v"`
 }
 
-// Mention represents mention in the message.
+// Mention represents a mention in the message.
 type Mention struct {
 	ScreenName string `json:"screenName"`
 	UserID     string `json:"userId"`

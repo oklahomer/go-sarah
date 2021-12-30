@@ -5,13 +5,13 @@ import (
 	"strconv"
 )
 
-// ErrorDescription represents error that returned by World Weather API.
+// ErrorDescription represents an error that returned by World Weather API.
 // `{ "data": { "error": [ {"msg": "Unable to find any matching weather location to the query submitted!" } ] }}`
 type ErrorDescription struct {
 	Message string `json:"msg"`
 }
 
-// CommonData represents common response fields returned as part of API response.
+// CommonData represents a common response fields returned as part of API response.
 type CommonData struct {
 	Error []*ErrorDescription `json:"error"`
 }
@@ -27,7 +27,7 @@ type LocalWeatherResponse struct {
 	Data *WeatherData `json:"data"`
 }
 
-// WeatherData represents set of weather information.
+// WeatherData represents a set of weather information.
 type WeatherData struct {
 	CommonData
 	Request          []*Request          `json:"request"`
@@ -35,13 +35,13 @@ type WeatherData struct {
 	Weather          []*Weather          `json:"weather"`
 }
 
-// Request represents clients request.
+// Request represents a client's request.
 type Request struct {
 	Type  string `json:"type"`
 	Query string `json:"query"`
 }
 
-// CurrentCondition represents current weather condition returned by API.
+// CurrentCondition represents the current weather condition returned by API.
 type CurrentCondition struct {
 	ObservationTime       string                `json:"observation_time"`
 	Temperature           int                   `json:"temp_C,string"`
@@ -64,12 +64,12 @@ type WeatherIcon struct {
 	URL string `json:"value"`
 }
 
-// WeatherDescription represents weather description.
+// WeatherDescription represents a weather description.
 type WeatherDescription struct {
 	Content string `json:"value"`
 }
 
-// Weather represents set of weather information.
+// Weather represents a set of weather information.
 type Weather struct {
 	Astronomy []*Astronomy     `json:"astronomy"`
 	Date      string           `json:"date"` // 2016-09-04
@@ -106,7 +106,7 @@ type HourlyForecastTime struct {
 	Hour          int
 }
 
-// UnmarshalText converts time value returned by API to convenient form.
+// UnmarshalText converts a time value returned by the API to a more convenient form.
 func (t *HourlyForecastTime) UnmarshalText(b []byte) error {
 	str := string(b)
 	t.OriginalValue = str

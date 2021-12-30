@@ -1,6 +1,4 @@
-/*
-Package line provides sarah.Alerter implementation for LINE Notify.
-*/
+// Package line provides sarah.Alerter implementation for LINE Notify.
 package line
 
 import (
@@ -16,15 +14,18 @@ import (
 // Endpoint defines the API endpoint to be used for notification.
 var Endpoint = "https://notify-api.line.me/api/notify"
 
-// Config contains some configuration variables for gitter Adapter.
+// Config contains some configuration variables.
 type Config struct {
-	Token          string        `json:"token" yaml:"token"`
+	// Token declares the API token to use LINE Notify.
+	Token string `json:"token" yaml:"token"`
+
+	// RequestTimeout declares the timeout duration of each API call.
 	RequestTimeout time.Duration `json:"timeout" yaml:"timeout"`
 }
 
-// NewConfig returns initialized Config struct with default settings.
-// Token is empty at this point. Token can be set by feeding this instance to json.Unmarshal/yaml.Unmarshal,
-// or direct assignment.
+// NewConfig creates and returns a new Config instance with default settings.
+// Token is empty at this point as there can not be a default value.
+// Use json.Unmarshal, yaml.Unmarshal, or manual manipulation to populate the blank value or override those default values.
 func NewConfig() *Config {
 	return &Config{
 		Token:          "", // Updated on json/yaml unmarshal or by manually
@@ -32,10 +33,10 @@ func NewConfig() *Config {
 	}
 }
 
-// Option defines a function signature that New()'s functional options must satisfy.
+// Option defines a function's signature that New's functional options must satisfy.
 type Option func(*Client)
 
-// WithHTTPClient creates an Option that replaces http.DefaultClient with preferred one.
+// WithHTTPClient creates an Option that replaces http.DefaultClient with the given one.
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
@@ -48,7 +49,7 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// New creates and returns new Client instant.
+// New creates and returns a new Client instant.
 func New(config *Config, options ...Option) *Client {
 	c := &Client{
 		config:     config,
@@ -62,7 +63,7 @@ func New(config *Config, options ...Option) *Client {
 	return c
 }
 
-// Alert sends alert message to notify critical state of caller.
+// Alert sends an alert message to notify the critical state of sarah.Bot.
 func (c *Client) Alert(ctx context.Context, botType sarah.BotType, err error) error {
 	msg := fmt.Sprintf("Error on %s: %s.", botType.String(), err.Error())
 	v := url.Values{"message": {msg}}

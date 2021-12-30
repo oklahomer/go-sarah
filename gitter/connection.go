@@ -12,12 +12,14 @@ import (
 )
 
 var (
-	// ErrEmptyPayload is an error that represents empty payload.
+	// ErrEmptyPayload is an error that represents an empty payload.
 	ErrEmptyPayload = errors.New("empty payload was given")
 )
 
-// MessageReceiver defines an interface that receives RoomMessage.
+// MessageReceiver defines an interface that receives RoomMessage over Streaming API.
 type MessageReceiver interface {
+	// Receive reads a new incoming message and return this as RoomMessage.
+	// This blocks till a new message comes.
 	Receive() (*RoomMessage, error)
 }
 
@@ -27,13 +29,15 @@ type Connection interface {
 	io.Closer
 }
 
-// connWrapper stashes connection per Room to utilize HTTP streaming API.
+// connWrapper stashes a connection for a designated Room to utilize HTTP streaming API.
 type connWrapper struct {
 	Room       *Room
 	readCloser io.ReadCloser
 }
 
-// NewConnection creates and return new Connection instance
+var _ Connection = (*connWrapper)(nil)
+
+// newConnWrapper creates and returns a new connection wrapper for a given Room in a form of Connection.
 func newConnWrapper(room *Room, readCloser io.ReadCloser) Connection {
 	return &connWrapper{
 		Room:       room,
@@ -41,8 +45,7 @@ func newConnWrapper(room *Room, readCloser io.ReadCloser) Connection {
 	}
 }
 
-// ReadLine read single line from its connection.
-// This line should contain JSON-formatted payload.
+// Receive reads a new incoming message and return this as RoomMessage.
 func (conn *connWrapper) Receive() (*RoomMessage, error) {
 	// The document reads "The JSON stream returns messages as JSON objects that are delimited by carriage return (\r)"
 	// but seems like '\n' is given, instead. Weired.
@@ -60,14 +63,14 @@ func (conn *connWrapper) Receive() (*RoomMessage, error) {
 	return NewRoomMessage(conn.Room, message), nil
 }
 
-// Close closes its connection with gitter
+// Close closes its connection to Gitter's Streaming API.
 func (conn *connWrapper) Close() error {
 	return conn.readCloser.Close()
 }
 
 func decodePayload(payload []byte) (*Message, error) {
 	// https://developer.gitter.im/docs/streaming-api#json-stream-application-json-
-	// Parsers must be tolerant of occasional extra newline characters placed between messages.
+	// Parsers must be tolerant of extra newline characters occasionally placed in between messages.
 	// These characters are sent as periodic "keep-alive" messages to tell clients and NAT firewalls
 	// that the connection is still alive during low message volume periods.
 	payload = bytes.TrimSpace(payload)
@@ -83,13 +86,18 @@ func decodePayload(payload []byte) (*Message, error) {
 	return message, nil
 }
 
-// RoomMessage stashes received Message and additional Room information.
+// RoomMessage is a sarah.Input implementation that represents a received message.
 type RoomMessage struct {
-	Room            *Room
+	// Room represents where the message was sent.
+	Room *Room
+
+	// ReceivedMessage represents the received message.
 	ReceivedMessage *Message
 }
 
-// NewRoomMessage creates and returns new RoomMessage instance.
+var _ sarah.Input = (*RoomMessage)(nil)
+
+// NewRoomMessage creates and returns a new RoomMessage instance.
 func NewRoomMessage(room *Room, message *Message) *RoomMessage {
 	return &RoomMessage{
 		Room:            room,
@@ -97,12 +105,12 @@ func NewRoomMessage(room *Room, message *Message) *RoomMessage {
 	}
 }
 
-// SenderKey returns message sending user's ID.
+// SenderKey returns the message sender's id.
 func (message *RoomMessage) SenderKey() string {
 	return fmt.Sprintf("%s|%s", message.Room.ID, message.ReceivedMessage.FromUser.ID)
 }
 
-// Message returns received text.
+// Message returns the received text.
 func (message *RoomMessage) Message() string {
 	return message.ReceivedMessage.Text
 }
@@ -112,23 +120,24 @@ func (message *RoomMessage) SentAt() time.Time {
 	return message.ReceivedMessage.SendTimeStamp.Time
 }
 
-// ReplyTo returns Room that message was being delivered.
+// ReplyTo returns the Room the message was sent.
 func (message *RoomMessage) ReplyTo() sarah.OutputDestination {
 	return message.Room
 }
 
-// MalformedPayloadError represents an error that given JSON payload is not properly formatted.
+// MalformedPayloadError represents an error that a given JSON payload is not properly formatted.
 // e.g. required fields are not given, or payload is not a valid JSON string.
 type MalformedPayloadError struct {
+	// Err tells the error reason.
 	Err string
 }
 
-// Error returns its error string.
+// Error returns its error message.
 func (e *MalformedPayloadError) Error() string {
 	return e.Err
 }
 
-// NewMalformedPayloadError creates new MalformedPayloadError instance with given arguments.
+// NewMalformedPayloadError creates a new MalformedPayloadError instance with the given error message.
 func NewMalformedPayloadError(str string) *MalformedPayloadError {
 	return &MalformedPayloadError{Err: str}
 }

@@ -1,11 +1,9 @@
-/*
-Package echo provides example code to sarah.Command implementation.
-
-CommandProps is a better way to provide set of command properties to Runner
-especially when configuration file must be supervised and configuration struct needs to be updated on file update;
-Developer may implement Command interface herself and feed its instance to Bot via Bot.AppendCommand
-when command specification is simple.
-*/
+// Package echo provides an example of sarah.Command implementation.
+//
+// The use of sarah.CommandProps is a better way to provide a set of command properties to Sarah
+// especially when a configuration file must be supervised and the configuration values need to be updated on file update.
+// When such a configuration supervision is not required, a developer may implement sarah.Command interface herself
+// and feed its instance to Sarah via sarah.RegisterCommand or to sarah.Bot via its AppendCommand method.
 package echo
 
 import (
@@ -25,23 +23,23 @@ func (c *command) Identifier() string {
 	return "echo"
 }
 
-// Execute receives user input and returns results of this Command.
+// Execute receives a user input and returns a result of this Command execution.
 func (c *command) Execute(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 	return slack.NewResponse(input, sarah.StripMessage(matchPattern, input.Message()))
 }
 
-// Instruction provides input instruction for user.
+// Instruction provides a guide for the requesting user.
 func (c *command) Instruction(_ *sarah.HelpInput) string {
 	return ".echo foo"
 }
 
-// Match checks if user input matches to this Command.
+// Match checks if the user input matches and this Command must be executed.
 func (c *command) Match(input sarah.Input) bool {
-	// Once Runner receives input from Bot, it dispatches task to worker where multiple tasks may run in concurrent manner.
-	// Searching for corresponding Command is an important part of this task, which means Command.Match is called simultaneously from multiple goroutines.
-	// To avoid lock contention, Command developer should consider copying the *regexp.Regexp object.
+	// Once Sarah receives input from sarah.Bot, it dispatches a task to the worker where multiple tasks can run in a concurrent manner.
+	// Searching for a corresponding Command is an important part of this task, which means Command.Match is called simultaneously from multiple goroutines.
+	// To avoid a lock contention, Command developer should consider copying the *regexp.Regexp object.
 	return matchPattern.Copy().MatchString(input.Message())
 }
 
-// Command is a command instance that can directly fed to Bot.AppendCommand.
+// Command is a command instance that can directly fed to sarah.RegisterCommand or Bot.AppendCommand.
 var Command = &command{}

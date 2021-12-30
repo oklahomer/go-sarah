@@ -6,19 +6,19 @@ import (
 )
 
 var configLocker = &configRWLocker{
-	fileMutex: map[string]*sync.RWMutex{},
-	mutex:     sync.Mutex{},
+	pluginMutex: map[string]*sync.RWMutex{},
+	mutex:       sync.Mutex{},
 }
 
-// configRWLocker provides locking mechanism for Command/ScheduledTask to safely read and write config struct.
-// This was introduced to solve race condition caused by concurrent live re-configuration and Command/ScheduledTask execution.
+// configRWLocker provides a locking mechanism for Command/ScheduledTask to safely read and write the config struct in a concurrent manner.
+// This was introduced to solve a race condition caused by concurrent live re-configuration and Command/ScheduledTask execution.
 // Detailed description can be found at https://github.com/oklahomer/go-sarah/issues/44.
 //
-// Mutex instance is created and managed per file path
-// because ScheduledTask and Command may share same Identifier and hence may refer to same configuration file.
+// Mutex instance is created and managed per Command/ScheduledTask ID because some may share the same identifier
+// and hence may refer to the same resource.
 type configRWLocker struct {
-	fileMutex map[string]*sync.RWMutex
-	mutex     sync.Mutex
+	pluginMutex map[string]*sync.RWMutex
+	mutex       sync.Mutex
 }
 
 func (cl *configRWLocker) get(botType BotType, pluginID string) *sync.RWMutex {
@@ -26,10 +26,10 @@ func (cl *configRWLocker) get(botType BotType, pluginID string) *sync.RWMutex {
 	defer cl.mutex.Unlock()
 
 	lockID := fmt.Sprintf("botType:%s::id:%s", botType.String(), pluginID)
-	locker, ok := cl.fileMutex[lockID]
+	locker, ok := cl.pluginMutex[lockID]
 	if !ok {
 		locker = &sync.RWMutex{}
-		cl.fileMutex[lockID] = locker
+		cl.pluginMutex[lockID] = locker
 	}
 
 	return locker

@@ -26,17 +26,17 @@ func (r *rtmAPIAdapter) run(ctx context.Context, enqueueInput func(sarah.Input) 
 	for {
 		conn, err := r.connect(ctx)
 		if err != nil {
-			// Failed to establish WebSocket connection with max retrials.
+			// Failed to establish a WebSocket connection with max retrials.
 			// Notify the unrecoverable state and give up.
 			notifyErr(sarah.NewBotNonContinuableError(err.Error()))
 			return
 		}
 
-		// Create connection specific context so each connection-scoped goroutine can receive connection closing message and eventually return.
+		// Create a connection specific context so each connection-scoped goroutine can receive the connection closing signal and eventually return.
 		connCtx, connCancel := context.WithCancel(ctx)
 
-		// This channel is not subject to close. This channel can be accessed in parallel manner with nonBlockSignal(),
-		// and the receiver is NOT looking for close signal. Let GC run when this channel is no longer referred.
+		// This channel is not subject to close. This channel can be accessed in a parallel manner with nonBlockSignal function,
+		// and the receiver is NOT waiting for a close signal. Let GC run when this channel is no longer referred.
 		//
 		// http://stackoverflow.com/a/8593986
 		// "Note that it is only necessary to close a channel if the receiver is looking for a close.
@@ -45,16 +45,16 @@ func (r *rtmAPIAdapter) run(ctx context.Context, enqueueInput func(sarah.Input) 
 
 		go r.receivePayload(connCtx, conn, tryPing, enqueueInput)
 
-		// payload reception and other connection-related tasks must run in separate goroutines since receivePayload()
-		// internally blocks til entire payload is being read and iterates it over and over.
+		// Payload reception and other connection-related tasks must run in separate goroutines since receivePayload function
+		// internally blocks till the per-connection context is cancelled.
 		connErr := r.superviseConnection(connCtx, conn, tryPing)
 
-		// superviseConnection returns when parent context is canceled or connection is hopelessly unstable
-		// close current connection and do some cleanup
+		// superviseConnection returns when parent context is canceled or the connection is hopelessly unstable.
+		// Close the current connection and do some cleanup.
 		_ = conn.Close()
 		connCancel()
 		if connErr == nil {
-			// Connection is intentionally closed by caller.
+			// Connection is intentionally closed by the caller.
 			// No more interaction follows.
 			return
 		}
@@ -136,10 +136,10 @@ func (r *rtmAPIAdapter) superviseConnection(connCtx context.Context, payloadSend
 	}
 }
 
-// DefaultRTMPayloadHandler receives incoming events, convert them to sarah.Input and then pass them to enqueueInput.
+// DefaultRTMPayloadHandler receives incoming events, converts them to sarah.Input, and then passes them to enqueueInput.
 // To replace this default behavior, define a function with the same signature and replace this.
 //
-//   myHandler := func(_ context.Context, config *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error)
+//   myHandler := func(_ context.Context, config *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {}
 //   slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithRTMPayloadHandler(myHandler))
 func DefaultRTMPayloadHandler(_ context.Context, config *Config, payload rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
 	switch p := payload.(type) {

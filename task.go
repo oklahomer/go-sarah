@@ -10,42 +10,70 @@ import (
 
 var (
 	// ErrTaskInsufficientArgument is returned when required parameters are not set.
-	ErrTaskInsufficientArgument = errors.New("one or more of required fields -- BotType, Identifier or Func -- are empty")
+	ErrTaskInsufficientArgument = errors.New("one or more of required fields -- BotType, Identifier and Func -- are empty")
 
-	// ErrTaskScheduleNotGiven is returned when schedule is provided by neither ScheduledTaskPropsBuilder's parameter nor config.
+	// ErrTaskScheduleNotGiven is returned when a schedule is provided by neither ScheduledTaskPropsBuilder's parameter nor config.
 	ErrTaskScheduleNotGiven = errors.New("task schedule is not set or given from config struct")
 )
 
 // ScheduledTaskResult is a struct that ScheduledTask returns on its execution.
 type ScheduledTaskResult struct {
-	Content     interface{}
+	// Content represents a group of data to be sent as a result of task execution.
+	// Since this is passed to Bot.SendMessage as part of OutputMessage,
+	// its type may vary depending on the Bot's integrating chat service.
+	Content interface{}
+
+	// Destination is passed to Bot.SendMessage as part of OutputMessage value to specify the sending destination.
+	// This typically contains a chat room, member id, or e-mail address.
+	// e.g. JID of XMPP server/client.
+	//
+	// When this is nil, Sarah tries to fall back to a default destination given by ScheduledTask.
+	// If no default destination is set, then the task execution is considered a failure.
 	Destination OutputDestination
 }
 
-// taskFunc is a function type that represents scheduled task.
+// taskFunc is a function type that represents a scheduled task.
 type taskFunc func(context.Context, ...TaskConfig) ([]*ScheduledTaskResult, error)
 
-// TaskConfig provides an interface that every task configuration must satisfy, which actually means empty.
+// TaskConfig provides an interface that every task configuration must satisfy, which actually is empty.
+// Think of this as a kind of marker interface with a more meaningful name.
 type TaskConfig interface{}
 
-// ScheduledConfig defines an interface that config with schedule MUST satisfy.
-// When no execution schedule is set with ScheduledTaskPropsBuilder.Schedule, this value is taken as default on ScheduledTaskPropsBuilder.Build.
+// ScheduledConfig defines an interface that a configuration with a default schedule MUST satisfy.
+// When no execution schedule is set with ScheduledTaskPropsBuilder.Schedule, this value is taken as a default value on ScheduledTaskPropsBuilder.Build.
 type ScheduledConfig interface {
 	Schedule() string
 }
 
-// DestinatedConfig defines an interface that config with default destination MUST satisfy.
-// When no default output destination is set with ScheduledTaskPropsBuilder.DefaultDestination, this value is taken as default on ScheduledTaskPropsBuilder.Build.
+// DestinatedConfig defines an interface that a configuration with a default destination MUST satisfy.
+// When no output destination is set with ScheduledTaskPropsBuilder.DefaultDestination, this value is taken as a default value on ScheduledTaskPropsBuilder.Build.
 type DestinatedConfig interface {
 	DefaultDestination() OutputDestination
 }
 
-// ScheduledTask defines interface that all scheduled task MUST satisfy.
-// As long as a struct satisfies this interface, the struct can be registered as ScheduledTask via Runner.RegisterScheduledTask.
+// ScheduledTask defines an interface that all scheduled task MUST satisfy.
+// As long as a struct satisfies this interface, the struct can be registered as ScheduledTask via RegisterScheduledTask.
+//
+// ScheduledTaskPropsBuilder and RegisterScheduledTaskProps to set up a ScheduledTask on the fly.
+// That will give more flexibility such as the task rebuild feature on live configuration updates.
 type ScheduledTask interface {
+	// Identifier returns a unique id of this ScheduledTask.
 	Identifier() string
+
+	// Execute runs the scheduled task and returns the result in a form of slice.
+	// When the task needs to send multiple payloads to multiple destinations, then return as many ScheduledTaskResult as the destinations.
+	// Note that scheduled task may result in sending messages to multiple destinations.
+	// e.g. Sending taking-out-trash alarm to #dady-chores room while sending go-to-school alarm to #daughter room.
 	Execute(context.Context) ([]*ScheduledTaskResult, error)
+
+	// DefaultDestination returns the default destination to send the result to.
+	// When ScheduledTaskResult does not specify an output destination, Sarah falls back to use this value as a default.
+	// If a default destination is nil, then the task execution is considered a failure.
 	DefaultDestination() OutputDestination
+
+	// Schedule returns the stringified representation of the execution schedule.
+	// The schedule can be expressed in a crontab way with seconds precision such as "0 30 * * * *" but some variations are also available.
+	// See https://pkg.go.dev/github.com/robfig/cron/v3 for details.
 	Schedule() string
 }
 
@@ -62,50 +90,43 @@ type scheduledTask struct {
 	configWrapper      *taskConfigWrapper
 }
 
-// Identifier returns unique ID of this task.
+// Identifier returns unique id of this task.
 func (task *scheduledTask) Identifier() string {
 	return task.identifier
 }
 
-// Execute executes scheduled task and returns *slice* of results.
-//
-// Note that scheduled task may result in sending messages to multiple destinations;
-// sending taking-out-trash alarm to #dady-chores room while sending go-to-school alarm to #daughter room.
-//
-// When sending messages to multiple destinations, create and return results as many as destinations.
-// If output destination is nil, caller tries to find corresponding destination from config struct.
+// Execute runs the scheduled task and returns the result in a form of slice.
 func (task *scheduledTask) Execute(ctx context.Context) ([]*ScheduledTaskResult, error) {
 	wrapper := task.configWrapper
 	if wrapper == nil {
 		return task.taskFunc(ctx)
 	}
 
-	// If the ScheduledTask has configuration struct, lock before execution.
-	// Config struct may be updated on configuration file change.
+	// If the ScheduledTask has a configuration struct, lock before execution.
+	// The config struct may be updated by ConfigWatcher at the same time.
 	wrapper.mutex.RLock()
 	defer wrapper.mutex.RUnlock()
 	return task.taskFunc(ctx, wrapper.value)
 }
 
-// Schedule returns execution schedule.
+// Schedule returns the stringified representation of the execution schedule.
 func (task *scheduledTask) Schedule() string {
 	return task.schedule
 }
 
-// DefaultDestination returns the default output destination of this task.
-// OutputDestination returned by task execution has higher priority.
+// DefaultDestination returns the default destination to send the result to.
 func (task *scheduledTask) DefaultDestination() OutputDestination {
 	return task.defaultDestination
 }
 
 func buildScheduledTask(ctx context.Context, props *ScheduledTaskProps, watcher ConfigWatcher) (ScheduledTask, error) {
 	if props.config == nil {
-		// If config struct is not set, props MUST provide settings to set schedule.
+		// If a config struct is not set, props MUST provide a default schedule to execute the task.
 		if props.schedule == "" {
 			return nil, ErrTaskScheduleNotGiven
 		}
 
-		dest := props.defaultDestination // Can be nil because task response may return specific destination to send result to.
+		dest := props.defaultDestination // Can be nil because the task response may return a specific destination to send the result to.
 		return &scheduledTask{
 			identifier:         props.identifier,
 			taskFunc:           props.taskFunc,
@@ -129,14 +150,14 @@ func buildScheduledTask(ctx context.Context, props *ScheduledTaskProps, watcher 
 		}
 
 		// https://groups.google.com/forum/#!topic/Golang-Nuts/KB3_Yj3Ny4c
-		// Obtain a pointer to the *underlying type* instead of not sarah.CommandConfig.
+		// Obtain a pointer to the *underlying type* instead of CommandConfig.
 		n := reflect.New(reflect.TypeOf(cfg))
 
-		// Copy the current value to newly created instance.
+		// Copy the current value to the newly created instance.
 		// This includes private field values.
 		n.Elem().Set(rv)
 
-		// Pass the pointer to the newly created instance
+		// Pass the pointer to the newly created instance.
 		e := watcher.Read(ctx, props.botType, props.identifier, n.Interface())
 		if e == nil {
 			cfg = n.Elem().Interface()
@@ -150,7 +171,7 @@ func buildScheduledTask(ctx context.Context, props *ScheduledTaskProps, watcher 
 		return nil, fmt.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
 	}
 
-	// Setup execution schedule
+	// Set up the execution schedule
 	schedule := props.schedule
 	if scheduledConfig, ok := (cfg).(ScheduledConfig); ok {
 		if s := scheduledConfig.Schedule(); s != "" {
@@ -161,8 +182,8 @@ func buildScheduledTask(ctx context.Context, props *ScheduledTaskProps, watcher 
 		return nil, ErrTaskScheduleNotGiven
 	}
 
-	// Setup default destination
-	// This can be nil since each task execution may return corresponding destination
+	// Set up default destination
+	// This can be nil since each task execution may return a specific destination.
 	dest := props.defaultDestination
 	if destConfig, ok := (cfg).(DestinatedConfig); ok {
 		if d := destConfig.DefaultDestination(); d != nil {
@@ -182,8 +203,8 @@ func buildScheduledTask(ctx context.Context, props *ScheduledTaskProps, watcher 
 	}, nil
 }
 
-// ScheduledTaskProps is a designated non-serializable configuration struct to be used in ScheduledTask construction.
-// This holds relatively complex set of ScheduledTask construction arguments that should be treated as one in logical term.
+// ScheduledTaskProps is a designated non-serializable configuration struct to be used for ScheduledTask construction.
+// This holds a relatively complex set of ScheduledTask construction arguments and properties.
 type ScheduledTaskProps struct {
 	botType            BotType
 	identifier         string
@@ -193,35 +214,34 @@ type ScheduledTaskProps struct {
 	config             TaskConfig
 }
 
-// ScheduledTaskPropsBuilder helps to construct ScheduledTaskProps.
-// Developer may set desired property as she goes and call ScheduledTaskPropsBuilder.Build or ScheduledTaskPropsBuilder.MustBuild to construct ScheduledTaskProps at the end.
-// A validation logic runs on build, so the returning ScheduledTaskProps instant is safe to be passed to Runner.
+// ScheduledTaskPropsBuilder helps to construct a ScheduledTaskProps.
+// A developer may set up a ScheduledTask property -- ScheduledTaskProps -- by calling ScheduledTaskPropsBuilder.Build or ScheduledTaskPropsBuilder.MustBuild at the end.
+// A validation logic runs on build, so the returning ScheduledTaskProps instant is safe to be passed to RegisterScheduledTaskProps.
 type ScheduledTaskPropsBuilder struct {
 	props *ScheduledTaskProps
 }
 
-// NewScheduledTaskPropsBuilder creates and returns ScheduledTaskPropsBuilder instance.
+// NewScheduledTaskPropsBuilder creates and returns a new ScheduledTaskPropsBuilder instance.
 func NewScheduledTaskPropsBuilder() *ScheduledTaskPropsBuilder {
 	return &ScheduledTaskPropsBuilder{
 		props: &ScheduledTaskProps{},
 	}
 }
 
-// BotType is a setter to provide belonging BotType.
+// BotType is a setter to provide the belonging BotType.
 func (builder *ScheduledTaskPropsBuilder) BotType(botType BotType) *ScheduledTaskPropsBuilder {
 	builder.props.botType = botType
 	return builder
 }
 
-// Identifier sets unique ID of this task.
-// This is used to identify re-configure tasks and replace old ones.
+// Identifier is a setter for a ScheduledTask identifier.
 func (builder *ScheduledTaskPropsBuilder) Identifier(id string) *ScheduledTaskPropsBuilder {
 	builder.props.identifier = id
 	return builder
 }
 
-// Func sets function to be called on task execution.
-// To set function that requires some sort of configuration struct, use ConfigurableFunc.
+// Func sets a function to be called on task execution.
+// To set a function that requires some sort of configuration value, use ConfigurableFunc.
 func (builder *ScheduledTaskPropsBuilder) Func(fn func(context.Context) ([]*ScheduledTaskResult, error)) *ScheduledTaskPropsBuilder {
 	builder.props.config = nil
 	builder.props.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
@@ -230,25 +250,27 @@ func (builder *ScheduledTaskPropsBuilder) Func(fn func(context.Context) ([]*Sche
 	return builder
 }
 
-// Schedule sets execution schedule.
-// Representation spec. is identical to that of github.com/robfig/cron.
+// Schedule sets the execution schedule.
+// The schedule can be expressed in a crontab way with seconds precision such as "0 30 * * * *" but some variations are also available.
+// See https://pkg.go.dev/github.com/robfig/cron/v3 for details.
 func (builder *ScheduledTaskPropsBuilder) Schedule(schedule string) *ScheduledTaskPropsBuilder {
 	builder.props.schedule = schedule
 	return builder
 }
 
-// DefaultDestination sets default output destination of this task.
-// OutputDestination returned by task execution has higher priority.
+// DefaultDestination sets a default output destination of this task.
+// OutputDestination returned as part of ScheduledTaskResult has higher priority;
+// When none is specified by the result, then the default output destination is used.
 func (builder *ScheduledTaskPropsBuilder) DefaultDestination(dest OutputDestination) *ScheduledTaskPropsBuilder {
 	builder.props.defaultDestination = dest
 	return builder
 }
 
-// ConfigurableFunc sets function for ScheduledTask with configuration struct.
-// Passed configuration struct is passed to function as a third argument.
+// ConfigurableFunc sets a function for the ScheduledTask with a configuration value.
+// The given configuration value -- config -- is passed to the function as a third argument.
 //
-// When resulting ScheduledTaskProps is passed to sarah.NewRunner() as part of sarah.WithScheduledTaskProps and Runner runs with Config.PluginConfigRoot,
-// configuration struct gets updated automatically when corresponding configuration file is updated.
+// When the resulting ScheduledTaskProps is passed to RegisterScheduledTask and Sarah runs with a ConfigWatcher,
+// the configuration value is updated automatically when the corresponding setting is updated.
 func (builder *ScheduledTaskPropsBuilder) ConfigurableFunc(config TaskConfig, fn func(context.Context, TaskConfig) ([]*ScheduledTaskResult, error)) *ScheduledTaskPropsBuilder {
 	builder.props.config = config
 	builder.props.taskFunc = func(ctx context.Context, cfg ...TaskConfig) ([]*ScheduledTaskResult, error) {
@@ -257,7 +279,7 @@ func (builder *ScheduledTaskPropsBuilder) ConfigurableFunc(config TaskConfig, fn
 	return builder
 }
 
-// Build builds new ScheduledProps instance with provided values.
+// Build builds new ScheduledTaskProps instance with the provided values.
 func (builder *ScheduledTaskPropsBuilder) Build() (*ScheduledTaskProps, error) {
 	if builder.props.botType == "" ||
 		builder.props.identifier == "" ||
@@ -283,7 +305,7 @@ func (builder *ScheduledTaskPropsBuilder) Build() (*ScheduledTaskProps, error) {
 }
 
 // MustBuild is like Build, but panics if any error occurs on Build.
-// It simplifies safe initialization of global variables holding built ScheduledTaskProps instances.
+// It simplifies the initialization of a global variable holding the built ScheduledTaskProps instance.
 func (builder *ScheduledTaskPropsBuilder) MustBuild() *ScheduledTaskProps {
 	task, err := builder.Build()
 	if err != nil {

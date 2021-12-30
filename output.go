@@ -1,19 +1,23 @@
 package sarah
 
-// Output defines interface that each outgoing message must satisfy.
+// Output defines an interface that each outgoing message must satisfy.
 type Output interface {
+	// Destination returns the destination the output is to be sent.
 	Destination() OutputDestination
+
+	// Content returns the sending payload.
 	Content() interface{}
 }
 
-// OutputMessage represents outgoing message.
+// OutputMessage represents an outgoing message.
 type OutputMessage struct {
 	destination OutputDestination
 	content     interface{}
 }
 
-// NewOutputMessage creates and returns new OutputMessage instance.
-// This satisfies Output interface so can be passed to Bot.SendMessage.
+var _ Output = (*OutputMessage)(nil)
+
+// NewOutputMessage creates a new instance of an Output implementation -- OutputMessage -- with the given OutputDestination and the payload.
 func NewOutputMessage(destination OutputDestination, content interface{}) Output {
 	return &OutputMessage{
 		destination: destination,
@@ -21,14 +25,15 @@ func NewOutputMessage(destination OutputDestination, content interface{}) Output
 	}
 }
 
-// Destination returns its destination in a form of OutputDestination interface.
-// Each Bot/Adapter implementation must explicitly define destination type that satisfies OutputDestination.
+// Destination returns its destination in a form of OutputDestination.
+// Each Bot/Adapter implementation must explicitly define an OutputDestination implementation
+// so that Bot.SendMessage and Adapter.SendMessage can specify where the message should be directed to.
 func (output *OutputMessage) Destination() OutputDestination {
 	return output.destination
 }
 
-// Content returns sending content.
-// This is just an empty interface, so each Bot/Adapter developer may define depending on whatever the struct should contain.
+// Content returns a sending payload.
+// Each Bot/Adapter must be capable of properly handling the payload and sending the message to the given destination.
 func (output *OutputMessage) Content() interface{} {
 	return output.content
 }

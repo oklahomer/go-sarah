@@ -8,30 +8,40 @@ import (
 
 var runnerStatus = &status{}
 
-// ErrRunnerAlreadyRunning indicates that sarah.Run() is already called and the process is already running.
-// When this is returned, a second or later activations are prevented so the initially activated process is still protected.
+// ErrRunnerAlreadyRunning indicates that Run is already called and the process is running.
+// The second or later initiations are prevented by returning this error so the initially activated process is protected.
 var ErrRunnerAlreadyRunning = errors.New("go-sarah's process is already running")
 
 // CurrentStatus returns the current status of go-sarah.
-// This can still be called even if sarah.Run() is not called, yet.
-// So developers can safely build two different goroutines:
+// This can still be called even when Run is not called, yet.
+// So developers can safely run two different goroutines:
 //
-//   - One to setup bot configuration and call sarah.Run()
-//   - Another to periodically call sarah.CurrentStatus() and monitor status.
-//     When Status.Running is false and Status.Bots is empty, then bot is not initiated yet.
+//   - One that sets up the bot configuration and calls Run.
+//   - Another that periodically calls CurrentStatus and monitors status.
+//     When Status.Running is false and Status.Bots field is empty, then the bot is not initiated yet.
 func CurrentStatus() Status {
 	return runnerStatus.snapshot()
 }
 
-// Status represents the current status of the bot system including Runner and all registered Bots.
+// Status represents the current status of Sarah and all registered Bots.
 type Status struct {
+	// Running indicates if Sarah is currently "running."
+	// Sarah is considered running when Run is called and at least one of its belonging Bot is actively running.
 	Running bool
-	Bots    []BotStatus
+
+	// Bots holds a list of BotStatus values where each value represents its corresponding Bot's status.
+	Bots []BotStatus
 }
 
 // BotStatus represents the current status of a Bot.
 type BotStatus struct {
-	Type    BotType
+	// Type represents a BotType the corresponding Bot.BotType returns.
+	Type BotType
+
+	// Running indicates if the Bot is currently "running."
+	// The Bot is considered running when Bot.Run is already called and its process is context.Context is not yet canceled.
+	// When this returns false, the state is final and the Bot is never recovered unless the process is rebooted.
+	// In other words, a Bot is "running" even if the connection with the chat service is unstable and recovery is in progress.
 	Running bool
 }
 
@@ -47,8 +57,8 @@ func (s *status) running() bool {
 
 	finished := s.finished
 	if finished == nil {
-		// NewRunner() is called, status instance is created, but Runner.Run() is not called yet.
-		// This channel field is populated when status.start() is called via Runner.Run().
+		// This status instance is created but Run is not called yet.
+		// This channel field is populated when status.start is called via Run.
 		return false
 	}
 
@@ -119,7 +129,7 @@ func (s *status) stop() {
 		if recover() != nil {
 			// O.K.
 			// Comes here when channel is already closed.
-			// stop() is not expected to be called multiple times,
+			// This method is not expected to be called multiple times,
 			// but recover here to avoid panic.
 			logger.Warn("Multiple status.stop() calls occurred.")
 		}
@@ -149,7 +159,7 @@ func (bs *botStatus) stop() {
 		if recover() != nil {
 			// O.K.
 			// Comes here when channel is already closed.
-			// stop() is not expected to be called multiple times,
+			// This method is not expected to be called multiple times,
 			// but recover here to avoid panic.
 			logger.Warnf("Multiple botStatus.stop() calls for %s occurred.", bs.botType)
 		}

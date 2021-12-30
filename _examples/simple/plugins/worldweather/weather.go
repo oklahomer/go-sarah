@@ -1,30 +1,28 @@
-/*
-Package worldweather is a reference implementation that provides relatively practical use of sarah.CommandProps.
-
-This illustrates the use of a user's conversational context, sarah.UserContext.
-When weather API returns a response that indicates input error, this command returns text message along with a sarah.UserContext
-so the user's next input will be directly fed to the designated function, which actually is equivalent to second command call in this time.
-To see the detailed implementation, read the corresponding code where this command is calling slack.NewResponse.
-
-Setup can be done by importing this package since sarah.RegisterCommandProps() is called in init().
-However, to read the configuration on the fly, sarah.ConfigWatcher's implementation must be set.
-
-  package main
-
-  import (
-    _ "github.com/oklahomer/go-sarah/v4/examples/simple/plugins/worldweather"
-    "github.com/oklahomer/go-sarah/v4/watchers"
-  )
-
-  func main() {
-    // setup watcher
-    watcher, _ := watchers.NewFileWatcher(context.TODO(), "/path/to/config/dir/")
-    sarah.RegisterConfigWatcher(watcher)
-
-    // Do the rest
-
-  }
-*/
+// Package worldweather is a reference implementation that provides a relatively practical use of sarah.CommandProps.
+//
+// This illustrates the use of a user's conversational context, sarah.UserContext.
+// When the weather API returns a response that indicates input error, this command returns a text message along with a sarah.UserContext
+// so the user's next input will be directly fed to the designated function, which actually is equivalent to the second command initiation.
+// To see the detailed implementation, read the corresponding code where this command is calling slack.NewResponse.
+//
+// The set up can be done by importing this package since sarah.RegisterCommandProps is called in its init function.
+// However, to read the configuration on the fly, sarah.ConfigWatcher's implementation must be set.
+//
+//  package main
+//
+//  import (
+//    _ "github.com/oklahomer/go-sarah/v4/examples/simple/plugins/worldweather"
+//    "github.com/oklahomer/go-sarah/v4/watchers"
+//  )
+//
+//  func main() {
+//    // setup watcher
+//    watcher, _ := watchers.NewFileWatcher(context.TODO(), "/path/to/config/dir/")
+//    sarah.RegisterConfigWatcher(watcher)
+//
+//    // Do the rest
+//
+//  }
 package worldweather
 
 import (
@@ -42,12 +40,11 @@ func init() {
 	sarah.RegisterCommandProps(SlackProps)
 }
 
-// MatchPattern defines regular expression pattern that is checked against user input
+// MatchPattern defines a regular expression pattern that is checked against user inputs.
 var MatchPattern = regexp.MustCompile(`^\.weather`)
 
 // SlackProps provide a set of command configuration variables for weather command.
-// Since this sets *CommandConfig in ConfigurableFunc, configuration file is observed by Runner and CommandConfig is updated on file change.
-// Weather command is re-built on configuration update.
+// Since this sets *CommandConfig in ConfigurableFunc, configuration file is observed by Sarah and *CommandConfig is updated on file updates.
 var SlackProps = sarah.NewCommandPropsBuilder().
 	BotType(slack.SLACK).
 	Identifier("weather").
@@ -74,7 +71,7 @@ func NewCommandConfig() *CommandConfig {
 func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.CommandConfig) (*sarah.CommandResponse, error) {
 	strippedMessage := sarah.StripMessage(MatchPattern, input.Message())
 
-	// Share client instance with later execution
+	// Share the client instance with later executions
 	conf, _ := config.(*CommandConfig)
 	client := NewClient(NewConfig(conf.APIKey))
 	resp, err := client.LocalWeather(ctx, strippedMessage)
@@ -84,8 +81,8 @@ func SlackCommandFunc(ctx context.Context, input sarah.Input, config sarah.Comma
 		logger.Errorf("Error on weather api request: %+v", err)
 		return slack.NewResponse(input, "Something went wrong with weather API request.")
 	}
-	// If status code of 200 is returned, which means successful API request, but still the content contains error message,
-	// notify the user and put him in "the middle of conversation" for further communication.
+	// If the status code of 200 -- which means a successful API integration -- is returned but the response body still contains an error message,
+	// notify the user and put her in the middle of a conversation for further interactions.
 	if resp.Data.HasError() {
 		errorDescription := resp.Data.Error[0].Message
 		return slack.NewResponse(

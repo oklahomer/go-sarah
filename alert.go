@@ -6,10 +6,12 @@ import (
 	"strings"
 )
 
-// Alerter can be used to report Bot's critical state to developer/administrator.
-// Anything that implements this interface can be registered as Alerter via Runner.RegisterAlerter.
+// Alerter notifies administrators when Sarah or a bot is in a critical state.
+// This is recommended to design one Alerter implementation deal with one and only one communication channel.
+// e.g. MailAlerter sends an e-mail to administrators; SMSAlerter sends an SMS message to administrators.
+// To notify via multiple communication channels, register as many Alerter implementations as required with multiple RegisterAlerter calls.
 type Alerter interface {
-	// Alert sends notification to developer/administrator so one may notify Bot's critical state.
+	// Alert sends a notification to administrators so they can acknowledge the current critical state.
 	Alert(context.Context, BotType, error) error
 }
 

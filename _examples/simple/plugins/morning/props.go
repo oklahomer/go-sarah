@@ -1,9 +1,7 @@
-/*
-Package morning provides example code to setup sarah.CommandProps with relatively complex matching function.
-
-This setting does not simply provide regular expression via CommandPropsBuilder.MatchPattern,
-but instead provide whole matching function to implement complex matcher.
-*/
+// Package morning provides an example to set up sarah.CommandProps with a relatively complex matching function.
+//
+// This setting does not simply provide a regular expression via CommandPropsBuilder.MatchPattern,
+// but instead provide the whole matching function to implement a complex matcher.
 package morning
 
 import (
@@ -39,7 +37,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 			return false
 		}
 
-		// 2. See if current time between 00:00 - 11:59
+		// 2. See if the current time is between 00:00 - 11:59
 		hour := time.Now().Hour()
 		return hour >= 0 && hour < 12
 	}).

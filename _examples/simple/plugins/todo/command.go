@@ -1,9 +1,7 @@
-/*
-Package todo is an example of stateful command that let users input required arguments step by step in a conversational manner.
-
-On each valid input, given argument is stashed to *args.
-*args is passed around until all required arguments are filled.
-*/
+// Package todo provides an example of stateful command that lets users input required arguments step by step in a conversational manner.
+//
+// On each valid input, the given argument is stashed to *args.
+// *args is passed around until all required arguments are filled.
 package todo
 
 import (
@@ -23,7 +21,7 @@ var matchPattern = regexp.MustCompile(`^\.todo`)
 type DummyStorage struct {
 }
 
-// Save saves given todo settings to permanent storage.
+// Save saves the given todo settings to the permanent storage.
 func (s *DummyStorage) Save(senderKey string, description string, due time.Time) {
 	// Write to storage
 }
@@ -33,7 +31,7 @@ type args struct {
 	due         time.Time
 }
 
-// BuildCommand builds todo command with given storage.
+// BuildCommand builds a todo command with the given storage.
 func BuildCommand(storage *DummyStorage) sarah.Command {
 	return &command{
 		storage: storage,
@@ -53,7 +51,7 @@ func (cmd *command) Identifier() string {
 func (cmd *command) Execute(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 	stripped := sarah.StripMessage(matchPattern, input.Message())
 	if stripped == "" {
-		// If description is not given, let user proceed to input one.
+		// If a description is not given, let the user proceed to input one.
 		return slack.NewResponse(input, "Please input a thing to do.", slack.RespWithNext(cmd.inputDesc))
 	}
 
@@ -78,14 +76,14 @@ func (cmd *command) Match(input sarah.Input) bool {
 func (cmd *command) inputDesc(_ context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 	description := strings.TrimSpace(input.Message())
 	if description == "" {
-		// If no description is provided, let user input.
+		// If no description is provided, let the user input.
 		next := func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 			return cmd.inputDesc(c, i)
 		}
 		return slack.NewResponse(input, "Please input a thing to do.", slack.RespWithNext(next))
 	}
 
-	// Let user proceed to next step to input due date.
+	// Let the user proceed to the next step to input a due date.
 	next := func(c context.Context, i sarah.Input) (*sarah.CommandResponse, error) {
 		args := &args{
 			description: description,
@@ -102,7 +100,7 @@ func (cmd *command) inputDate(_ context.Context, input sarah.Input, args *args) 
 		return cmd.inputDate(c, i, args)
 	}
 	if date == "" {
-		// If no due date is provided, let user input.
+		// If no due date is provided, let the user input.
 		return slack.NewResponse(input, "Please input the due date in YYYY-MM-DD format.", slack.RespWithNext(reinput))
 	}
 
