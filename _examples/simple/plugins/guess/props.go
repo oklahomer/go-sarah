@@ -53,7 +53,7 @@ func guessFunc(_ context.Context, input sarah.Input, answer int) (*sarah.Command
 		return guessFunc(c, i, answer)
 	}
 
-	// See if the user inputs the valid number.
+	// See if the user inputs a valid number.
 	guess, err := strconv.Atoi(strings.TrimSpace(input.Message()))
 	if err != nil {
 		return slack.NewResponse(input, "Invalid input format.", slack.RespWithNext(retry), slack.RespAsThreadReply(true))
