@@ -1,7 +1,15 @@
 package sarah
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"github.com/oklahomer/go-kasumi/logger"
+	"io"
+	"io/ioutil"
+	"log"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -93,5 +101,115 @@ func TestTaskScheduler_updateWithEmptySchedule(t *testing.T) {
 
 	if err == nil {
 		t.Error("Expected error is not returned.")
+	}
+}
+
+func Test_cronLogAdapter_Info(t *testing.T) {
+	buffer := bytes.NewBuffer([]byte{})
+	c := &cronLogAdapter{
+		l: logger.NewWithStandardLogger(log.New(buffer, "", 0)),
+	}
+
+	tests := []struct {
+		msg      string
+		args     []interface{}
+		expected string
+	}{
+		{
+			msg:      "foo",
+			args:     []interface{}{},
+			expected: "[INFO] foo\n",
+		},
+		{
+			msg: "foo bar",
+			args: []interface{}{
+				"key1", "value1",
+				"key2", "value2",
+			},
+			expected: "[INFO] foo bar, key1=value1, key2=value2\n",
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, _ = io.Copy(ioutil.Discard, buffer) // Make sure the buffer is empty.
+
+			c.Info(tt.msg, tt.args...)
+
+			passed := buffer.String()
+			if passed != tt.expected {
+				t.Errorf("Expected string is not passed: %s", passed)
+			}
+		})
+	}
+}
+
+type stringer struct {
+}
+
+func (s *stringer) String() string {
+	return "Hello, 世界"
+}
+
+func Test_cronLogger_Error(t *testing.T) {
+	buffer := bytes.NewBuffer([]byte{})
+	c := &cronLogAdapter{
+		l: logger.NewWithStandardLogger(log.New(buffer, "", 0)),
+	}
+
+	tests := []struct {
+		msg      string
+		err      error
+		args     []interface{}
+		expected string
+	}{
+		{
+			msg:      "foo",
+			err:      errors.New("this is an error"),
+			args:     []interface{}{},
+			expected: "[ERROR] foo, error=this is an error\n",
+		},
+		{
+			msg:      "foo bar",
+			err:      fmt.Errorf("this is an error: %w", errors.New("embedded")),
+			args:     []interface{}{},
+			expected: "[ERROR] foo bar, error=this is an error: embedded\n",
+		},
+		{
+			msg: "foo bar",
+			err: fmt.Errorf("this is an error: %w", errors.New("embedded")),
+			args: []interface{}{
+				"key1",
+				"value1",
+				"key2",
+				"value2",
+			},
+			expected: "[ERROR] foo bar, error=this is an error: embedded, key1=value1, key2=value2\n",
+		},
+		{
+			msg: "foo bar",
+			err: fmt.Errorf("this is an error: %w", errors.New("embedded")),
+			args: []interface{}{
+				"key", "value",
+				"string", &stringer{},
+				"time", func() time.Time {
+					t, _ := time.Parse(time.RFC3339, "2022-01-09T16:22:00+09:00")
+					return t
+				}()},
+			expected: "[ERROR] foo bar, error=this is an error: embedded, key=value, string=Hello, 世界, time=2022-01-09T16:22:00+09:00\n",
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, _ = io.Copy(ioutil.Discard, buffer) // Make sure the buffer is empty.
+
+			c.Error(tt.err, tt.msg, tt.args...)
+
+			passed := buffer.String()
+			if passed != tt.expected {
+				t.Errorf("Expected string is not passed: %s", passed)
+			}
+		})
 	}
 }
