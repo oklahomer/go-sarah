@@ -9,7 +9,9 @@ go:
 
 before_install:
   - export PATH=$HOME/gopath/bin:$PATH
-  - go get github.com/mattn/goveralls
+  # A workaround until 1.15 support is removed and "go install" with version suffix is available for all supported Golang version
+  # - go install github.com/mattn/goveralls@latest
+  - ./ci/travis/before_install.sh
 
 script:
   - go test -race ./...
