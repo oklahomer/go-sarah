@@ -9,7 +9,7 @@ go:
 
 before_install:
   - export PATH=$HOME/gopath/bin:$PATH
-  - go get github.com/mattn/goveralls
+  - go install github.com/mattn/goveralls@latest
 
 script:
   - go test -race ./...
