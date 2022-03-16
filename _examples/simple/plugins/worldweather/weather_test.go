@@ -8,8 +8,9 @@ import (
 	"github.com/oklahomer/go-sarah/v4/slack"
 	"github.com/oklahomer/golack/v2/event"
 	"github.com/oklahomer/golack/v2/webapi"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -20,7 +21,7 @@ func TestSlackCommandFunc(t *testing.T) {
 		t.Fatalf("Test file could not be located: %s.", err.Error())
 	}
 
-	buf, err := ioutil.ReadFile(path)
+	buf, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("Test data could not be loaded: %s.", err.Error())
 	}
@@ -30,7 +31,7 @@ func TestSlackCommandFunc(t *testing.T) {
 			Status:     "200 OK",
 			StatusCode: http.StatusOK,
 			Request:    req,
-			Body:       ioutil.NopCloser(bytes.NewReader(buf)),
+			Body:       io.NopCloser(bytes.NewReader(buf)),
 		}, nil
 	})
 	defer resetClient()
@@ -85,7 +86,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 				Status:     "200 OK",
 				StatusCode: http.StatusOK,
 				Request:    req,
-				Body:       ioutil.NopCloser(bytes.NewReader(apiResponseBytes)),
+				Body:       io.NopCloser(bytes.NewReader(apiResponseBytes)),
 			}, nil
 		})
 		defer resetClient()
@@ -131,7 +132,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 				Status:     "500 OK",
 				StatusCode: http.StatusInternalServerError,
 				Request:    req,
-				Body:       ioutil.NopCloser(bytes.NewReader([]byte(""))),
+				Body:       io.NopCloser(bytes.NewReader([]byte(""))),
 			}, nil
 		})
 

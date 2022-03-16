@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/oklahomer/go-kasumi/logger"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"reflect"
@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 	defer logger.SetLogger(oldLogger)
 
 	// Suppress log output in test by default
-	l := log.New(ioutil.Discard, "dummyLog", 0)
+	l := log.New(io.Discard, "dummyLog", 0)
 	logger.SetLogger(logger.NewWithStandardLogger(l))
 
 	code := m.Run()

@@ -504,7 +504,7 @@ func Test_buildScheduledTask(t *testing.T) {
 //		Identifier("dummy").
 //		BotType("dummyBot").
 //		ConfigurableFunc(&config{Token: "default"}, func(_ context.Context, givenConfig TaskConfig) ([]*ScheduledTaskResult, error) {
-//			_, _ = ioutil.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
+//			_, _ = io.Discard.Write([]byte(givenConfig.(*config).Token)) // Read access to config struct
 //			return nil, nil
 //		}).
 //		Schedule("@every 1m").

@@ -6,11 +6,11 @@ import (
 	"github.com/oklahomer/go-sarah/v4"
 	"github.com/oklahomer/go-sarah/v4/slack"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"os"
 )
 
 func readConfig(path string) (*config, error) {
-	body, err := ioutil.ReadFile(path)
+	body, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}

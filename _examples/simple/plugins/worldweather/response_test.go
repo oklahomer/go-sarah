@@ -2,7 +2,7 @@ package worldweather
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -63,7 +63,7 @@ func TestUnmarshalLocalWeatherResponse(t *testing.T) {
 		t.Fatalf("Test file could not be located: %s.", err.Error())
 	}
 
-	buf, err := ioutil.ReadFile(path)
+	buf, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("Test data could not be loaded: %s.", err.Error())
 	}

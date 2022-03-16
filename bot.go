@@ -108,7 +108,7 @@ type DefaultBotOption func(bot *defaultBot)
 // The below example utilizes pre-defined in-memory storage.
 //
 //  config := sarah.NewCacheConfig()
-//  configBuf, _ := ioutil.ReadFile("/path/to/storage/config.yaml")
+//  configBuf, _ := os.ReadFile("/path/to/storage/config.yaml")
 //  yaml.Unmarshal(configBuf, config)
 //  bot, err := sarah.NewBot(myAdapter, storage)
 func BotWithStorage(storage UserContextStorage) DefaultBotOption {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -87,7 +87,7 @@ func TestClient_Alert(t *testing.T) {
 				}
 				return &http.Response{
 					StatusCode: r.Status,
-					Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+					Body:       io.NopCloser(strings.NewReader(string(bytes))),
 				}, nil
 			}),
 		}

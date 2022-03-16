@@ -6,7 +6,7 @@ import (
 	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-kasumi/retry"
 	"github.com/oklahomer/go-sarah/v4"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"reflect"
@@ -19,7 +19,7 @@ func TestMain(m *testing.M) {
 	oldLogger := logger.GetLogger()
 	defer logger.SetLogger(oldLogger)
 
-	l := log.New(ioutil.Discard, "dummyLog", 0)
+	l := log.New(io.Discard, "dummyLog", 0)
 	logger.SetLogger(logger.NewWithStandardLogger(l))
 
 	code := m.Run()
