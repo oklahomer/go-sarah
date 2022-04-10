@@ -3,7 +3,7 @@ package gitter
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -73,7 +73,7 @@ func TestRestAPIClient_Get(t *testing.T) {
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+			Body:       io.NopCloser(strings.NewReader(string(bytes))),
 		}, nil
 	})
 	defer resetClient()
@@ -102,7 +102,7 @@ func TestClient_Get_StatusError(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: http.StatusNotFound,
-			Body:       ioutil.NopCloser(strings.NewReader("foo bar")),
+			Body:       io.NopCloser(strings.NewReader("foo bar")),
 		}, nil
 	})
 	defer resetClient()
@@ -136,7 +136,7 @@ func TestRestAPIClient_Post(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: http.StatusNotFound,
-			Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+			Body:       io.NopCloser(strings.NewReader(string(bytes))),
 		}, nil
 	})
 	defer resetClient()
@@ -178,7 +178,7 @@ func TestRestAPIClient_Rooms(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: http.StatusNotFound,
-			Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+			Body:       io.NopCloser(strings.NewReader(string(bytes))),
 		}, nil
 	})
 	defer resetClient()
@@ -220,7 +220,7 @@ func TestRestAPIClient_PostMessage(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: http.StatusNotFound,
-			Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+			Body:       io.NopCloser(strings.NewReader(string(bytes))),
 		}, nil
 	})
 	defer resetClient()

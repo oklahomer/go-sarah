@@ -2,7 +2,7 @@ package gitter
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -57,7 +57,7 @@ func TestStreamingAPIClient_Connect(t *testing.T) {
 
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(strings.NewReader("https://stream.gitter.im/v1/rooms/foo/chatMessages")),
+			Body:       io.NopCloser(strings.NewReader("https://stream.gitter.im/v1/rooms/foo/chatMessages")),
 		}, nil
 	})
 	defer resetClient()

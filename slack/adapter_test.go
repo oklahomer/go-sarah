@@ -10,7 +10,7 @@ import (
 	"github.com/oklahomer/golack/v2/eventsapi"
 	"github.com/oklahomer/golack/v2/rtmapi"
 	"github.com/oklahomer/golack/v2/webapi"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"reflect"
@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 	defer logger.SetLogger(oldLogger)
 
 	// Suppress log output in test by default
-	l := log.New(ioutil.Discard, "dummyLog", 0)
+	l := log.New(io.Discard, "dummyLog", 0)
 	logger.SetLogger(logger.NewWithStandardLogger(l))
 
 	code := m.Run()

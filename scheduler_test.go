@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/oklahomer/go-kasumi/logger"
 	"io"
-	"io/ioutil"
 	"log"
 	"strconv"
 	"testing"
@@ -132,7 +131,7 @@ func Test_cronLogAdapter_Info(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			_, _ = io.Copy(ioutil.Discard, buffer) // Make sure the buffer is empty.
+			_, _ = io.Copy(io.Discard, buffer) // Make sure the buffer is empty.
 
 			c.Info(tt.msg, tt.args...)
 
@@ -202,7 +201,7 @@ func Test_cronLogger_Error(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			_, _ = io.Copy(ioutil.Discard, buffer) // Make sure the buffer is empty.
+			_, _ = io.Copy(io.Discard, buffer) // Make sure the buffer is empty.
 
 			c.Error(tt.err, tt.msg, tt.args...)
 

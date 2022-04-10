@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -109,7 +109,7 @@ func TestClient_Get(t *testing.T) {
 		if str, ok := datum.response.(string); ok {
 			res = &http.Response{
 				StatusCode: datum.status,
-				Body:       ioutil.NopCloser(strings.NewReader(str)),
+				Body:       io.NopCloser(strings.NewReader(str)),
 			}
 		} else {
 			bytes, err := json.Marshal(datum.response)
@@ -118,7 +118,7 @@ func TestClient_Get(t *testing.T) {
 			}
 			res = &http.Response{
 				StatusCode: datum.status,
-				Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+				Body:       io.NopCloser(strings.NewReader(string(bytes))),
 			}
 		}
 
@@ -234,7 +234,7 @@ func TestClient_LocalWeather(t *testing.T) {
 
 				return &http.Response{
 					StatusCode: datum.status,
-					Body:       ioutil.NopCloser(strings.NewReader(string(bytes))),
+					Body:       io.NopCloser(strings.NewReader(string(bytes))),
 				}, nil
 			})
 			defer resetClient()

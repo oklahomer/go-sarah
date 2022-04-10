@@ -10,7 +10,6 @@ import (
 	"github.com/oklahomer/go-sarah/v4/slack"
 	"github.com/oklahomer/go-sarah/v4/watchers"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	_ "simple/plugins/count"
@@ -98,7 +97,7 @@ func main() {
 }
 
 func readConfig(path string) *myConfig {
-	configBody, err := ioutil.ReadFile(path)
+	configBody, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}

@@ -35,10 +35,7 @@ func (c *command) Instruction(_ *sarah.HelpInput) string {
 
 // Match checks if the user input matches and this Command must be executed.
 func (c *command) Match(input sarah.Input) bool {
-	// Once Sarah receives input from sarah.Bot, it dispatches a task to the worker where multiple tasks can run in a concurrent manner.
-	// Searching for a corresponding Command is an important part of this task, which means Command.Match is called simultaneously from multiple goroutines.
-	// To avoid a lock contention, Command developer should consider copying the *regexp.Regexp object.
-	return matchPattern.Copy().MatchString(input.Message())
+	return matchPattern.MatchString(input.Message())
 }
 
 // Command is a command instance that can directly fed to sarah.RegisterCommand or Bot.AppendCommand.
