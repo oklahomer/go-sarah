@@ -202,6 +202,178 @@ func TestFileWatcher_Unwatch(t *testing.T) {
 	}
 }
 
+func Test_doSubscribe(t *testing.T) {
+	t.Run("Successful scenario", func(t *testing.T) {
+		added := 0
+		d := &dummyFsWatcher{
+			AddFunc: func(s string) error {
+				added++
+				return nil
+			},
+		}
+
+		subscriptions := map[string][]*subscription{}
+
+		t.Run("Initial subscription", func(t *testing.T) {
+			dir := filepath.Join("path", "to", "dummy", "dir", "A")
+			s := &subscription{
+				absDir: dir,
+				id:     "id1",
+			}
+
+			err := doSubscribe(d, s, subscriptions)
+
+			if err != nil {
+				t.Errorf("Unexpected error is returned: %s", err.Error())
+			}
+
+			if len(subscriptions) != 1 {
+				t.Fatal("Subscription is not started.")
+			}
+
+			v, ok := subscriptions[dir]
+			if !ok {
+				t.Fatal("Subscription is not started.")
+			}
+
+			if len(v) != 1 {
+				t.Errorf("Unexpected number of subscription is started: %d", len(v))
+			}
+
+			if v[0].absDir != dir {
+				t.Errorf("Unexpected dir is subscribed: %s", v[0].absDir)
+			}
+
+			if added != 1 {
+				t.Errorf("Unexpected number of watcher calls: %d", added)
+			}
+		})
+
+		t.Run("Second subscription", func(t *testing.T) {
+			dir := filepath.Join("path", "to", "dummy", "dir", "B")
+			s := &subscription{
+				absDir: dir,
+				id:     "id2",
+			}
+
+			err := doSubscribe(d, s, subscriptions)
+
+			if err != nil {
+				t.Errorf("Unexpected error is returned: %s", err.Error())
+			}
+
+			if len(subscriptions) != 2 {
+				t.Fatal("Subscription is not started.")
+			}
+
+			v, ok := subscriptions[dir]
+			if !ok {
+				t.Fatal("Subscription is not started.")
+			}
+
+			if len(v) != 1 {
+				t.Errorf("Unexpected number of subscription is started: %d", len(v))
+			}
+
+			if v[0].absDir != dir {
+				t.Errorf("Unexpected dir is subscribed: %s", v[0].absDir)
+			}
+
+			if added != 2 {
+				t.Errorf("Unexpected number of watcher calls: %d", added)
+			}
+		})
+
+		t.Run("Third subscription with the same dir as the second one", func(t *testing.T) {
+			dir := filepath.Join("path", "to", "dummy", "dir", "B")
+			s := &subscription{
+				absDir: dir,
+				id:     "id3",
+			}
+
+			err := doSubscribe(d, s, subscriptions)
+
+			if err != nil {
+				t.Errorf("Unexpected error is returned: %s", err.Error())
+			}
+
+			if len(subscriptions) != 2 {
+				t.Fatal("Subscription is not started.")
+			}
+
+			v, ok := subscriptions[dir]
+			if !ok {
+				t.Fatal("Subscription is not started.")
+			}
+
+			// Multiple ids for a single dir
+			if len(v) != 2 {
+				t.Errorf("Unexpected number of subscription is started: %d", len(v))
+			}
+
+			// watcher.Add is not called for the duplicated dir
+			if added != 2 {
+				t.Errorf("Unexpected number of watcher calls: %d", added)
+			}
+		})
+	})
+
+}
+
+func Test_doUnsubscribe(t *testing.T) {
+	var botTypeA sarah.BotType = "dummyBotTypeA"
+	var botTypeB sarah.BotType = "dummyBotTypeB"
+	dir := filepath.Join("path", "to", "dummy", "dir")
+	subscriptions := map[string][]*subscription{
+		dir: {
+			&subscription{botType: botTypeA, id: "commandA"},
+			&subscription{botType: botTypeB, id: "commandB"},
+		},
+	}
+
+	var removeDir []string
+	d := &dummyFsWatcher{
+		RemoveFunc: func(s string) error {
+			removeDir = append(removeDir, s)
+			return nil
+		},
+	}
+
+	t.Run("Initial unsubscription", func(t *testing.T) {
+		doUnsubscribe(d, botTypeA, subscriptions)
+
+		v, ok := subscriptions[dir]
+		if !ok {
+			t.Fatal("Subscription to the basedir should stay at this point.")
+		}
+
+		if len(v) != 1 {
+			t.Fatalf("Subscription count should be decreased to 1: %d", len(v))
+		}
+
+		if v[0].botType != botTypeB {
+			t.Error("The subscription to dummyBotTypeB should stay.")
+		}
+
+		if len(removeDir) > 0 {
+			t.Errorf("Any directory should not be remved at this point: %d", len(removeDir))
+		}
+	})
+
+	t.Run("Second unsubscription", func(t *testing.T) {
+		doUnsubscribe(d, botTypeB, subscriptions)
+
+		_, ok := subscriptions[dir]
+		if ok {
+			t.Fatal("All subscription must be gone at this point.")
+		}
+
+		if len(removeDir) != 1 {
+			t.Errorf("Basedir must be removed at this point.")
+		}
+	})
+}
+
 func TestFileWatcher_run(t *testing.T) {
 	dir, _ := filepath.Abs(filepath.Join("..", "testdata", "config", "dummy"))
 	invalidDir, _ := filepath.Abs(filepath.Join("..", "testdata", "config", "invalid"))
@@ -236,12 +408,11 @@ func TestFileWatcher_run(t *testing.T) {
 			notify:     nil,
 		},
 	}
-	add := make(chan struct{}, len(subscriptions))
+	testCnt := 0
 	remove := make(chan string, 2)
 	fsWatcher := &dummyFsWatcher{
 		AddFunc: func(absDir string) error {
-			add <- struct{}{}
-			s := subscriptions[len(add)-1]
+			s := subscriptions[testCnt-1]
 			return s.watcherErr
 		},
 		RemoveFunc: func(absDir string) error {
@@ -295,6 +466,7 @@ func TestFileWatcher_run(t *testing.T) {
 	// Two subscriptions are added for a directory
 	var botType sarah.BotType = "dummyBotType"
 	for i, s := range subscriptions {
+		testCnt++
 		copied := s // Not to refer the last element in the loop
 		err := make(chan error, 1)
 		w.subscribe <- &subscription{

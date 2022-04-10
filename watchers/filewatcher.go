@@ -59,7 +59,7 @@ type fileWatcher struct {
 
 var _ sarah.ConfigWatcher = (*fileWatcher)(nil)
 
-func (w *fileWatcher) Read(ctx context.Context, botType sarah.BotType, id string, configPtr interface{}) error {
+func (w *fileWatcher) Read(_ context.Context, botType sarah.BotType, id string, configPtr interface{}) error {
 	configDir := filepath.Join(w.baseDir, strings.ToLower(botType.String()))
 	file := findPluginConfigFile(configDir, id)
 
@@ -125,7 +125,6 @@ func (w *fileWatcher) Unwatch(botType sarah.BotType) (err error) {
 func (w *fileWatcher) run(ctx context.Context, events <-chan fsnotify.Event, errs <-chan error) {
 	subscriptions := map[string][]*subscription{}
 
-OP:
 	for {
 		select {
 		case <-ctx.Done():
@@ -148,83 +147,91 @@ OP:
 			case event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create:
 				logger.Infof("Received %s event for %s.", event.Op.String(), event.Name)
 
-				configFile, err := plainPathToFile(event.Name)
-				if errors.Is(err, errUnableToDetermineConfigFileFormat) || errors.Is(err, errUnsupportedConfigFileFormat) {
-					// Irrelevant file is updated
-					continue OP
-				} else if err != nil {
-					logger.Warnf("Failed to locate %s: %+v", event.Name, err)
-					continue OP
-				}
-
-				watches, ok := subscriptions[configFile.absDir]
-				if !ok {
-					// No corresponding subscription is found for the directory
-					continue OP
-				}
-
-				// Notify all subscribers
-				for _, watch := range watches {
-					if watch.id == configFile.id {
-						watch.callback()
-					}
-				}
+				doHandleEvent(event, subscriptions)
 
 			default:
 				// Do nothing
 				logger.Debugf("Received %s event for %s.", event.Op.String(), event.Name)
-
 			}
 
 		case subscribe := <-w.subscribe:
 			logger.Infof("Start subscribing to %s", subscribe.absDir)
-
-			err := w.fsWatcher.Add(subscribe.absDir)
-			if err != nil {
-				subscribe.initErr <- err
-				continue OP
-			}
-
-			watches, ok := subscriptions[subscribe.absDir]
-			if !ok {
-				watches = []*subscription{}
-			}
-			for _, w := range watches {
-				if w.id == subscribe.id {
-					subscribe.initErr <- sarah.ErrAlreadySubscribing
-					continue OP
-				}
-			}
-			subscriptions[subscribe.absDir] = append(watches, subscribe)
-			subscribe.initErr <- nil
+			err := doSubscribe(w.fsWatcher, subscribe, subscriptions)
+			subscribe.initErr <- err // Include nil error
 
 		case botType := <-w.unsubscribe:
 			logger.Infof("Stop subscribing config files for %s", botType)
-
-			for dir, subscribeDirs := range subscriptions {
-				// Exclude all watches that are tied to given group, and stash those should be kept.
-				var remains []*subscription
-				for _, subscribeDir := range subscribeDirs {
-					if subscribeDir.botType != botType {
-						remains = append(remains, subscribeDir)
-					}
-				}
-
-				// If none should remain, stop subscribing to watch corresponding directory.
-				if len(remains) == 0 {
-					_ = w.fsWatcher.Remove(dir)
-					delete(subscriptions, dir)
-					continue OP
-				}
-
-				// If any remains, keep subscribing to the directory for remaining callbacks.
-				subscriptions[dir] = remains
-			}
+			doUnsubscribe(w.fsWatcher, botType, subscriptions)
 
 		case err := <-errs:
 			logger.Errorf("Error on subscribing to directory change: %+v", err)
-
 		}
+	}
+}
+
+func doHandleEvent(event fsnotify.Event, subscriptions map[string][]*subscription) {
+	configFile, err := plainPathToFile(event.Name)
+	if errors.Is(err, errUnableToDetermineConfigFileFormat) || errors.Is(err, errUnsupportedConfigFileFormat) {
+		// Irrelevant file is updated
+		return
+	} else if err != nil {
+		logger.Warnf("Failed to locate %s: %+v", event.Name, err)
+		return
+	}
+
+	watches, ok := subscriptions[configFile.absDir]
+	if !ok {
+		// No corresponding subscription is found for the directory
+		return
+	}
+
+	// Notify all subscribers
+	for _, watch := range watches {
+		if watch.id == configFile.id {
+			watch.callback()
+		}
+	}
+}
+
+func doSubscribe(a abstractFsWatcher, s *subscription, subscriptions map[string][]*subscription) error {
+	watches, ok := subscriptions[s.absDir]
+	if !ok {
+		// Initial subscription for the given dir
+		err := a.Add(s.absDir)
+		if err != nil {
+			return err
+		}
+
+		watches = []*subscription{}
+	}
+	for _, w := range watches {
+		if w.id == s.id {
+			return sarah.ErrAlreadySubscribing
+		}
+	}
+	subscriptions[s.absDir] = append(watches, s)
+	return nil
+}
+
+func doUnsubscribe(a abstractFsWatcher, botType sarah.BotType, subscriptions map[string][]*subscription) {
+	for dir, subscribeDirs := range subscriptions {
+		// Exclude all watches that are tied to given group, and stash those should be kept.
+		var remains []*subscription
+		for _, subscribeDir := range subscribeDirs {
+			if subscribeDir.botType != botType {
+				remains = append(remains, subscribeDir)
+			}
+		}
+
+		// If none should remain, stop subscribing to watch corresponding directory.
+		if len(remains) == 0 {
+			_ = a.Remove(dir)
+			delete(subscriptions, dir)
+			return
+		}
+
+		// If any remains, keep subscribing to the directory for remaining callbacks.
+		subscriptions[dir] = remains
 	}
 }
 
