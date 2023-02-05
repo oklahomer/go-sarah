@@ -1,0 +1,39 @@
+name: CI
+on: push
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version:
+          - 1.18
+          - 1.19
+          - 1.20
+          - tip
+        include:
+          - may-fail: false # Default
+          - go-version: tip # tip version may fail
+            may-fail: true
+    continue-on-error: ${{ matrix.may-fail }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+      - name: Test with ${{ matrix.go-version }}
+        run: go test -v -race --shuffle=on -coverprofile=coverage ./...
+      - name: Coveralls integration
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-profile: coverage
+          parallel: true
+          flag-name: ${{ matrix.go-version }}
+
+  # Call parallel build Webhook
+  finish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: shogo82148/actions-goveralls@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
