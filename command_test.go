@@ -324,10 +324,16 @@ func TestCommands_Append(t *testing.T) {
 		t.Fatalf("Appended command is not the one provided: %#v", commands.collection[0])
 	}
 
-	// Second operation with same command
-	commands.Append(command)
+	// Second operation with same command, but with a different value
+	newCommand := &DummyCommand{
+		IdentifierValue: "first",
+	}
+	commands.Append(newCommand)
 	if len(commands.collection) != 1 {
 		t.Fatalf("Expected only one command to stay, but was: %d.", len(commands.collection))
+	}
+	if commands.collection[0] != newCommand {
+		t.Fatal("The old command was not replaced with the new one with the same ID.")
 	}
 
 	// Third operation with different command
@@ -337,6 +343,18 @@ func TestCommands_Append(t *testing.T) {
 	commands.Append(anotherCommand)
 	if len(commands.collection) != 2 {
 		t.Fatalf("Expected 2 commands to stay, but was: %d.", len(commands.collection))
+	}
+
+	// Third operation with same command, but with a different value
+	yetNewCommand := &DummyCommand{
+		IdentifierValue: "first",
+	}
+	commands.Append(yetNewCommand)
+	if len(commands.collection) != 2 {
+		t.Fatalf("Expected two one command to stay, but was: %d.", len(commands.collection))
+	}
+	if commands.collection[0] != yetNewCommand {
+		t.Fatal("The old command was not replaced with the new one with the same ID.")
 	}
 }
 

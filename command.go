@@ -7,6 +7,7 @@ import (
 	"github.com/oklahomer/go-kasumi/logger"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -173,18 +174,21 @@ func (commands *Commands) Append(command Command) {
 	commands.mutex.Lock()
 	defer commands.mutex.Unlock()
 
-	// See if a command with the same identifier exists.
-	for i, cmd := range commands.collection {
-		if cmd.Identifier() == command.Identifier() {
-			logger.Infof("Replace old command in favor of newly appending one: %s.", command.Identifier())
-			commands.collection[i] = command
-			return
-		}
+	// See if a command with the same identifier already exists.
+	i := slices.IndexFunc(commands.collection, func(current Command) bool {
+		return current.Identifier() == command.Identifier()
+	})
+
+	if i == -1 {
+		// Does NOT exist, then append to the last.
+		logger.Infof("Append new command: %s.", command.Identifier())
+		commands.collection = append(commands.collection, command)
+		return
 	}
 
-	// Not stored, then append to the last.
-	logger.Infof("Append new command: %s.", command.Identifier())
-	commands.collection = append(commands.collection, command)
+	// Replace the existing same command with the new one
+	logger.Infof("Replace old command in favor of newly appending one: %s.", command.Identifier())
+	commands.collection[i] = command
 }
 
 // FindFirstMatched looks for the first matching command by calling each Command's Command.Match method:
@@ -196,13 +200,18 @@ func (commands *Commands) FindFirstMatched(input Input) Command {
 	commands.mutex.RLock()
 	defer commands.mutex.RUnlock()
 
-	for _, command := range commands.collection {
-		if command.Match(input) {
-			return command
-		}
+	// See if a matching command exists
+	i := slices.IndexFunc(commands.collection, func(command Command) bool {
+		return command.Match(input)
+	})
+
+	if i == -1 {
+		// Not found
+		return nil
 	}
 
-	return nil
+	// Return the found command
+	return commands.collection[i]
 }
 
 // ExecuteFirstMatched tries finding a matching command with the given Input and executes a Command if one is available.
