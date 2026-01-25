@@ -293,16 +293,15 @@ func (r *runner) run(ctx context.Context) {
 	for _, bot := range r.bots {
 		wg.Add(1)
 
-		go func(b Bot) {
+		go func() {
 			defer func() {
 				wg.Done()
-				runnerStatus.stopBot(b)
+				runnerStatus.stopBot(bot)
 			}()
 
-			runnerStatus.addBot(b)
-			r.runBot(ctx, b)
-		}(bot)
-
+			runnerStatus.addBot(bot)
+			r.runBot(ctx, bot)
+		}()
 	}
 	wg.Wait()
 }
@@ -438,16 +437,12 @@ func (r *runner) registerCommands(botCtx context.Context, bot Bot) {
 		bot.AppendCommand(command)
 	}
 
-	callback := func(p *CommandProps) func() {
-		return func() {
-			logger.Infof("Updating command: %s", p.identifier)
-			reg(p)
-		}
-	}
-
 	for _, p := range props {
 		reg(p)
-		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
+		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, func() {
+			logger.Infof("Updating command: %s", p.identifier)
+			reg(p)
+		})
 		if err != nil {
 			logger.Errorf("Failed to subscribe configuration for command %s: %+v", p.identifier, err)
 			continue
@@ -477,16 +472,12 @@ func (r *runner) registerScheduledTasks(botCtx context.Context, bot Bot) {
 		}
 	}
 
-	callback := func(p *ScheduledTaskProps) func() {
-		return func() {
-			logger.Infof("Updating scheduled task: %s", p.identifier)
-			reg(p)
-		}
-	}
-
 	for _, p := range r.botScheduledTaskProps(bot.BotType()) {
 		reg(p)
-		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, callback(p))
+		err := r.configWatcher.Watch(botCtx, bot.BotType(), p.identifier, func() {
+			logger.Infof("Updating scheduled task: %s", p.identifier)
+			reg(p)
+		})
 		if err != nil {
 			logger.Errorf("Failed to subscribe configuration for scheduled task %s: %+v", p.identifier, err)
 			continue
