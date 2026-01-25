@@ -5,9 +5,9 @@ jobs:
     strategy:
       matrix:
         go-version:
-          - 1.21
-          - 1.22
           - 1.23
+          - 1.24
+          - 1.25
           - tip
         include:
           - may-fail: false # Default
@@ -16,8 +16,20 @@ jobs:
     continue-on-error: ${{ matrix.may-fail }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version == 'tip' && 'stable' || matrix.go-version }}
+
+      # Install gotip for tip version
+      - name: Install Go tip
+        if: matrix.go-version == 'tip'
+        run: |
+          go install golang.org/dl/gotip@latest
+          gotip download
+          echo "GOROOT=$(gotip env GOROOT)" >> $GITHUB_ENV
+          echo "$(gotip env GOROOT)/bin" >> $GITHUB_PATH
+
       - name: Test with ${{ matrix.go-version }}
         run: go test -v -race --shuffle=on -coverprofile=coverage ./...
       - name: Coveralls integration

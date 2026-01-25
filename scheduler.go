@@ -176,7 +176,7 @@ func (c *cronLogAdapter) formatString(numKeysAndValues int) string {
 	// robfig/cron's code suggests that the key is always string,
 	// but the type is actually interface{}.
 	// That library's logger implementation also format with %v, after all.
-	for i := 0; i < numKeysAndValues/2; i++ {
+	for i := range numKeysAndValues / 2 {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
