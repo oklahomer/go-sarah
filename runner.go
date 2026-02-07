@@ -222,7 +222,7 @@ func newRunner(ctx context.Context, config *Config) (*runner, error) {
 		workerConfig := worker.NewConfig()
 		workerConfig.WorkerNum = 100
 		workerConfig.QueueSize = 10
-		r.worker = worker.Run(ctx, worker.NewConfig())
+		r.worker = worker.Run(ctx, workerConfig)
 	}
 
 	return r, nil
