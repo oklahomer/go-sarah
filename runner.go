@@ -304,6 +304,7 @@ func (r *runner) run(ctx context.Context) {
 		}()
 	}
 	wg.Wait()
+	runnerStatus.stop()
 }
 
 func unsubscribeConfigWatcher(watcher ConfigWatcher, botType BotType) {

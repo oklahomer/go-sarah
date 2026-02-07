@@ -425,8 +425,13 @@ func Test_runner_run(t *testing.T) {
 		cancel()
 		time.Sleep(1 * time.Second)
 
-		if CurrentStatus().Bots[0].Running {
+		currentStatus := CurrentStatus()
+
+		if currentStatus.Bots[0].Running {
 			t.Error("BotStatus.Running should not be true at this point.")
+		}
+		if currentStatus.Running {
+			t.Error("Status.Running should be false after all bots stop.")
 		}
 	})
 
