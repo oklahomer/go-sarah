@@ -321,6 +321,16 @@ func TestRun(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error is not returned.")
 		}
+
+		// Wait for the runner goroutine spawned by Run() to finish.
+		// No bots are registered, so runner.run() returns almost immediately.
+		select {
+		case <-runnerStatus.finished:
+			// runner.run() has completed and called runnerStatus.stop().
+
+		case <-time.NewTimer(1 * time.Second).C:
+			t.Fatal("Runner goroutine did not finish in time.")
+		}
 	})
 }
 
@@ -404,7 +414,11 @@ func Test_runner_run(t *testing.T) {
 
 		rootCtx := context.Background()
 		ctx, cancel := context.WithCancel(rootCtx)
-		go r.run(ctx)
+		finished := make(chan struct{})
+		go func() {
+			r.run(ctx)
+			close(finished)
+		}()
 
 		time.Sleep(1 * time.Second)
 
@@ -423,7 +437,14 @@ func Test_runner_run(t *testing.T) {
 		}
 
 		cancel()
-		time.Sleep(1 * time.Second)
+
+		select {
+		case <-finished:
+			// r.run() has fully returned, including runnerStatus.stop()
+
+		case <-time.NewTimer(1 * time.Second).C:
+			t.Fatal("runner.run did not return in time.")
+		}
 
 		currentStatus := CurrentStatus()
 
