@@ -67,7 +67,7 @@ In this example, two ways to implement [`sarah.Command`](https://github.com/okla
 One simply implements `sarah.Command` interface; while another uses `sarah.CommandPropsBuilder` for lazy construction.
 Detailed benefits of using `sarah.CommandPropsBuilder` and `sarah.CommandProps` are described at its wiki page, [CommandPropsBuilder](https://github.com/oklahomer/go-sarah/wiki/CommandPropsBuilder).
 
-For more practical examples, see [./examples](https://github.com/oklahomer/go-sarah/tree/master/examples).
+For more practical examples, see [./_examples](https://github.com/oklahomer/go-sarah/tree/master/_examples).
 
 ```go
 package main
@@ -246,10 +246,11 @@ Migration could especially be difficult when this project cuts off the older ver
 release.
 
 As a transition period, this project includes support for one older version than the Go project does.
-Such a version is guaranteed to be listed in [.travis.ci](https://github.com/oklahomer/go-sarah/blob/master/.travis.yml).
-In other words, new features/interfaces introduced in 1.10 can be used in this project only after 1.12 is out.
+Such a version is guaranteed to be listed in
+[the CI workflow](https://github.com/oklahomer/go-sarah/blob/master/.github/workflows/ci.yml).
+In other words, new features/interfaces introduced in 1.24 can be used in this project only after 1.26 is out.
 
 # Further Readings
 - [Project wiki](https://github.com/oklahomer/go-sarah/wiki)
 - [GoDoc](https://pkg.go.dev/github.com/oklahomer/go-sarah/v4)
-- [Example codes](https://github.com/oklahomer/go-sarah/tree/master/examples)
+- [Example codes](https://github.com/oklahomer/go-sarah/tree/master/_examples)
