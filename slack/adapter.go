@@ -261,7 +261,7 @@ func (adapter *Adapter) SendMessage(ctx context.Context, output sarah.Output) {
 // Input is a sarah.Input implementation that represents a received message.
 // Pass an incoming payload to EventToInput for a conversion.
 type Input struct {
-	Event           interface{}
+	Event           any
 	senderKey       string
 	text            string
 	timestamp       *event.TimeStamp
@@ -290,7 +290,7 @@ func (i *Input) ReplyTo() sarah.OutputDestination {
 }
 
 // EventToInput converts the given event payload to *Input.
-func EventToInput(e interface{}) (sarah.Input, error) {
+func EventToInput(e any) (sarah.Input, error) {
 	switch typed := e.(type) {
 	case *event.Message:
 		return &Input{

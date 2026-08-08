@@ -38,12 +38,12 @@ func SetupAndRun(fnc func()) {
 }
 
 type DummyConfigWatcher struct {
-	ReadFunc    func(context.Context, BotType, string, interface{}) error
+	ReadFunc    func(context.Context, BotType, string, any) error
 	WatchFunc   func(context.Context, BotType, string, func()) error
 	UnwatchFunc func(BotType) error
 }
 
-func (w *DummyConfigWatcher) Read(botCtx context.Context, botType BotType, id string, configPtr interface{}) error {
+func (w *DummyConfigWatcher) Read(botCtx context.Context, botType BotType, id string, configPtr any) error {
 	return w.ReadFunc(botCtx, botType, id, configPtr)
 }
 
@@ -526,7 +526,7 @@ func Test_runner_runBot(t *testing.T) {
 				},
 			},
 			configWatcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 					return nil
 				},
 				WatchFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
@@ -952,7 +952,7 @@ func Test_registerCommands(t *testing.T) {
 			},
 			{
 				configWatcher: &DummyConfigWatcher{
-					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+					ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 						return errors.New("configuration error")
 					},
 					WatchFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
@@ -969,7 +969,7 @@ func Test_registerCommands(t *testing.T) {
 			},
 			{
 				configWatcher: &DummyConfigWatcher{
-					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+					ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 						return nil
 					},
 					WatchFunc: func(_ context.Context, _ BotType, id string, callback func()) error {
@@ -987,7 +987,7 @@ func Test_registerCommands(t *testing.T) {
 			},
 			{
 				configWatcher: &DummyConfigWatcher{
-					ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+					ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 						t.Error("ConfigWatcher should not be called when pre-built Command is given.")
 						return nil
 					},

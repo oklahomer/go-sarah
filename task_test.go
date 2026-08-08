@@ -279,7 +279,7 @@ func Test_buildScheduledTask(t *testing.T) {
 	tests := []struct {
 		props          *ScheduledTaskProps
 		watcher        ConfigWatcher
-		validateConfig func(cfg interface{}) error
+		validateConfig func(cfg any) error
 		hasErr         bool
 	}{
 		{
@@ -319,11 +319,11 @@ func Test_buildScheduledTask(t *testing.T) {
 				config:             &DummyScheduledTaskConfig{},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 					return nil
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -350,7 +350,7 @@ func Test_buildScheduledTask(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg any) error {
 					config, ok := cfg.(*DummyScheduledTaskConfig)
 					if !ok {
 						t.Errorf("Unexpected type is passed: %T.", cfg)
@@ -361,7 +361,7 @@ func Test_buildScheduledTask(t *testing.T) {
 					return nil
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -388,14 +388,14 @@ func Test_buildScheduledTask(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, botType BotType, id string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, botType BotType, id string, cfg any) error {
 					return &ConfigNotFoundError{
 						BotType: botType,
 						ID:      id,
 					}
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -423,7 +423,7 @@ func Test_buildScheduledTask(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, botType BotType, id string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, botType BotType, id string, cfg any) error {
 					config, ok := cfg.(*DummyScheduledTaskConfig) // Pointer is passed
 					if !ok {
 						t.Errorf("Unexpected type is passed: %T.", cfg)
@@ -434,7 +434,7 @@ func Test_buildScheduledTask(t *testing.T) {
 					return nil
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(DummyScheduledTaskConfig) // Value is passed
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -461,7 +461,7 @@ func Test_buildScheduledTask(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 					return errors.New("unacceptable error")
 				},
 			},

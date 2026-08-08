@@ -224,7 +224,7 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 		},
 	}
 
-	var passedContent interface{}
+	var passedContent any
 	var passedDestination OutputDestination
 	myBot := &defaultBot{
 		sendMessageFunc: func(_ context.Context, output Output) {

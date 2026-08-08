@@ -48,7 +48,7 @@ func (client *RestAPIClient) buildEndpoint(resourceFragments []string) *url.URL 
 }
 
 // Get sends an HTTP GET request with the given path and parameters.
-func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string, intf interface{}) error {
+func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string, intf any) error {
 	// Set up sending request
 	endpoint := client.buildEndpoint(resourceFragments)
 	req, err := http.NewRequest("GET", endpoint.String(), nil)
@@ -79,7 +79,7 @@ func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string
 }
 
 // Post sends an HTTP POST request to Gitter with the given parameters.
-func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []string, sendingPayload interface{}, responsePayload interface{}) error {
+func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []string, sendingPayload any, responsePayload any) error {
 	reqBody, err := json.Marshal(sendingPayload)
 	if err != nil {
 		return fmt.Errorf("can not marshal given payload: %w", err)

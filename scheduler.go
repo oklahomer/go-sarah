@@ -125,22 +125,22 @@ type cronLogAdapter struct {
 
 var _ cron.Logger = (*cronLogAdapter)(nil)
 
-func (c *cronLogAdapter) Info(msg string, keysAndValues ...interface{}) {
+func (c *cronLogAdapter) Info(msg string, keysAndValues ...any) {
 	converted := c.convertKeyValues(keysAndValues)
-	args := append([]interface{}{msg}, converted...)
+	args := append([]any{msg}, converted...)
 	format := c.formatString(len(args))
 	c.l.Infof(format, args...)
 }
 
-func (c *cronLogAdapter) Error(err error, msg string, keysAndValues ...interface{}) {
+func (c *cronLogAdapter) Error(err error, msg string, keysAndValues ...any) {
 	converted := c.convertKeyValues(keysAndValues)
-	args := append([]interface{}{msg, "error", err}, converted...)
+	args := append([]any{msg, "error", err}, converted...)
 	format := c.formatString(len(args))
 	c.l.Errorf(format, args...)
 }
 
-func (c *cronLogAdapter) convertKeyValues(keysAndValues []interface{}) []interface{} {
-	formatted := make([]interface{}, len(keysAndValues))
+func (c *cronLogAdapter) convertKeyValues(keysAndValues []any) []any {
+	formatted := make([]any, len(keysAndValues))
 	for i, arg := range keysAndValues {
 		switch typed := arg.(type) {
 		case time.Time:
@@ -174,7 +174,7 @@ func (c *cronLogAdapter) formatString(numKeysAndValues int) string {
 
 	// Arbitrary arguments are to be formatted with %v.
 	// robfig/cron's code suggests that the key is always string,
-	// but the type is actually interface{}.
+	// but the type is actually any.
 	// That library's logger implementation also format with %v, after all.
 	for i := range numKeysAndValues / 2 {
 		if i > 0 {

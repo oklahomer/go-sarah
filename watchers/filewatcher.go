@@ -59,7 +59,7 @@ type fileWatcher struct {
 
 var _ sarah.ConfigWatcher = (*fileWatcher)(nil)
 
-func (w *fileWatcher) Read(_ context.Context, botType sarah.BotType, id string, configPtr interface{}) error {
+func (w *fileWatcher) Read(_ context.Context, botType sarah.BotType, id string, configPtr any) error {
 	configDir := filepath.Join(w.baseDir, strings.ToLower(botType.String()))
 	file := findPluginConfigFile(configDir, id)
 
