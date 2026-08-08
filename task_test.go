@@ -80,7 +80,7 @@ func TestScheduledTaskPropsBuilder_Func(t *testing.T) {
 	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.Func(taskFunc)
 
-	actualRes, err := builder.props.taskFunc(context.TODO())
+	actualRes, err := builder.props.taskFunc(t.Context())
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
@@ -132,7 +132,7 @@ func TestScheduledTaskPropsBuilder_ConfigurableFunc(t *testing.T) {
 		t.Fatal("Supplied function is not set.")
 	}
 
-	_, err := builder.props.taskFunc(context.TODO(), config)
+	_, err := builder.props.taskFunc(t.Context(), config)
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
@@ -242,7 +242,7 @@ func TestScheduledTask_Execute(t *testing.T) {
 		}, nil
 	}
 	task := &scheduledTask{taskFunc: taskFunc}
-	results, err := task.Execute(context.TODO())
+	results, err := task.Execute(t.Context())
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %#v.", err)
@@ -471,7 +471,7 @@ func Test_buildScheduledTask(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			task, err := buildScheduledTask(context.TODO(), tt.props, tt.watcher)
+			task, err := buildScheduledTask(t.Context(), tt.props, tt.watcher)
 			if tt.hasErr {
 				if err == nil {
 					t.Error("Expected error is not returned.")

@@ -47,9 +47,7 @@ func (w *dummyFsWatcher) Close() error {
 }
 
 func TestNewFileWatcher(t *testing.T) {
-	rootCtx := context.Background()
-	watcherCtx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
+	watcherCtx := t.Context()
 
 	w, err := NewFileWatcher(watcherCtx, "testdata")
 
@@ -95,7 +93,7 @@ func TestFileWatcher_Read(t *testing.T) {
 			}
 			configPtr := &helloConfig{}
 
-			err := w.Read(context.TODO(), botType, tt.id, configPtr)
+			err := w.Read(t.Context(), botType, tt.id, configPtr)
 
 			if tt.hasErr {
 				if err == nil {
@@ -148,7 +146,7 @@ func TestFileWatcher_Watch(t *testing.T) {
 			}(tt.err)
 
 			callback := func() {}
-			err := w.Watch(context.TODO(), botType, "hello", callback)
+			err := w.Watch(t.Context(), botType, "hello", callback)
 
 			if tt.err == nil && err != nil {
 				t.Errorf("Unexpected error is returned: %s", err.Error())
@@ -431,8 +429,7 @@ func TestFileWatcher_run(t *testing.T) {
 		unsubscribe: make(chan sarah.BotType, 1),
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan fsnotify.Event, 1)
 	errs := make(chan error, 1)
@@ -573,7 +570,7 @@ func TestFileWatcher_run_cancel(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			dummyWatcher := &dummyFsWatcher{
 				CloseFunc: func() error {
 					return tt.err

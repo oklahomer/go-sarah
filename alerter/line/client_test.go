@@ -1,7 +1,6 @@
 package line
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -99,7 +98,7 @@ func TestClient_Alert(t *testing.T) {
 			},
 			httpClient: httpClient,
 		}
-		err := client.Alert(context.TODO(), "DUMMY", errors.New("message"))
+		err := client.Alert(t.Context(), "DUMMY", errors.New("message"))
 		if r.Status == 200 && err != nil {
 			t.Errorf("Unexpected error is returned: %s.", err.Error())
 		} else if r.Status != 200 && err == nil {

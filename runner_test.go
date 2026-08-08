@@ -312,12 +312,12 @@ func TestRun(t *testing.T) {
 		}
 
 		// Initial call with valid setting should work.
-		err := Run(context.Background(), config)
+		err := Run(t.Context(), config)
 		if err != nil {
 			t.Fatalf("Unexpected error is returned: %s.", err.Error())
 		}
 
-		err = Run(context.Background(), config)
+		err = Run(t.Context(), config)
 		if err == nil {
 			t.Fatal("Expected error is not returned.")
 		}
@@ -340,7 +340,7 @@ func TestRun_WithInvalidConfig(t *testing.T) {
 			TimeZone: "INVALID",
 		}
 
-		err := Run(context.Background(), config)
+		err := Run(t.Context(), config)
 
 		if err == nil {
 			t.Error("Expected error is not returned.")
@@ -354,7 +354,7 @@ func Test_newRunner(t *testing.T) {
 			TimeZone: time.UTC.String(),
 		}
 
-		r, e := newRunner(context.Background(), config)
+		r, e := newRunner(t.Context(), config)
 		if e != nil {
 			t.Fatalf("Unexpected error is returned: %s.", e.Error())
 		}
@@ -383,7 +383,7 @@ func Test_newRunner_WithTimeZoneError(t *testing.T) {
 			TimeZone: "DUMMY",
 		}
 
-		_, e := newRunner(context.Background(), config)
+		_, e := newRunner(t.Context(), config)
 		if e == nil {
 			t.Fatal("Expected error is not returned.")
 		}
@@ -412,8 +412,7 @@ func Test_runner_run(t *testing.T) {
 			},
 		}
 
-		rootCtx := context.Background()
-		ctx, cancel := context.WithCancel(rootCtx)
+		ctx, cancel := context.WithCancel(t.Context())
 		finished := make(chan struct{})
 		go func() {
 			r.run(ctx)
@@ -558,8 +557,7 @@ func Test_runner_runBot(t *testing.T) {
 		}
 
 		// Let it run
-		rootCtx := context.Background()
-		runnerCtx, cancelRunner := context.WithCancel(rootCtx)
+		runnerCtx, cancelRunner := context.WithCancel(t.Context())
 		finished := make(chan bool)
 		go func() {
 			r.runBot(runnerCtx, bot)
@@ -641,9 +639,7 @@ func Test_runner_runBot_WithPanic(t *testing.T) {
 		}
 
 		// Let it run
-		rootCtx := context.Background()
-		runnerCtx, cancel := context.WithCancel(rootCtx)
-		defer cancel()
+		runnerCtx := t.Context()
 		finished := make(chan bool)
 		go func() {
 			r.runBot(runnerCtx, bot)
@@ -746,8 +742,7 @@ func Test_runner_superviseBot(t *testing.T) {
 					return tt.directive
 				},
 			}
-			rootCxt := context.Background()
-			botCtx, errSupervisor := r.superviseBot(rootCxt, "DummyBotType")
+			botCtx, errSupervisor := r.superviseBot(t.Context(), "DummyBotType")
 
 			// Make sure the Bot state is currently active
 			select {
@@ -861,7 +856,7 @@ func Test_executeScheduledTask(t *testing.T) {
 					mutex: &sync.RWMutex{},
 				},
 			}
-			executeScheduledTask(context.TODO(), dummyBot, task)
+			executeScheduledTask(t.Context(), dummyBot, task)
 		}
 
 		if len(sendingOutput) != 2 {
@@ -894,7 +889,7 @@ func Test_setupInputReceiver(t *testing.T) {
 			},
 		}
 
-		receiveInput := setupInputReceiver(context.TODO(), bot, worker)
+		receiveInput := setupInputReceiver(t.Context(), bot, worker)
 		if err := receiveInput(&DummyInput{}); err != nil {
 			t.Errorf("Error should not be returned at this point: %s.", err.Error())
 		}
@@ -917,7 +912,7 @@ func Test_setupInputReceiver_BlockedInputError(t *testing.T) {
 			},
 		}
 
-		receiveInput := setupInputReceiver(context.TODO(), bot, worker)
+		receiveInput := setupInputReceiver(t.Context(), bot, worker)
 		err := receiveInput(&DummyInput{})
 		if err == nil {
 			t.Fatal("Expected error is not returned.")
@@ -1023,7 +1018,7 @@ func Test_registerCommands(t *testing.T) {
 					},
 				}
 
-				r.registerCommands(context.TODO(), bot)
+				r.registerCommands(t.Context(), bot)
 
 				if tt.regNum != regNum {
 					t.Errorf("Unexpected number of command registration call: %d.", regNum)
@@ -1170,7 +1165,7 @@ func Test_registerScheduledTasks(t *testing.T) {
 					},
 				}
 
-				r.registerScheduledTasks(context.TODO(), bot)
+				r.registerScheduledTasks(t.Context(), bot)
 
 				if tt.regNum != regNum {
 					t.Errorf("Unexpected number of task registration call: %d.", regNum)

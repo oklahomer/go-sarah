@@ -27,10 +27,7 @@ func (s *DummyScheduler) update(botType BotType, task ScheduledTask, fn func()) 
 }
 
 func Test_runScheduler(t *testing.T) {
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-	scheduler := runScheduler(ctx, time.UTC)
+	scheduler := runScheduler(t.Context(), time.UTC)
 
 	if scheduler == nil {
 		t.Fatal("scheduler is nil")
@@ -48,10 +45,7 @@ func Test_runScheduler(t *testing.T) {
 }
 
 func TestTaskScheduler_updateAndRemove(t *testing.T) {
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-	scheduler := runScheduler(ctx, time.Local)
+	scheduler := runScheduler(t.Context(), time.Local)
 
 	taskID := "id"
 	task := &scheduledTask{
@@ -91,10 +85,7 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 }
 
 func TestTaskScheduler_updateWithEmptySchedule(t *testing.T) {
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-	scheduler := runScheduler(ctx, time.Local)
+	scheduler := runScheduler(t.Context(), time.Local)
 
 	err := scheduler.update("dummy", &DummyScheduledTask{}, func() {})
 
