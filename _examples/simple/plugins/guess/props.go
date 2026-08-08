@@ -12,10 +12,9 @@ import (
 	"context"
 	"github.com/oklahomer/go-sarah/v4"
 	"github.com/oklahomer/go-sarah/v4/slack"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func init() {
@@ -32,8 +31,7 @@ var SlackProps = sarah.NewCommandPropsBuilder().
 	}).
 	Func(func(ctx context.Context, input sarah.Input) (*sarah.CommandResponse, error) {
 		// Generate an answer value at the very beginning.
-		rand.Seed(time.Now().UnixNano())
-		answer := rand.Intn(10)
+		answer := rand.IntN(10)
 
 		// Let the user guess the right answer.
 		return slack.NewResponse(

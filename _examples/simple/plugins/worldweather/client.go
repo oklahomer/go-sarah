@@ -52,7 +52,7 @@ func (client *Client) buildEndpoint(apiType string, queryParams *url.Values) *ur
 }
 
 // Get makes an HTTP GET request to the World Weather API endpoint.
-func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.Values, data interface{}) error {
+func (client *Client) Get(ctx context.Context, apiType string, queryParams *url.Values, data any) error {
 	endpoint := client.buildEndpoint(apiType, queryParams)
 	req, err := http.NewRequest(http.MethodGet, endpoint.String(), nil)
 	if err != nil {
