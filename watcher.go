@@ -33,7 +33,7 @@ var _ error = (*ConfigNotFoundError)(nil)
 // while another reference implementation -- https://github.com/oklahomer/go-sarah-githubconfig -- subscribes to changes on a given GitHub repository.
 type ConfigWatcher interface {
 	// Read reads the latest configuration value and apply that value to configPtr.
-	Read(botCtx context.Context, botType BotType, id string, configPtr interface{}) error
+	Read(botCtx context.Context, botType BotType, id string, configPtr any) error
 	// Watch subscribes to given id's configuration.
 	// When a change to the corresponding configuration value occurs, callback is called.
 	// A call to callback function triggers go-sarah's core to call Read() to reflect the latest configuration value.
@@ -46,7 +46,7 @@ type nullConfigWatcher struct{}
 
 var _ ConfigWatcher = (*nullConfigWatcher)(nil)
 
-func (*nullConfigWatcher) Read(_ context.Context, _ BotType, _ string, _ interface{}) error {
+func (*nullConfigWatcher) Read(_ context.Context, _ BotType, _ string, _ any) error {
 	return nil
 }
 

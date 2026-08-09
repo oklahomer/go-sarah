@@ -92,7 +92,7 @@ func TestDefaultBot_Respond_StorageAcquisitionError(t *testing.T) {
 		SenderKeyValue: "senderKey",
 	}
 
-	err := myBot.Respond(context.TODO(), dummyInput)
+	err := myBot.Respond(t.Context(), dummyInput)
 	if err != storageError {
 		t.Errorf("Expected error was not returned: %#v.", err)
 	}
@@ -116,7 +116,7 @@ func TestDefaultBot_Respond_WithCommandError(t *testing.T) {
 		commands: commands,
 	}
 
-	err := myBot.Respond(context.TODO(), &DummyInput{})
+	err := myBot.Respond(t.Context(), &DummyInput{})
 
 	if err == nil {
 		t.Fatal("Expected error is not returned.")
@@ -144,7 +144,7 @@ func TestDefaultBot_Respond_WithoutContext(t *testing.T) {
 		MessageValue:   ".echo foo",
 	}
 
-	err := myBot.Respond(context.TODO(), dummyInput)
+	err := myBot.Respond(t.Context(), dummyInput)
 	if err != nil {
 		t.Errorf("Unexpected error is returned: %#v.", err)
 	}
@@ -185,7 +185,7 @@ func TestDefaultBot_Respond_WithContextButMessage(t *testing.T) {
 			isSent = true
 		},
 	}
-	err := myBot.Respond(context.TODO(), &DummyInput{})
+	err := myBot.Respond(t.Context(), &DummyInput{})
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %#v.", err)
@@ -224,7 +224,7 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 		},
 	}
 
-	var passedContent interface{}
+	var passedContent any
 	var passedDestination OutputDestination
 	myBot := &defaultBot{
 		sendMessageFunc: func(_ context.Context, output Output) {
@@ -241,7 +241,7 @@ func TestDefaultBot_Respond_WithContext(t *testing.T) {
 		ReplyToValue:   "replyTo",
 	}
 
-	err := myBot.Respond(context.TODO(), dummyInput)
+	err := myBot.Respond(t.Context(), dummyInput)
 	if err != nil {
 		t.Errorf("Unexpected error is returned: %#v.", err)
 	}
@@ -300,7 +300,7 @@ func TestDefaultBot_Respond_WithContextStorageSetError(t *testing.T) {
 		commands:           &Commands{collection: []Command{cmd}},
 	}
 
-	err := myBot.Respond(context.TODO(), &DummyInput{})
+	err := myBot.Respond(t.Context(), &DummyInput{})
 
 	if err != nil {
 		t.Errorf("Unexpected error is returned: %#v.", err)
@@ -339,7 +339,7 @@ func TestDefaultBot_Respond_WithContextStorageDeleteError(t *testing.T) {
 		userContextStorage: dummyStorage,
 	}
 
-	err := myBot.Respond(context.TODO(), &DummyInput{})
+	err := myBot.Respond(t.Context(), &DummyInput{})
 
 	if err != nil {
 		t.Errorf("Unexpected error is returned: %#v.", err)
@@ -378,7 +378,7 @@ func TestDefaultBot_Respond_UserContextWithoutStorage(t *testing.T) {
 		userContextStorage: nil,
 	}
 
-	err := myBot.Respond(context.TODO(), &DummyInput{})
+	err := myBot.Respond(t.Context(), &DummyInput{})
 
 	if err != nil {
 		t.Errorf("Unexpected error is returned: %#v.", err)
@@ -408,7 +408,7 @@ func TestDefaultBot_Respond_Abort(t *testing.T) {
 		userContextStorage: dummyStorage,
 	}
 
-	err := myBot.Respond(context.TODO(), &AbortInput{})
+	err := myBot.Respond(t.Context(), &AbortInput{})
 	if err != nil {
 		t.Errorf("Unexpected error returned: %#v.", err)
 	}
@@ -449,7 +449,7 @@ func TestDefaultBot_Respond_Help(t *testing.T) {
 		ReplyToValue:   dest,
 	}
 	helpInput := NewHelpInput(dummyInput)
-	err := myBot.Respond(context.TODO(), helpInput)
+	err := myBot.Respond(t.Context(), helpInput)
 	if err != nil {
 		t.Errorf("Unexpected error is returned: %#v.", err)
 	}
@@ -477,10 +477,7 @@ func TestDefaultBot_Run(t *testing.T) {
 		},
 	}
 
-	rootCtx := context.Background()
-	botCtx, cancelBot := context.WithCancel(rootCtx)
-	defer cancelBot()
-	bot.Run(botCtx, func(_ Input) error { return nil }, func(_ error) {})
+	bot.Run(t.Context(), func(_ Input) error { return nil }, func(_ error) {})
 
 	if adapterProcessed == false {
 		t.Error("Adapter.Run is not called.")
@@ -496,7 +493,7 @@ func TestDefaultBot_SendMessage(t *testing.T) {
 	}
 
 	output := NewOutputMessage(struct{}{}, struct{}{})
-	bot.SendMessage(context.TODO(), output)
+	bot.SendMessage(t.Context(), output)
 
 	if adapterProcessed == false {
 		t.Error("Adapter.SendMessage is not called.")

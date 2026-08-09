@@ -204,8 +204,7 @@ func TestAdapter_Run(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	adapter.Run(ctx, func(_ sarah.Input) error { return nil }, func(err error) {})
 
 	if !called {
@@ -257,7 +256,7 @@ func TestAdapter_SendMessage(t *testing.T) {
 
 				postMessage := webapi.NewPostMessage(tt.channelID, "test")
 				output := sarah.NewOutputMessage(tt.channelID, postMessage)
-				adapter.SendMessage(context.TODO(), output)
+				adapter.SendMessage(t.Context(), output)
 
 				if !called {
 					t.Fatal("Client.PostMessage is not called.")
@@ -281,7 +280,7 @@ func TestAdapter_SendMessage(t *testing.T) {
 		}
 
 		output := sarah.NewOutputMessage(event.ChannelID("channel"), "message")
-		adapter.SendMessage(context.TODO(), output)
+		adapter.SendMessage(t.Context(), output)
 		if !called {
 			t.Fatal("Client.PostMessage is not called.")
 		}
@@ -306,12 +305,12 @@ func TestAdapter_SendMessage(t *testing.T) {
 		}
 
 		invalid := sarah.NewOutputMessage("invalidID", helps)
-		adapter.SendMessage(context.TODO(), invalid)
+		adapter.SendMessage(t.Context(), invalid)
 		if called {
 			t.Fatal("Invalid output reached Client.PostMessage.")
 		}
 
-		adapter.SendMessage(context.TODO(), sarah.NewOutputMessage(event.ChannelID("test"), helps))
+		adapter.SendMessage(t.Context(), sarah.NewOutputMessage(event.ChannelID("test"), helps))
 		if !called {
 			t.Fatal("Client.PostMessage is not called.")
 		}

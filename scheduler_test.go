@@ -27,10 +27,7 @@ func (s *DummyScheduler) update(botType BotType, task ScheduledTask, fn func()) 
 }
 
 func Test_runScheduler(t *testing.T) {
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-	scheduler := runScheduler(ctx, time.UTC)
+	scheduler := runScheduler(t.Context(), time.UTC)
 
 	if scheduler == nil {
 		t.Fatal("scheduler is nil")
@@ -48,10 +45,7 @@ func Test_runScheduler(t *testing.T) {
 }
 
 func TestTaskScheduler_updateAndRemove(t *testing.T) {
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-	scheduler := runScheduler(ctx, time.Local)
+	scheduler := runScheduler(t.Context(), time.Local)
 
 	taskID := "id"
 	task := &scheduledTask{
@@ -91,10 +85,7 @@ func TestTaskScheduler_updateAndRemove(t *testing.T) {
 }
 
 func TestTaskScheduler_updateWithEmptySchedule(t *testing.T) {
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
-	scheduler := runScheduler(ctx, time.Local)
+	scheduler := runScheduler(t.Context(), time.Local)
 
 	err := scheduler.update("dummy", &DummyScheduledTask{}, func() {})
 
@@ -111,17 +102,17 @@ func Test_cronLogAdapter_Info(t *testing.T) {
 
 	tests := []struct {
 		msg      string
-		args     []interface{}
+		args     []any
 		expected string
 	}{
 		{
 			msg:      "foo",
-			args:     []interface{}{},
+			args:     []any{},
 			expected: "[INFO] foo\n",
 		},
 		{
 			msg: "foo bar",
-			args: []interface{}{
+			args: []any{
 				"key1", "value1",
 				"key2", "value2",
 			},
@@ -159,25 +150,25 @@ func Test_cronLogger_Error(t *testing.T) {
 	tests := []struct {
 		msg      string
 		err      error
-		args     []interface{}
+		args     []any
 		expected string
 	}{
 		{
 			msg:      "foo",
 			err:      errors.New("this is an error"),
-			args:     []interface{}{},
+			args:     []any{},
 			expected: "[ERROR] foo, error=this is an error\n",
 		},
 		{
 			msg:      "foo bar",
 			err:      fmt.Errorf("this is an error: %w", errors.New("embedded")),
-			args:     []interface{}{},
+			args:     []any{},
 			expected: "[ERROR] foo bar, error=this is an error: embedded\n",
 		},
 		{
 			msg: "foo bar",
 			err: fmt.Errorf("this is an error: %w", errors.New("embedded")),
-			args: []interface{}{
+			args: []any{
 				"key1",
 				"value1",
 				"key2",
@@ -188,7 +179,7 @@ func Test_cronLogger_Error(t *testing.T) {
 		{
 			msg: "foo bar",
 			err: fmt.Errorf("this is an error: %w", errors.New("embedded")),
-			args: []interface{}{
+			args: []any{
 				"key", "value",
 				"string", &stringer{},
 				"time", func() time.Time {

@@ -2,7 +2,6 @@ package worldweather
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"github.com/oklahomer/go-sarah/v4"
 	"github.com/oklahomer/go-sarah/v4/slack"
@@ -42,7 +41,7 @@ func TestSlackCommandFunc(t *testing.T) {
 		Text:      ".weather tokyo",
 	})
 	response, err := SlackCommandFunc(
-		context.TODO(),
+		t.Context(),
 		input,
 		&CommandConfig{
 			APIKey: "dummy",
@@ -99,7 +98,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			},
 		)
 		response, err := SlackCommandFunc(
-			context.TODO(),
+			t.Context(),
 			input,
 			&CommandConfig{
 				APIKey: "dummy",
@@ -144,7 +143,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 			},
 		)
 		response, err := response.UserContext.Next(
-			context.TODO(),
+			t.Context(),
 			input,
 		)
 

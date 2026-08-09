@@ -21,7 +21,7 @@ type ScheduledTaskResult struct {
 	// Content represents a group of data to be sent as a result of task execution.
 	// Since this is passed to Bot.SendMessage as part of OutputMessage,
 	// its type may vary depending on the Bot's integrating chat service.
-	Content interface{}
+	Content any
 
 	// Destination is passed to Bot.SendMessage as part of OutputMessage value to specify the sending destination.
 	// This typically contains a chat room, member id, or e-mail address.
@@ -37,7 +37,7 @@ type taskFunc func(context.Context, ...TaskConfig) ([]*ScheduledTaskResult, erro
 
 // TaskConfig provides an interface that every task configuration must satisfy, which actually is empty.
 // Think of this as a kind of marker interface with a more meaningful name.
-type TaskConfig interface{}
+type TaskConfig any
 
 // ScheduledConfig defines an interface that a configuration with a default schedule MUST satisfy.
 // When no execution schedule is set with ScheduledTaskPropsBuilder.Schedule, this value is taken as a default value on ScheduledTaskPropsBuilder.Build.

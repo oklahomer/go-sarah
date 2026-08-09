@@ -150,8 +150,7 @@ func TestAdapter_runEachRoom(t *testing.T) {
 		},
 	}
 
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
+	ctx, cancel := context.WithCancel(t.Context())
 
 	room := &Room{
 		ID: "testID",
@@ -201,7 +200,7 @@ func TestAdapter_runEachRoom_ConnectionInitializationError(t *testing.T) {
 	room := &Room{
 		ID: "testID",
 	}
-	adapter.runEachRoom(context.TODO(), room, enqueuer) // No goroutine. Will end automatically.
+	adapter.runEachRoom(t.Context(), room, enqueuer) // No goroutine. Will end automatically.
 
 	select {
 	case <-queue:
@@ -248,8 +247,7 @@ func TestAdapter_runEachRoom_ConnectionError(t *testing.T) {
 		},
 	}
 
-	rootCtx := context.Background()
-	ctx, cancel := context.WithCancel(rootCtx)
+	ctx, cancel := context.WithCancel(t.Context())
 	queue := make(chan struct{})
 	enqueuer := func(_ sarah.Input) error {
 		queue <- struct{}{}
@@ -304,7 +302,7 @@ func TestAdapter_Run(t *testing.T) {
 		},
 	}
 
-	adapter.Run(context.TODO(), func(sarah.Input) error { return nil }, func(error) {})
+	adapter.Run(t.Context(), func(sarah.Input) error { return nil }, func(error) {})
 	time.Sleep(100 * time.Millisecond)
 
 	select {
@@ -335,7 +333,7 @@ func TestAdapter_Run_RestAPIClientRoomsError(t *testing.T) {
 	notifyErr := func(e error) {
 		err = e
 	}
-	adapter.Run(context.TODO(), func(sarah.Input) error { return nil }, notifyErr)
+	adapter.Run(t.Context(), func(sarah.Input) error { return nil }, notifyErr)
 
 	if _, ok := err.(*sarah.BotNonContinuableError); !ok {
 		t.Fatalf("Expected error is not returned: %#v.", err)
@@ -354,7 +352,7 @@ func TestAdapter_SendMessage(t *testing.T) {
 	}
 	output := sarah.NewOutputMessage(&Room{}, "text")
 
-	adapter.SendMessage(context.TODO(), output)
+	adapter.SendMessage(t.Context(), output)
 
 	if !called {
 		t.Error("APIClient.PostMessage is not called.")
@@ -373,7 +371,7 @@ func TestAdapter_SendMessage_InvalidDestinationError(t *testing.T) {
 	}
 	output := sarah.NewOutputMessage("invalid", "text")
 
-	adapter.SendMessage(context.TODO(), output)
+	adapter.SendMessage(t.Context(), output)
 
 	if called {
 		t.Error("APIClient.PostMessage is called with invalid destination.")
@@ -392,7 +390,7 @@ func TestAdapter_SendMessage_InvalidContentTypeError(t *testing.T) {
 	}
 	output := sarah.NewOutputMessage(&Room{}, 123)
 
-	adapter.SendMessage(context.TODO(), output)
+	adapter.SendMessage(t.Context(), output)
 
 	if called {
 		t.Error("APIClient.PostMessage is called with invalid content type.")

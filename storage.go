@@ -43,7 +43,7 @@ type SerializableArgument struct {
 
 	// Argument is an argument to be passed to the function fetched by FuncIdentifier.
 	// Therefore, its type must be equal to the one the fetched function receives as an argument.
-	Argument interface{}
+	Argument any
 }
 
 // UserContext represents a user's conversational context.

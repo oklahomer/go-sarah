@@ -1,7 +1,6 @@
 package worldweather
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -64,7 +63,7 @@ func TestClient_Get(t *testing.T) {
 	data := []*struct {
 		status   int
 		apiType  string
-		response interface{}
+		response any
 	}{
 		{
 			status:  http.StatusOK,
@@ -135,7 +134,7 @@ func TestClient_Get(t *testing.T) {
 			queryParams := &url.Values{}
 			queryParams.Add("q", "1600 Pennsylvania Avenue NW Washington, DC 20500")
 			response := &CommonData{}
-			err := client.Get(context.TODO(), apiType, queryParams, response)
+			err := client.Get(t.Context(), apiType, queryParams, response)
 
 			if datum.status != http.StatusOK {
 				if err == nil {
@@ -178,7 +177,7 @@ func TestClient_GetRequestError(t *testing.T) {
 	defer resetClient()
 
 	response := &CommonData{}
-	err := client.Get(context.TODO(), "weather", nil, response)
+	err := client.Get(t.Context(), "weather", nil, response)
 
 	if err == nil {
 		t.Fatal("Expected error is not returned.")
@@ -239,7 +238,7 @@ func TestClient_LocalWeather(t *testing.T) {
 			})
 			defer resetClient()
 
-			response, err := client.LocalWeather(context.TODO(), "1600 Pennsylvania Avenue NW Washington, DC 20500")
+			response, err := client.LocalWeather(t.Context(), "1600 Pennsylvania Avenue NW Washington, DC 20500")
 
 			if datum.status == http.StatusOK {
 				if err != nil {

@@ -61,7 +61,7 @@ func TestCommandPropsBuilder_ConfigurableFunc(t *testing.T) {
 		t.Error("Passed config struct is not set.")
 	}
 
-	_, _ = builder.props.commandFunc(context.TODO(), &DummyInput{}, config)
+	_, _ = builder.props.commandFunc(t.Context(), &DummyInput{}, config)
 	if wrappedFncCalled == false {
 		t.Error("Provided func was not properly wrapped in builder.")
 	}
@@ -86,7 +86,7 @@ func TestCommandPropsBuilder_Func(t *testing.T) {
 	}
 
 	builder.Func(fnc)
-	_, _ = builder.props.commandFunc(context.TODO(), &DummyInput{})
+	_, _ = builder.props.commandFunc(t.Context(), &DummyInput{})
 	if wrappedFncCalled == false {
 		t.Error("Provided func was not properly wrapped in builder.")
 	}
@@ -272,7 +272,7 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 
 	input := &DummyInput{}
 	input.MessageValue = "echo foo"
-	response, err := commands.ExecuteFirstMatched(context.TODO(), input)
+	response, err := commands.ExecuteFirstMatched(t.Context(), input)
 	if err != nil {
 		t.Error("Error is returned on non matching case.")
 	}
@@ -288,7 +288,7 @@ func TestCommands_ExecuteFirstMatched(t *testing.T) {
 		return &CommandResponse{Content: ""}, nil
 	}
 	commands = &Commands{collection: []Command{echoCommand}}
-	response, err = commands.ExecuteFirstMatched(context.TODO(), input)
+	response, err = commands.ExecuteFirstMatched(t.Context(), input)
 	if err != nil {
 		t.Errorf("Unexpected error on command execution: %#v.", err)
 		return
@@ -431,7 +431,7 @@ func TestSimpleCommand_Execute(t *testing.T) {
 	}
 
 	input := &DummyInput{}
-	_, err := command.Execute(context.TODO(), input)
+	_, err := command.Execute(t.Context(), input)
 	if err != nil {
 		t.Errorf("Error is returned: %s", err.Error())
 	}
@@ -456,7 +456,7 @@ func Test_buildCommand(t *testing.T) {
 	tests := []struct {
 		props          *CommandProps
 		watcher        ConfigWatcher
-		validateConfig func(cfg interface{}) error
+		validateConfig func(cfg any) error
 		hasErr         bool
 	}{
 		{
@@ -494,7 +494,7 @@ func Test_buildCommand(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg any) error {
 					config, ok := cfg.(*config)
 					if !ok {
 						t.Errorf("Unexpected type is passed: %T.", cfg)
@@ -505,7 +505,7 @@ func Test_buildCommand(t *testing.T) {
 					return nil
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(*config)
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -536,7 +536,7 @@ func Test_buildCommand(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg any) error {
 					config, ok := cfg.(*config) // Pointer is passed
 					if !ok {
 						t.Errorf("Unexpected type is passed: %T.", cfg)
@@ -547,7 +547,7 @@ func Test_buildCommand(t *testing.T) {
 					return nil
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(config) // Value is passed
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -577,14 +577,14 @@ func Test_buildCommand(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, botType BotType, id string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, botType BotType, id string, cfg any) error {
 					return &ConfigNotFoundError{
 						BotType: botType,
 						ID:      id,
 					}
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(*config)
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -614,7 +614,7 @@ func Test_buildCommand(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 					return errors.New("unacceptable error")
 				},
 			},
@@ -624,7 +624,7 @@ func Test_buildCommand(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			command, err := buildCommand(context.TODO(), tt.props, tt.watcher)
+			command, err := buildCommand(t.Context(), tt.props, tt.watcher)
 			if tt.hasErr {
 				if err == nil {
 					t.Error("Expected error is not returned.")

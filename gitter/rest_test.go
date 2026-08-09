@@ -1,7 +1,6 @@
 package gitter
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -83,7 +82,7 @@ func TestRestAPIClient_Get(t *testing.T) {
 		apiVersion: "v1",
 	}
 	returned := &GetResponseDummy{}
-	err := client.Get(context.TODO(), []string{"bar"}, returned)
+	err := client.Get(t.Context(), []string{"bar"}, returned)
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
@@ -112,7 +111,7 @@ func TestClient_Get_StatusError(t *testing.T) {
 		apiVersion: "v1",
 	}
 	returned := struct{}{}
-	err := client.Get(context.TODO(), []string{"foo"}, returned)
+	err := client.Get(t.Context(), []string{"foo"}, returned)
 
 	if err == nil {
 		t.Errorf("error should return when %d is given.", http.StatusNotFound)
@@ -146,7 +145,7 @@ func TestRestAPIClient_Post(t *testing.T) {
 		apiVersion: "v1",
 	}
 	returned := &PostResponseDummy{}
-	err := client.Post(context.TODO(), []string{"bar"}, url.Values{}, returned)
+	err := client.Post(t.Context(), []string{"bar"}, url.Values{}, returned)
 
 	if err != nil {
 		t.Errorf("something is wrong. %#v", err)
@@ -187,7 +186,7 @@ func TestRestAPIClient_Rooms(t *testing.T) {
 		token:      "buzz",
 		apiVersion: "v1",
 	}
-	rooms, err := client.Rooms(context.TODO())
+	rooms, err := client.Rooms(t.Context())
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
@@ -236,7 +235,7 @@ func TestRestAPIClient_PostMessage(t *testing.T) {
 			OriginalValue: "2015-04-08T07:06:00.000Z",
 		},
 	}
-	message, err := client.PostMessage(context.TODO(), room, "dummy")
+	message, err := client.PostMessage(t.Context(), room, "dummy")
 
 	if err != nil {
 		t.Errorf("something is wrong. %#v", err)

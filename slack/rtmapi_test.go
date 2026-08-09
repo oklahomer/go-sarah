@@ -65,7 +65,7 @@ func Test_rtmAPIAdapter_run(t *testing.T) {
 		}
 
 		// Run in background
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		errCh := make(chan error, 1)
 		go r.run(ctx, func(_ sarah.Input) error { return nil }, func(err error) { errCh <- err })
 
@@ -109,8 +109,7 @@ func Test_rtmAPIAdapter_run(t *testing.T) {
 		}
 
 		// Run in background
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		errCh := make(chan error, 1)
 		go r.run(ctx, func(_ sarah.Input) error { return nil }, func(err error) { errCh <- err })
 
@@ -146,8 +145,7 @@ func Test_rtmAPIAdapter_connect(t *testing.T) {
 		}
 
 		// Try connect with the prepared apiSpecificAdapter.
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		conn, err := r.connect(ctx)
 
 		// See if successfully connected.
@@ -176,8 +174,7 @@ func Test_rtmAPIAdapter_connect(t *testing.T) {
 		}
 
 		// Try connect with the prepared apiSpecificAdapter.
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		_, err := r.connect(ctx)
 
 		// See if expected error is returned.
@@ -214,8 +211,7 @@ func Test_rtmAPIAdapter_receivePayload(t *testing.T) {
 		}
 
 		// Run payload reception function in background.
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		go r.receivePayload(ctx, conn, make(chan struct{}), func(_ sarah.Input) error { return nil })
 
 		// Check payload reception.
@@ -255,8 +251,7 @@ func Test_rtmAPIAdapter_receivePayload(t *testing.T) {
 		}
 
 		// Run payload reception function in background.
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		go r.receivePayload(ctx, conn, make(chan struct{}), func(_ sarah.Input) error { return nil })
 
 		// Give long enough time to receive all errors.
@@ -293,7 +288,7 @@ func Test_rtmAPIAdapter_superviseConnection(t *testing.T) {
 		}
 
 		// Run connection supervising function in background.
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		conErr := make(chan error)
 		go func() {
 			err := r.superviseConnection(ctx, conn, make(chan struct{}, 1))
@@ -343,7 +338,7 @@ func Test_rtmAPIAdapter_superviseConnection(t *testing.T) {
 		}
 
 		// Run connection supervising function in background.
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		conErr := make(chan error)
 		go func() {
 			err := r.superviseConnection(ctx, conn, make(chan struct{}, 1))
@@ -453,7 +448,7 @@ func Test_rtmAPIAdapter_handleRTMPayload(t *testing.T) {
 			receivedType = reflect.ValueOf(i).Type()
 			return nil
 		}
-		DefaultRTMPayloadHandler(context.TODO(), config, input.payload, fnc)
+		DefaultRTMPayloadHandler(t.Context(), config, input.payload, fnc)
 
 		if input.inputType == nil && receivedType != nil {
 			t.Errorf("Input shuold not be passed this time: %s.", receivedType.String())

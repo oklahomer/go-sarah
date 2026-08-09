@@ -80,7 +80,7 @@ func TestScheduledTaskPropsBuilder_Func(t *testing.T) {
 	builder := &ScheduledTaskPropsBuilder{props: &ScheduledTaskProps{}}
 	builder.Func(taskFunc)
 
-	actualRes, err := builder.props.taskFunc(context.TODO())
+	actualRes, err := builder.props.taskFunc(t.Context())
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
@@ -132,7 +132,7 @@ func TestScheduledTaskPropsBuilder_ConfigurableFunc(t *testing.T) {
 		t.Fatal("Supplied function is not set.")
 	}
 
-	_, err := builder.props.taskFunc(context.TODO(), config)
+	_, err := builder.props.taskFunc(t.Context(), config)
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())
 	}
@@ -242,7 +242,7 @@ func TestScheduledTask_Execute(t *testing.T) {
 		}, nil
 	}
 	task := &scheduledTask{taskFunc: taskFunc}
-	results, err := task.Execute(context.TODO())
+	results, err := task.Execute(t.Context())
 
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %#v.", err)
@@ -279,7 +279,7 @@ func Test_buildScheduledTask(t *testing.T) {
 	tests := []struct {
 		props          *ScheduledTaskProps
 		watcher        ConfigWatcher
-		validateConfig func(cfg interface{}) error
+		validateConfig func(cfg any) error
 		hasErr         bool
 	}{
 		{
@@ -319,11 +319,11 @@ func Test_buildScheduledTask(t *testing.T) {
 				config:             &DummyScheduledTaskConfig{},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 					return nil
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -350,7 +350,7 @@ func Test_buildScheduledTask(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, cfg any) error {
 					config, ok := cfg.(*DummyScheduledTaskConfig)
 					if !ok {
 						t.Errorf("Unexpected type is passed: %T.", cfg)
@@ -361,7 +361,7 @@ func Test_buildScheduledTask(t *testing.T) {
 					return nil
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -388,14 +388,14 @@ func Test_buildScheduledTask(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, botType BotType, id string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, botType BotType, id string, cfg any) error {
 					return &ConfigNotFoundError{
 						BotType: botType,
 						ID:      id,
 					}
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(*DummyScheduledTaskConfig)
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -423,7 +423,7 @@ func Test_buildScheduledTask(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, botType BotType, id string, cfg interface{}) error {
+				ReadFunc: func(_ context.Context, botType BotType, id string, cfg any) error {
 					config, ok := cfg.(*DummyScheduledTaskConfig) // Pointer is passed
 					if !ok {
 						t.Errorf("Unexpected type is passed: %T.", cfg)
@@ -434,7 +434,7 @@ func Test_buildScheduledTask(t *testing.T) {
 					return nil
 				},
 			},
-			validateConfig: func(cfg interface{}) error {
+			validateConfig: func(cfg any) error {
 				config, ok := cfg.(DummyScheduledTaskConfig) // Value is passed
 				if !ok {
 					return fmt.Errorf("unexpected type is passed: %T", cfg)
@@ -461,7 +461,7 @@ func Test_buildScheduledTask(t *testing.T) {
 				},
 			},
 			watcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, _ interface{}) error {
+				ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
 					return errors.New("unacceptable error")
 				},
 			},
@@ -471,7 +471,7 @@ func Test_buildScheduledTask(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			task, err := buildScheduledTask(context.TODO(), tt.props, tt.watcher)
+			task, err := buildScheduledTask(t.Context(), tt.props, tt.watcher)
 			if tt.hasErr {
 				if err == nil {
 					t.Error("Expected error is not returned.")

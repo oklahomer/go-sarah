@@ -1,7 +1,6 @@
 package gitter
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -70,7 +69,7 @@ func TestStreamingAPIClient_Connect(t *testing.T) {
 	room := &Room{
 		ID: "foo",
 	}
-	conn, err := client.Connect(context.TODO(), room)
+	conn, err := client.Connect(t.Context(), room)
 
 	if err != nil {
 		t.Fatalf("Unexpected error returned: %s.", err.Error())

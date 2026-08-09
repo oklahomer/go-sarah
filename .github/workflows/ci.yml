@@ -1,13 +1,25 @@
 name: CI
 on: push
+
+# Coveralls groups the parallel jobs below into one build identified by this value.
+# goveralls defaults it to the workflow run ID, which stays the same when a run is
+# retried, so a retry tries to add jobs to the build the finish job already closed and
+# is rejected. Appending the attempt number gives every attempt a build of its own.
+# Both jobs must agree on it, hence defining it once for the whole workflow.
+env:
+  COVERALLS_SERVICE_JOB_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
 jobs:
   test:
     strategy:
+      # Keep testing the remaining versions when one of them fails.
+      # Otherwise a single failure hides the result of every other version.
+      fail-fast: false
       matrix:
         go-version:
-          - 1.23
           - 1.24
           - 1.25
+          - 1.26
           - tip
         include:
           - may-fail: false # Default
@@ -32,6 +44,8 @@ jobs:
 
       - name: Test with ${{ matrix.go-version }}
         run: go test -v -race --shuffle=on -coverprofile=coverage ./...
+      # shallow lets an outage on the Coveralls side pass by instead of failing the
+      # build. It still reports a rejected upload, which would point at our settings.
       - name: Coveralls integration
         uses: shogo82148/actions-goveralls@v1
         with:
@@ -39,6 +53,7 @@ jobs:
           path-to-profile: coverage
           parallel: true
           flag-name: ${{ matrix.go-version }}
+          shallow: true
 
   # Call parallel build Webhook
   finish:
@@ -49,3 +64,4 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           parallel-finished: true
+          shallow: true

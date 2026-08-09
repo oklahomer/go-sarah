@@ -47,9 +47,7 @@ func (w *dummyFsWatcher) Close() error {
 }
 
 func TestNewFileWatcher(t *testing.T) {
-	rootCtx := context.Background()
-	watcherCtx, cancel := context.WithCancel(rootCtx)
-	defer cancel()
+	watcherCtx := t.Context()
 
 	w, err := NewFileWatcher(watcherCtx, "testdata")
 
@@ -95,7 +93,7 @@ func TestFileWatcher_Read(t *testing.T) {
 			}
 			configPtr := &helloConfig{}
 
-			err := w.Read(context.TODO(), botType, tt.id, configPtr)
+			err := w.Read(t.Context(), botType, tt.id, configPtr)
 
 			if tt.hasErr {
 				if err == nil {
@@ -110,6 +108,96 @@ func TestFileWatcher_Read(t *testing.T) {
 
 			if configPtr.Text != "HELLO" {
 				t.Error("Configuration file content is not reflected to the struct.")
+			}
+		})
+	}
+}
+
+func TestFileWatcher_Read_OutsideBaseDir(t *testing.T) {
+	// Set up a sandbox where a configuration file sits outside the watched base directory.
+	//
+	//	sandbox/
+	//	  secret.yaml        <- must never be read
+	//	  base/
+	//	    dummy/
+	//	      ok.yaml
+	//	      link.yaml      <- symlink to ../../secret.yaml
+	sandbox := t.TempDir()
+	baseDir := filepath.Join(sandbox, "base")
+	configDir := filepath.Join(baseDir, "dummy")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to set up the sandbox: %s.", err.Error())
+	}
+
+	if err := os.WriteFile(filepath.Join(sandbox, "secret.yaml"), []byte("text: SECRET\n"), 0600); err != nil {
+		t.Fatalf("Failed to set up the sandbox: %s.", err.Error())
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "ok.yaml"), []byte("text: HELLO\n"), 0600); err != nil {
+		t.Fatalf("Failed to set up the sandbox: %s.", err.Error())
+	}
+	if err := os.Symlink(filepath.Join("..", "..", "secret.yaml"), filepath.Join(configDir, "link.yaml")); err != nil {
+		t.Fatalf("Failed to set up the sandbox: %s.", err.Error())
+	}
+
+	tests := []struct {
+		name    string
+		baseDir string
+		id      string
+		hasErr  bool
+	}{
+		{
+			name:    "a file under the base directory is read",
+			baseDir: baseDir,
+			id:      "ok",
+		},
+		{
+			name:    "a relative id must not escape the base directory",
+			baseDir: baseDir,
+			id:      filepath.Join("..", "..", "secret"),
+			hasErr:  true,
+		},
+		{
+			name:    "a symbolic link must not escape the base directory",
+			baseDir: baseDir,
+			id:      "link",
+			hasErr:  true,
+		},
+		{
+			name:    "a missing base directory is reported as sarah.ConfigNotFoundError",
+			baseDir: filepath.Join(sandbox, "absent"),
+			id:      "ok",
+			hasErr:  true,
+		},
+	}
+
+	var botType sarah.BotType = "dummy"
+	type helloConfig struct {
+		Text string `json:"text" yaml:"text"`
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &fileWatcher{
+				baseDir: tt.baseDir,
+			}
+			configPtr := &helloConfig{}
+
+			err := w.Read(t.Context(), botType, tt.id, configPtr)
+
+			if tt.hasErr {
+				if err == nil {
+					t.Fatal("Expected error is not returned.")
+				}
+				if configPtr.Text != "" {
+					t.Errorf("Content outside the base directory is exposed: %s.", configPtr.Text)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Failed to read config file: %s.", err.Error())
+			}
+			if configPtr.Text != "HELLO" {
+				t.Errorf("Configuration file content is not reflected to the struct: %s.", configPtr.Text)
 			}
 		})
 	}
@@ -148,7 +236,7 @@ func TestFileWatcher_Watch(t *testing.T) {
 			}(tt.err)
 
 			callback := func() {}
-			err := w.Watch(context.TODO(), botType, "hello", callback)
+			err := w.Watch(t.Context(), botType, "hello", callback)
 
 			if tt.err == nil && err != nil {
 				t.Errorf("Unexpected error is returned: %s", err.Error())
@@ -431,8 +519,7 @@ func TestFileWatcher_run(t *testing.T) {
 		unsubscribe: make(chan sarah.BotType, 1),
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan fsnotify.Event, 1)
 	errs := make(chan error, 1)
@@ -573,7 +660,7 @@ func TestFileWatcher_run_cancel(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			dummyWatcher := &dummyFsWatcher{
 				CloseFunc: func() error {
 					return tt.err

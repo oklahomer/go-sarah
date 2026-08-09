@@ -1,7 +1,6 @@
 package sarah
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
@@ -25,7 +24,7 @@ func TestConfigNotFoundError_Error(t *testing.T) {
 
 func TestNullConfigWatcher_Read(t *testing.T) {
 	w := &nullConfigWatcher{}
-	err := w.Read(context.TODO(), "dummy", "id", &struct{}{})
+	err := w.Read(t.Context(), "dummy", "id", &struct{}{})
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
 	}
@@ -33,7 +32,7 @@ func TestNullConfigWatcher_Read(t *testing.T) {
 
 func TestNullConfigWatcher_Watch(t *testing.T) {
 	w := &nullConfigWatcher{}
-	err := w.Watch(context.TODO(), "dummy", "id", func() {})
+	err := w.Watch(t.Context(), "dummy", "id", func() {})
 	if err != nil {
 		t.Fatalf("Unexpected error is returned: %s.", err.Error())
 	}

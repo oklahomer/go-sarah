@@ -73,7 +73,7 @@ func TestAlerters_appendAlerter(t *testing.T) {
 
 func TestAlerters_alertAll(t *testing.T) {
 	a := &alerters{}
-	err := a.alertAll(context.TODO(), "FOO", errors.New("error"))
+	err := a.alertAll(t.Context(), "FOO", errors.New("error"))
 	if err != nil {
 		t.Errorf("Expected no error to be returned, but got %s.", err.Error())
 	}
@@ -102,7 +102,7 @@ func TestAlerters_alertAll(t *testing.T) {
 		},
 	}
 
-	err = a.alertAll(context.TODO(), "FOO", errors.New("error"))
+	err = a.alertAll(t.Context(), "FOO", errors.New("error"))
 	if err == nil {
 		t.Fatal("Expected error to be returned")
 	}

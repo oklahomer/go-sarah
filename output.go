@@ -6,19 +6,19 @@ type Output interface {
 	Destination() OutputDestination
 
 	// Content returns the sending payload.
-	Content() interface{}
+	Content() any
 }
 
 // OutputMessage represents an outgoing message.
 type OutputMessage struct {
 	destination OutputDestination
-	content     interface{}
+	content     any
 }
 
 var _ Output = (*OutputMessage)(nil)
 
 // NewOutputMessage creates a new instance of an Output implementation -- OutputMessage -- with the given OutputDestination and the payload.
-func NewOutputMessage(destination OutputDestination, content interface{}) Output {
+func NewOutputMessage(destination OutputDestination, content any) Output {
 	return &OutputMessage{
 		destination: destination,
 		content:     content,
@@ -34,6 +34,6 @@ func (output *OutputMessage) Destination() OutputDestination {
 
 // Content returns a sending payload.
 // Each Bot/Adapter must be capable of properly handling the payload and sending the message to the given destination.
-func (output *OutputMessage) Content() interface{} {
+func (output *OutputMessage) Content() any {
 	return output.content
 }

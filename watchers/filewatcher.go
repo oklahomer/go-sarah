@@ -10,6 +10,7 @@ import (
 	"github.com/oklahomer/go-kasumi/logger"
 	"github.com/oklahomer/go-sarah/v4"
 	"gopkg.in/yaml.v2"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,24 +60,32 @@ type fileWatcher struct {
 
 var _ sarah.ConfigWatcher = (*fileWatcher)(nil)
 
-func (w *fileWatcher) Read(_ context.Context, botType sarah.BotType, id string, configPtr interface{}) error {
-	configDir := filepath.Join(w.baseDir, strings.ToLower(botType.String()))
-	file := findPluginConfigFile(configDir, id)
+func (w *fileWatcher) Read(_ context.Context, botType sarah.BotType, id string, configPtr any) error {
+	root, err := os.OpenRoot(w.baseDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return &sarah.ConfigNotFoundError{
+				BotType: botType,
+				ID:      id,
+			}
+		}
+		return fmt.Errorf("failed to open the base directory at %s: %w", w.baseDir, err)
+	}
+	defer root.Close()
 
-	if file == nil {
+	f, t, err := openPluginConfigFile(root, strings.ToLower(botType.String()), id)
+	if err != nil {
+		return err
+	}
+	if f == nil {
 		return &sarah.ConfigNotFoundError{
 			BotType: botType,
 			ID:      id,
 		}
 	}
-
-	f, err := os.Open(file.absPath)
-	if err != nil {
-		return fmt.Errorf("failed to read configuration file at %s: %w", file.absPath, err)
-	}
 	defer f.Close()
 
-	switch file.fileType {
+	switch t {
 	case yamlFile:
 		return yaml.NewDecoder(f).Decode(configPtr)
 
@@ -84,10 +93,35 @@ func (w *fileWatcher) Read(_ context.Context, botType sarah.BotType, id string, 
 		return json.NewDecoder(f).Decode(configPtr)
 
 	default:
-		// Should never come. findPluginConfigFile guarantees that.
-		return fmt.Errorf("unsupported file type: %s", file.absPath)
+		// Should never come. openPluginConfigFile guarantees that.
+		return errUnsupportedConfigFileFormat
 
 	}
+}
+
+// openPluginConfigFile looks for a configuration file of the given id in dir, which is relative to root.
+// The returned *os.File is nil with no error when no candidate exists.
+//
+// Because every lookup goes through root, a dir or an id that points outside the watched base directory
+// -- with "..", with an absolute path or through a symbolic link -- yields an error instead of an
+// unintended file being read.
+func openPluginConfigFile(root *os.Root, dir string, id string) (*os.File, fileType, error) {
+	for _, c := range configFileCandidates {
+		path := filepath.Join(dir, id+c.ext)
+
+		f, err := root.Open(path)
+		if err == nil {
+			return f, c.fileType, nil
+		}
+
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+
+		return nil, 0, fmt.Errorf("failed to read configuration file at %s: %w", filepath.Join(root.Name(), path), err)
+	}
+
+	return nil, 0, nil
 }
 
 func (w *fileWatcher) Watch(_ context.Context, botType sarah.BotType, id string, callback func()) error {
@@ -267,33 +301,8 @@ var (
 
 type pluginConfigFile struct {
 	id       string
-	absPath  string
 	absDir   string
 	fileType fileType
-}
-
-func findPluginConfigFile(configDir, id string) *pluginConfigFile {
-	for _, c := range configFileCandidates {
-		configPath := filepath.Join(configDir, fmt.Sprintf("%s%s", id, c.ext))
-		absPath, err := filepath.Abs(configPath)
-		if err != nil {
-			continue
-		}
-
-		_, err = os.Stat(absPath)
-		if err == nil {
-			// File exists.
-			absDir, _ := filepath.Split(absPath)
-			return &pluginConfigFile{
-				id:       id,
-				absPath:  absPath,
-				absDir:   filepath.Dir(absDir), // Handle the trailing slash
-				fileType: c.fileType,
-			}
-		}
-	}
-
-	return nil
 }
 
 func plainPathToFile(path string) (*pluginConfigFile, error) {
@@ -317,7 +326,6 @@ func plainPathToFile(path string) (*pluginConfigFile, error) {
 
 		return &pluginConfigFile{
 			id:       id,
-			absPath:  absPath,
 			absDir:   filepath.Dir(absDir), // Handle the trailing slash
 			fileType: c.fileType,
 		}, nil

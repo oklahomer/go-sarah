@@ -23,7 +23,7 @@ type CommandResponse struct {
 	// Content represents a group of data returned to the user.
 	// Since this is passed to Bot.SendMessage as part of OutputMessage,
 	// its type may vary depending on the Bot's integrating chat service.
-	Content interface{}
+	Content any
 
 	// UserContext represents a user's contextual state to be stored.
 	// When this is non-nil and a UserContextStorage is present for the Bot, this value is passed to UserContextStorage.
@@ -259,7 +259,7 @@ type CommandHelp struct {
 
 // CommandConfig provides an interface that every command configuration value must satisfy, which actually is empty.
 // Think of this as a kind of marker interface with a more meaningful name.
-type CommandConfig interface{}
+type CommandConfig any
 
 type commandFunc func(context.Context, Input, ...CommandConfig) (*CommandResponse, error)
 

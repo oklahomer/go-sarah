@@ -28,7 +28,7 @@ func Test_eventsAPIAdapter_run(t *testing.T) {
 			handlePayload: DefaultEventsPayloadHandler,
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		go adapter.run(ctx, func(_ sarah.Input) error { return nil }, func(err error) {})
 		cancel()
 
@@ -58,8 +58,7 @@ func Test_eventsAPIAdapter_run(t *testing.T) {
 			handlePayload: DefaultEventsPayloadHandler,
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		errCh := make(chan error, 1)
 		notifyErr := func(err error) {
 			errCh <- err
@@ -93,7 +92,7 @@ func TestDefaultEventsPayloadHandler(t *testing.T) {
 			incoming <- input
 			return nil
 		}
-		DefaultEventsPayloadHandler(context.TODO(), config, wrapper, enqueueInput)
+		DefaultEventsPayloadHandler(t.Context(), config, wrapper, enqueueInput)
 
 		select {
 		case input := <-incoming:
@@ -127,7 +126,7 @@ func TestDefaultEventsPayloadHandler(t *testing.T) {
 			incoming <- input
 			return nil
 		}
-		DefaultEventsPayloadHandler(context.TODO(), config, wrapper, enqueueInput)
+		DefaultEventsPayloadHandler(t.Context(), config, wrapper, enqueueInput)
 
 		select {
 		case input := <-incoming:
@@ -157,7 +156,7 @@ func TestDefaultEventsPayloadHandler(t *testing.T) {
 			incoming <- input
 			return nil
 		}
-		DefaultEventsPayloadHandler(context.TODO(), config, wrapper, enqueueInput)
+		DefaultEventsPayloadHandler(t.Context(), config, wrapper, enqueueInput)
 
 		select {
 		case input := <-incoming:
@@ -179,7 +178,7 @@ func TestDefaultEventsPayloadHandler(t *testing.T) {
 			incoming <- input
 			return nil
 		}
-		DefaultEventsPayloadHandler(context.TODO(), config, wrapper, enqueueInput)
+		DefaultEventsPayloadHandler(t.Context(), config, wrapper, enqueueInput)
 
 		// See if uncontrollable input is skipped.
 		select {
