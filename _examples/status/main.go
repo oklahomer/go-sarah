@@ -20,7 +20,9 @@ import (
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+	// The context is canceled when a termination signal arrives.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 
 	// Parse and check command line flags
 	var path = flag.String("config", "", "path to application configuration file.")
@@ -63,13 +65,10 @@ func main() {
 	go server.Run(ctx)
 
 	// Wait til signal reception
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
+	<-ctx.Done()
 
 	// Stop
-	logger.Info("Stopping due to signal reception.")
-	cancel()
+	logger.Infof("Stopping due to signal reception: %v.", context.Cause(ctx))
 	time.Sleep(1 * time.Second) // Wait a bit til things finish
 }
 

@@ -69,8 +69,9 @@ func main() {
 	// This Command is not subject to config file supervision.
 	sarah.RegisterCommand(slack.SLACK, echo.Command)
 
-	// Prepare Sarah's core context.
-	ctx, cancel := context.WithCancel(context.Background())
+	// Prepare Sarah's core context, which is canceled when a termination signal arrives.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Prepare a watcher that reads configuration from filesystem.
 	if config.PluginConfigDir != "" {
@@ -84,16 +85,9 @@ func main() {
 		panic(err)
 	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	signal.Notify(c, syscall.SIGTERM)
-
-	select {
-	case <-c:
-		logger.Info("Stopping due to signal reception.")
-		cancel()
-
-	}
+	// Block until a signal cancels the context.
+	<-ctx.Done()
+	logger.Infof("Stopping due to signal reception: %v.", context.Cause(ctx))
 }
 
 func readConfig(path string) *myConfig {
