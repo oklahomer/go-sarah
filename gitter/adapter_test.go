@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -122,54 +123,65 @@ func Test_receiveMessageRecursive(t *testing.T) {
 }
 
 func TestAdapter_runEachRoom(t *testing.T) {
-	var retryLimit uint = 1
-	connect := make(chan struct{}, retryLimit)
-	closed := make(chan struct{})
-	adapter := &Adapter{
-		streamingClient: &DummyStreamingClient{
-			ConnectFunc: func(_ context.Context, _ *Room) (Connection, error) {
-				connect <- struct{}{}
-				return &DummyConnection{
-					ReceiveFunc: func() (*RoomMessage, error) {
-						return &RoomMessage{}, nil
-					},
-					CloseFunc: func() error {
-						closed <- struct{}{}
-						return nil
-					},
-				}, nil
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+
+		var retryLimit uint = 1
+		connect := make(chan struct{}, retryLimit)
+		closed := make(chan struct{}, 1)
+		adapter := &Adapter{
+			streamingClient: &DummyStreamingClient{
+				ConnectFunc: func(_ context.Context, _ *Room) (Connection, error) {
+					connect <- struct{}{}
+					delivered := false
+					return &DummyConnection{
+						ReceiveFunc: func() (*RoomMessage, error) {
+							// Deliver one message, then stay connected and idle until the context is canceled.
+							if !delivered {
+								delivered = true
+								return &RoomMessage{}, nil
+							}
+							<-ctx.Done()
+							return nil, ctx.Err()
+						},
+						CloseFunc: func() error {
+							closed <- struct{}{}
+							return nil
+						},
+					}, nil
+				},
 			},
-		},
-		config: &Config{
-			RetryPolicy: &retry.Policy{
-				Trial: 1,
+			config: &Config{
+				RetryPolicy: &retry.Policy{
+					Trial: 1,
+				},
 			},
-		},
-	}
+		}
 
-	ctx, cancel := context.WithCancel(t.Context())
+		room := &Room{
+			ID: "testID",
+		}
+		go adapter.runEachRoom(ctx, room, func(_ sarah.Input) error { return nil })
 
-	room := &Room{
-		ID: "testID",
-	}
-	go adapter.runEachRoom(ctx, room, func(_ sarah.Input) error { return nil })
+		// Let the connection be established and settle into receiving.
+		synctest.Wait()
 
-	time.Sleep(100 * time.Millisecond)
-	cancel()
+		select {
+		case <-connect:
+			// O.K.
+		default:
+			t.Fatal("APIClient.Connect is not called.")
+		}
 
-	select {
-	case <-connect:
-		// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Fatal("APIClient.Connect is not called.")
-	}
+		select {
+		case <-closed:
+			t.Fatalf("Connection.Close should never called while connection is stable.")
+		default:
+			// O.K.
+		}
 
-	select {
-	case <-closed:
-		t.Fatalf("Connection.Close should never called while connection is stable.")
-	case <-time.NewTimer(10 * time.Millisecond).C:
-		// O.K.
-	}
+		cancel()
+	})
 }
 
 func TestAdapter_runEachRoom_ConnectionInitializationError(t *testing.T) {
@@ -208,69 +220,77 @@ func TestAdapter_runEachRoom_ConnectionInitializationError(t *testing.T) {
 }
 
 func TestAdapter_runEachRoom_ConnectionError(t *testing.T) {
-	connect := make(chan struct{}, 1)
-	closed := make(chan struct{}, 1)
-	adapter := &Adapter{
-		streamingClient: &DummyStreamingClient{
-			ConnectFunc: func(_ context.Context, _ *Room) (Connection, error) {
-				select {
-				case connect <- struct{}{}:
-					// O.K.
-				default:
-					// Only the first one is wanted.
-				}
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 
-				return &DummyConnection{
-					ReceiveFunc: func() (*RoomMessage, error) {
-						return nil, errors.New("message reception error")
-					},
-					CloseFunc: func() error {
-						select {
-						case closed <- struct{}{}:
-							// O.K.
-						default:
-							// Only the first one is wanted.
-						}
+		connect := make(chan struct{}, 1)
+		closed := make(chan struct{}, 1)
+		adapter := &Adapter{
+			streamingClient: &DummyStreamingClient{
+				ConnectFunc: func(_ context.Context, _ *Room) (Connection, error) {
+					select {
+					case connect <- struct{}{}:
+						// O.K.
+					default:
+						// Only the first one is wanted. Block the reconnection attempt until the context is
+						// canceled so the goroutine idles instead of reconnecting in a tight loop.
+						<-ctx.Done()
+						return nil, ctx.Err()
+					}
 
-						return nil
-					},
-				}, nil
+					return &DummyConnection{
+						ReceiveFunc: func() (*RoomMessage, error) {
+							return nil, errors.New("message reception error")
+						},
+						CloseFunc: func() error {
+							select {
+							case closed <- struct{}{}:
+								// O.K.
+							default:
+								// Only the first one is wanted.
+							}
+
+							return nil
+						},
+					}, nil
+				},
 			},
-		},
-		config: &Config{
-			RetryPolicy: &retry.Policy{
-				Trial: 1,
+			config: &Config{
+				RetryPolicy: &retry.Policy{
+					Trial: 1,
+				},
 			},
-		},
-	}
+		}
 
-	ctx, cancel := context.WithCancel(t.Context())
-	queue := make(chan struct{})
-	enqueuer := func(_ sarah.Input) error {
-		queue <- struct{}{}
-		return nil
-	}
-	room := &Room{
-		ID: "testID",
-	}
-	go adapter.runEachRoom(ctx, room, enqueuer) // No goroutine. Will end automatically.
+		queue := make(chan struct{})
+		enqueuer := func(_ sarah.Input) error {
+			queue <- struct{}{}
+			return nil
+		}
+		room := &Room{
+			ID: "testID",
+		}
+		go adapter.runEachRoom(ctx, room, enqueuer)
 
-	time.Sleep(100 * time.Millisecond)
-	cancel()
+		// Let the first connection fail, close, and the reconnection attempt block.
+		synctest.Wait()
 
-	select {
-	case <-connect:
-		// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("StreamingAPIClient.Connect is not called.")
-	}
+		select {
+		case <-connect:
+			// O.K.
+		default:
+			t.Error("StreamingAPIClient.Connect is not called.")
+		}
 
-	select {
-	case <-closed:
-		// O.K.
-	case <-time.NewTimer(10 * time.Second).C:
-		t.Error("StreamingAPIClient.Close is not called.")
-	}
+		select {
+		case <-closed:
+			// O.K.
+		default:
+			t.Error("StreamingAPIClient.Close is not called.")
+		}
+
+		cancel()
+	})
 }
 
 func TestAdapter_Run(t *testing.T) {
@@ -300,8 +320,8 @@ func TestAdapter_Run(t *testing.T) {
 	}
 
 	adapter.Run(t.Context(), func(sarah.Input) error { return nil }, func(error) {})
-	time.Sleep(100 * time.Millisecond)
 
+	// Connect hands the room over on an unbuffered channel, so this receive is the synchronization point.
 	select {
 	case id := <-givenRoom:
 		if id != roomID {
