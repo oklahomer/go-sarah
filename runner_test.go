@@ -7,7 +7,6 @@ import (
 	"github.com/oklahomer/go-kasumi/logger"
 	"io"
 	"log"
-	"os"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -24,9 +23,7 @@ func TestMain(m *testing.M) {
 	l := log.New(io.Discard, "dummyLog", 0)
 	logger.SetLogger(logger.NewWithStandardLogger(l))
 
-	code := m.Run()
-
-	os.Exit(code)
+	m.Run()
 }
 
 func SetupAndRun(fnc func()) {

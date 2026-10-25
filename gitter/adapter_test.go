@@ -8,7 +8,6 @@ import (
 	"github.com/oklahomer/go-sarah/v4"
 	"io"
 	"log"
-	"os"
 	"reflect"
 	"strconv"
 	"testing"
@@ -22,9 +21,7 @@ func TestMain(m *testing.M) {
 	l := log.New(io.Discard, "dummyLog", 0)
 	logger.SetLogger(logger.NewWithStandardLogger(l))
 
-	code := m.Run()
-
-	os.Exit(code)
+	m.Run()
 }
 
 type DummyAPIClient struct {

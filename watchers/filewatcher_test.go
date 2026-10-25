@@ -23,9 +23,7 @@ func TestMain(m *testing.M) {
 	l := log.New(io.Discard, "dummyLog", 0)
 	logger.SetLogger(logger.NewWithStandardLogger(l))
 
-	code := m.Run()
-
-	os.Exit(code)
+	m.Run()
 }
 
 type dummyFsWatcher struct {

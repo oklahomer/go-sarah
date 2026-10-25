@@ -12,7 +12,6 @@ import (
 	"github.com/oklahomer/golack/v2/webapi"
 	"io"
 	"log"
-	"os"
 	"reflect"
 	"strconv"
 	"testing"
@@ -27,9 +26,7 @@ func TestMain(m *testing.M) {
 	l := log.New(io.Discard, "dummyLog", 0)
 	logger.SetLogger(logger.NewWithStandardLogger(l))
 
-	code := m.Run()
-
-	os.Exit(code)
+	m.Run()
 }
 
 type DummyClient struct {
