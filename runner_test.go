@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -389,283 +390,291 @@ func Test_newRunner_WithTimeZoneError(t *testing.T) {
 
 func Test_runner_run(t *testing.T) {
 	SetupAndRun(func() {
-		var botType BotType = "myBot"
+		synctest.Test(t, func(t *testing.T) {
+			var botType BotType = "myBot"
 
-		bot := &DummyBot{
-			BotTypeValue: botType,
-			RunFunc: func(ctx context.Context, _ func(Input) error, _ func(error)) {
-				<-ctx.Done()
-			},
-		}
+			bot := &DummyBot{
+				BotTypeValue: botType,
+				RunFunc: func(ctx context.Context, _ func(Input) error, _ func(error)) {
+					<-ctx.Done()
+				},
+			}
 
-		config := &Config{
-			TimeZone: time.Now().Location().String(),
-		}
+			config := &Config{
+				TimeZone: time.Now().Location().String(),
+			}
 
-		r := &runner{
-			config: config,
-			bots: []Bot{
-				bot,
-			},
-		}
+			r := &runner{
+				config: config,
+				bots: []Bot{
+					bot,
+				},
+			}
 
-		ctx, cancel := context.WithCancel(t.Context())
-		finished := make(chan struct{})
-		go func() {
-			r.run(ctx)
-			close(finished)
-		}()
+			ctx, cancel := context.WithCancel(t.Context())
+			finished := make(chan struct{})
+			go func() {
+				r.run(ctx)
+				close(finished)
+			}()
 
-		time.Sleep(1 * time.Second)
+			// Let the bot start and block; the status must then show it running.
+			synctest.Wait()
 
-		status := CurrentStatus()
+			status := CurrentStatus()
 
-		if len(status.Bots) != 1 {
-			t.Fatalf("Expected number of Bot is not registered.")
-		}
+			if len(status.Bots) != 1 {
+				t.Fatalf("Expected number of Bot is not registered.")
+			}
 
-		if status.Bots[0].Type != botType {
-			t.Errorf("Unexpected BotStatus.Type is returned: %s.", status.Bots[0].Type)
-		}
+			if status.Bots[0].Type != botType {
+				t.Errorf("Unexpected BotStatus.Type is returned: %s.", status.Bots[0].Type)
+			}
 
-		if !status.Bots[0].Running {
-			t.Error("BotStatus.Running should be true at this point.")
-		}
+			if !status.Bots[0].Running {
+				t.Error("BotStatus.Running should be true at this point.")
+			}
 
-		cancel()
+			cancel()
 
-		select {
-		case <-finished:
-			// r.run() has fully returned, including runnerStatus.stop()
+			select {
+			case <-finished:
+				// r.run() has fully returned, including runnerStatus.stop()
 
-		case <-time.NewTimer(1 * time.Second).C:
-			t.Fatal("runner.run did not return in time.")
-		}
+			case <-time.NewTimer(1 * time.Second).C:
+				t.Fatal("runner.run did not return in time.")
+			}
 
-		currentStatus := CurrentStatus()
+			currentStatus := CurrentStatus()
 
-		if currentStatus.Bots[0].Running {
-			t.Error("BotStatus.Running should not be true at this point.")
-		}
-		if currentStatus.Running {
-			t.Error("Status.Running should be false after all bots stop.")
-		}
+			if currentStatus.Bots[0].Running {
+				t.Error("BotStatus.Running should not be true at this point.")
+			}
+			if currentStatus.Running {
+				t.Error("Status.Running should be false after all bots stop.")
+			}
+		})
 	})
-
 }
 
 func Test_runner_runBot(t *testing.T) {
 	SetupAndRun(func() {
-		var botType BotType = "myBot"
+		synctest.Test(t, func(t *testing.T) {
+			var botType BotType = "myBot"
 
-		// Prepare Bot to be run
-		passedCommand := make(chan Command, 1)
-		bot := &DummyBot{
-			BotTypeValue: botType,
-			AppendCommandFunc: func(cmd Command) {
-				passedCommand <- cmd
-			},
-			RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {},
-		}
+			// Prepare Bot to be run
+			passedCommand := make(chan Command, 1)
+			bot := &DummyBot{
+				BotTypeValue: botType,
+				AppendCommandFunc: func(cmd Command) {
+					passedCommand <- cmd
+				},
+				RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {},
+			}
 
-		// Prepare command to be configured on the fly
-		commandProps := &CommandProps{
-			botType:    botType,
-			identifier: "dummy",
-			matchFunc: func(input Input) bool {
-				return regexp.MustCompile(`^\.echo`).MatchString(input.Message())
-			},
-			commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
-				return nil, nil
-			},
-			instructionFunc: func(_ *HelpInput) string {
-				return ".echo foo"
-			},
-		}
+			// Prepare command to be configured on the fly
+			commandProps := &CommandProps{
+				botType:    botType,
+				identifier: "dummy",
+				matchFunc: func(input Input) bool {
+					return regexp.MustCompile(`^\.echo`).MatchString(input.Message())
+				},
+				commandFunc: func(_ context.Context, _ Input, _ ...CommandConfig) (*CommandResponse, error) {
+					return nil, nil
+				},
+				instructionFunc: func(_ *HelpInput) string {
+					return ".echo foo"
+				},
+			}
 
-		// Prepare scheduled task to be configured on the fly
-		dummySchedule := "@hourly"
-		dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
-		scheduledTaskProps := &ScheduledTaskProps{
-			botType:    botType,
-			identifier: "dummyTask",
-			taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
-				return nil, nil
-			},
-			schedule:           dummySchedule,
-			config:             dummyTaskConfig,
-			defaultDestination: "",
-		}
+			// Prepare scheduled task to be configured on the fly
+			dummySchedule := "@hourly"
+			dummyTaskConfig := &DummyScheduledTaskConfig{ScheduleValue: dummySchedule}
+			scheduledTaskProps := &ScheduledTaskProps{
+				botType:    botType,
+				identifier: "dummyTask",
+				taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
+					return nil, nil
+				},
+				schedule:           dummySchedule,
+				config:             dummyTaskConfig,
+				defaultDestination: "",
+			}
 
-		// Configure runner
-		config := &Config{
-			TimeZone: time.Now().Location().String(),
-		}
-		alerted := make(chan struct{}, 1)
-		r := &runner{
-			config: config,
-			bots:   []Bot{bot},
-			commandProps: map[BotType][]*CommandProps{
-				bot.BotType(): {
-					commandProps,
+			// Configure runner
+			config := &Config{
+				TimeZone: time.Now().Location().String(),
+			}
+			alerted := make(chan struct{}, 1)
+			r := &runner{
+				config: config,
+				bots:   []Bot{bot},
+				commandProps: map[BotType][]*CommandProps{
+					bot.BotType(): {
+						commandProps,
+					},
 				},
-			},
-			scheduledTaskProps: map[BotType][]*ScheduledTaskProps{
-				bot.BotType(): {
-					scheduledTaskProps,
+				scheduledTaskProps: map[BotType][]*ScheduledTaskProps{
+					bot.BotType(): {
+						scheduledTaskProps,
+					},
 				},
-			},
-			scheduledTasks: map[BotType][]ScheduledTask{
-				bot.BotType(): {
-					&DummyScheduledTask{},
-					&DummyScheduledTask{ScheduleValue: "@every 1m"},
+				scheduledTasks: map[BotType][]ScheduledTask{
+					bot.BotType(): {
+						&DummyScheduledTask{},
+						&DummyScheduledTask{ScheduleValue: "@every 1m"},
+					},
 				},
-			},
-			configWatcher: &DummyConfigWatcher{
-				ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
-					return nil
-				},
-				WatchFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
-					return nil
-				},
-				UnwatchFunc: func(_ BotType) error {
-					return nil
-				},
-			},
-			worker: &DummyWorker{
-				EnqueueFunc: func(fnc func()) error {
-					return nil
-				},
-			},
-			scheduler: &DummyScheduler{
-				UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
-					return nil
-				},
-				RemoveFunc: func(_ BotType, _ string) {},
-			},
-			alerters: &alerters{
-				&DummyAlerter{
-					AlertFunc: func(_ context.Context, _ BotType, err error) error {
-						alerted <- struct{}{}
+				configWatcher: &DummyConfigWatcher{
+					ReadFunc: func(_ context.Context, _ BotType, _ string, _ any) error {
+						return nil
+					},
+					WatchFunc: func(_ context.Context, _ BotType, _ string, _ func()) error {
+						return nil
+					},
+					UnwatchFunc: func(_ BotType) error {
 						return nil
 					},
 				},
-			},
-		}
-
-		// Let it run
-		runnerCtx, cancelRunner := context.WithCancel(t.Context())
-		finished := make(chan bool)
-		go func() {
-			r.runBot(runnerCtx, bot)
-			finished <- true
-		}()
-
-		time.Sleep(1 * time.Second)
-		cancelRunner()
-
-		select {
-		case cmd := <-passedCommand:
-			if cmd == nil || cmd.Identifier() != commandProps.identifier {
-				t.Errorf("Stashed CommandPropsBuilder was not properly configured: %#v.", passedCommand)
+				worker: &DummyWorker{
+					EnqueueFunc: func(fnc func()) error {
+						return nil
+					},
+				},
+				scheduler: &DummyScheduler{
+					UpdateFunc: func(_ BotType, _ ScheduledTask, _ func()) error {
+						return nil
+					},
+					RemoveFunc: func(_ BotType, _ string) {},
+				},
+				alerters: &alerters{
+					&DummyAlerter{
+						AlertFunc: func(_ context.Context, _ BotType, err error) error {
+							alerted <- struct{}{}
+							return nil
+						},
+					},
+				},
 			}
 
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Fatal("CommandPropsBuilder was not properly built.")
+			// Let it run
+			runnerCtx, cancelRunner := context.WithCancel(t.Context())
+			finished := make(chan bool)
+			go func() {
+				r.runBot(runnerCtx, bot)
+				finished <- true
+			}()
 
-		}
+			// Let the bot start and block before canceling it.
+			synctest.Wait()
+			cancelRunner()
 
-		select {
-		case <-finished:
-			// O.K.
+			select {
+			case cmd := <-passedCommand:
+				if cmd == nil || cmd.Identifier() != commandProps.identifier {
+					t.Errorf("Stashed CommandPropsBuilder was not properly configured: %#v.", passedCommand)
+				}
 
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Runner is not finished.")
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Fatal("CommandPropsBuilder was not properly built.")
 
-		}
+			}
 
-		if CurrentStatus().Running {
-			t.Error("Status.Running should be false at this point.")
-		}
+			select {
+			case <-finished:
+				// O.K.
 
-		select {
-		case <-alerted:
-			// O.K.
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Error("Runner is not finished.")
 
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Alert should be sent no matter how runner is canceled.")
+			}
 
-		}
+			if CurrentStatus().Running {
+				t.Error("Status.Running should be false at this point.")
+			}
+
+			select {
+			case <-alerted:
+				// O.K.
+
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Error("Alert should be sent no matter how runner is canceled.")
+
+			}
+		})
 	})
 }
 
 func Test_runner_runBot_WithPanic(t *testing.T) {
 	SetupAndRun(func() {
-		var botType BotType = "myBot"
+		synctest.Test(t, func(t *testing.T) {
+			var botType BotType = "myBot"
 
-		// Prepare Bot to be run
-		bot := &DummyBot{
-			BotTypeValue: botType,
-			AppendCommandFunc: func(cmd Command) {
-			},
-			RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {
-				panic("panic on runner.Run")
-			},
-		}
+			// Prepare Bot to be run
+			bot := &DummyBot{
+				BotTypeValue: botType,
+				AppendCommandFunc: func(cmd Command) {
+				},
+				RunFunc: func(_ context.Context, _ func(Input) error, _ func(error)) {
+					panic("panic on runner.Run")
+				},
+			}
 
-		// Configure runner
-		config := &Config{
-			TimeZone: time.Now().Location().String(),
-		}
-		alerted := make(chan struct{}, 1)
-		r := &runner{
-			config: config,
-			bots:   []Bot{bot},
-			alerters: &alerters{
-				&DummyAlerter{
-					AlertFunc: func(_ context.Context, _ BotType, err error) error {
-						alerted <- struct{}{}
-						return nil
+			// Configure runner
+			config := &Config{
+				TimeZone: time.Now().Location().String(),
+			}
+			alerted := make(chan struct{}, 1)
+			r := &runner{
+				config: config,
+				bots:   []Bot{bot},
+				alerters: &alerters{
+					&DummyAlerter{
+						AlertFunc: func(_ context.Context, _ BotType, err error) error {
+							alerted <- struct{}{}
+							return nil
+						},
 					},
 				},
-			},
-		}
+			}
 
-		if CurrentStatus().Running {
-			t.Error("Status.Running should be false at this point.")
-		}
+			if CurrentStatus().Running {
+				t.Error("Status.Running should be false at this point.")
+			}
 
-		// Let it run
-		runnerCtx := t.Context()
-		finished := make(chan bool)
-		go func() {
-			r.runBot(runnerCtx, bot)
-			finished <- true
-		}()
+			// Let it run
+			runnerCtx := t.Context()
+			finished := make(chan bool)
+			go func() {
+				r.runBot(runnerCtx, bot)
+				finished <- true
+			}()
 
-		time.Sleep(1 * time.Second)
+			// Let the bot panic and runBot wind down.
+			synctest.Wait()
 
-		select {
-		case <-finished:
-			// O.K.
+			select {
+			case <-finished:
+				// O.K.
 
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Runner is not finished.")
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Error("Runner is not finished.")
 
-		}
+			}
 
-		if CurrentStatus().Running {
-			t.Error("Status.Running should be false at this point.")
-		}
+			if CurrentStatus().Running {
+				t.Error("Status.Running should be false at this point.")
+			}
 
-		select {
-		case <-alerted:
-			// O.K.
+			select {
+			case <-alerted:
+				// O.K.
 
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("Alert should be sent no matter how runner is canceled.")
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Error("Alert should be sent no matter how runner is canceled.")
 
-		}
+			}
+		})
 	})
 }
 

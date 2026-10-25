@@ -10,6 +10,7 @@ import (
 	"log"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -45,43 +46,45 @@ func Test_runScheduler(t *testing.T) {
 }
 
 func TestTaskScheduler_updateAndRemove(t *testing.T) {
-	scheduler := runScheduler(t.Context(), time.Local)
+	synctest.Test(t, func(t *testing.T) {
+		scheduler := runScheduler(t.Context(), time.Local)
 
-	taskID := "id"
-	task := &scheduledTask{
-		identifier: taskID,
-		taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
-			return nil, nil
-		},
-		schedule: " ",
-	}
+		taskID := "id"
+		task := &scheduledTask{
+			identifier: taskID,
+			taskFunc: func(_ context.Context, _ ...TaskConfig) ([]*ScheduledTaskResult, error) {
+				return nil, nil
+			},
+			schedule: " ",
+		}
 
-	var storedBotType BotType = "Foo"
-	if err := scheduler.update(storedBotType, task, func() {}); err == nil {
-		t.Fatal("Error should return on invalid schedule value.")
-	}
+		var storedBotType BotType = "Foo"
+		if err := scheduler.update(storedBotType, task, func() {}); err == nil {
+			t.Fatal("Error should return on invalid schedule value.")
+		}
 
-	task.schedule = "@daily"
-	if err := scheduler.update(storedBotType, task, func() {}); err != nil {
-		t.Fatalf("Error is returned on valid schedule value: %s", err.Error())
-	}
-	time.Sleep(10 * time.Millisecond)
-	jobCnt := len(scheduler.(*taskScheduler).cron.Entries())
-	if jobCnt != 1 {
-		t.Fatalf("1 job is expected: %d.", jobCnt)
-	}
+		task.schedule = "@daily"
+		if err := scheduler.update(storedBotType, task, func() {}); err != nil {
+			t.Fatalf("Error is returned on valid schedule value: %s", err.Error())
+		}
+		synctest.Wait() // Let the scheduler goroutine apply the change.
+		jobCnt := len(scheduler.(*taskScheduler).cron.Entries())
+		if jobCnt != 1 {
+			t.Fatalf("1 job is expected: %d.", jobCnt)
+		}
 
-	// Irrelevant call cause no trouble
-	scheduler.remove("irrelevantBotType", taskID)
-	scheduler.remove(storedBotType, "irrelevantID")
+		// Irrelevant call cause no trouble
+		scheduler.remove("irrelevantBotType", taskID)
+		scheduler.remove(storedBotType, "irrelevantID")
 
-	// Remove a registered job
-	scheduler.remove(storedBotType, taskID)
-	time.Sleep(10 * time.Millisecond)
-	jobCnt = len(scheduler.(*taskScheduler).cron.Entries())
-	if jobCnt != 0 {
-		t.Fatalf("0 job is expected: %d.", jobCnt)
-	}
+		// Remove a registered job
+		scheduler.remove(storedBotType, taskID)
+		synctest.Wait() // Let the scheduler goroutine apply the change.
+		jobCnt = len(scheduler.(*taskScheduler).cron.Entries())
+		if jobCnt != 0 {
+			t.Fatalf("0 job is expected: %d.", jobCnt)
+		}
+	})
 }
 
 func TestTaskScheduler_updateWithEmptySchedule(t *testing.T) {
