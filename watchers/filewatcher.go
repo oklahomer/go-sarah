@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -235,13 +236,9 @@ func doSubscribe(a abstractFsWatcher, s *subscription, subscriptions map[string]
 		if err != nil {
 			return err
 		}
-
-		watches = []*subscription{}
 	}
-	for _, w := range watches {
-		if w.id == s.id {
-			return sarah.ErrAlreadySubscribing
-		}
+	if slices.ContainsFunc(watches, func(w *subscription) bool { return w.id == s.id }) {
+		return sarah.ErrAlreadySubscribing
 	}
 	subscriptions[s.absDir] = append(watches, s)
 	return nil
@@ -250,12 +247,9 @@ func doSubscribe(a abstractFsWatcher, s *subscription, subscriptions map[string]
 func doUnsubscribe(a abstractFsWatcher, botType sarah.BotType, subscriptions map[string][]*subscription) {
 	for dir, subscribeDirs := range subscriptions {
 		// Exclude all watches that are tied to given group, and stash those should be kept.
-		var remains []*subscription
-		for _, subscribeDir := range subscribeDirs {
-			if subscribeDir.botType != botType {
-				remains = append(remains, subscribeDir)
-			}
-		}
+		remains := slices.DeleteFunc(slices.Clone(subscribeDirs), func(s *subscription) bool {
+			return s.botType == botType
+		})
 
 		// If none should remain, stop subscribing to watch corresponding directory.
 		if len(remains) == 0 {
@@ -280,10 +274,7 @@ const (
 var (
 	errUnableToDetermineConfigFileFormat = errors.New("can not determine file format")
 	errUnsupportedConfigFileFormat       = errors.New("unsupported file format")
-	configFileCandidates                 = []struct {
-		ext      string
-		fileType fileType
-	}{
+	configFileCandidates                 = []configFileCandidate{
 		{
 			ext:      ".yaml",
 			fileType: yamlFile,
@@ -298,6 +289,11 @@ var (
 		},
 	}
 )
+
+type configFileCandidate struct {
+	ext      string
+	fileType fileType
+}
 
 type pluginConfigFile struct {
 	id       string
@@ -319,17 +315,14 @@ func plainPathToFile(path string) (*pluginConfigFile, error) {
 	absDir, filename := filepath.Split(absPath)
 	id := strings.TrimSuffix(filename, ext) // buzz.yaml to buzz
 
-	for _, c := range configFileCandidates {
-		if ext != c.ext {
-			continue
-		}
-
-		return &pluginConfigFile{
-			id:       id,
-			absDir:   filepath.Dir(absDir), // Handle the trailing slash
-			fileType: c.fileType,
-		}, nil
+	i := slices.IndexFunc(configFileCandidates, func(c configFileCandidate) bool { return c.ext == ext })
+	if i < 0 {
+		return nil, errUnsupportedConfigFileFormat
 	}
 
-	return nil, errUnsupportedConfigFileFormat
+	return &pluginConfigFile{
+		id:       id,
+		absDir:   filepath.Dir(absDir), // Handle the trailing slash
+		fileType: configFileCandidates[i].fileType,
+	}, nil
 }
