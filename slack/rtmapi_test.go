@@ -411,7 +411,7 @@ func Test_rtmAPIAdapter_handleRTMPayload(t *testing.T) {
 					Time: time.Now(),
 				},
 			},
-			inputType: reflect.ValueOf(&sarah.HelpInput{}).Type(),
+			inputType: reflect.TypeFor[*sarah.HelpInput](),
 		},
 		{
 			payload: &event.Message{
@@ -422,7 +422,7 @@ func Test_rtmAPIAdapter_handleRTMPayload(t *testing.T) {
 					Time: time.Now(),
 				},
 			},
-			inputType: reflect.ValueOf(&sarah.AbortInput{}).Type(),
+			inputType: reflect.TypeFor[*sarah.AbortInput](),
 		},
 		{
 			payload: &event.Message{
@@ -433,7 +433,7 @@ func Test_rtmAPIAdapter_handleRTMPayload(t *testing.T) {
 					Time: time.Now(),
 				},
 			},
-			inputType: reflect.ValueOf(&Input{}).Type(),
+			inputType: reflect.TypeFor[*Input](),
 		},
 		{
 			payload:   &event.PinAdded{},
@@ -444,7 +444,7 @@ func Test_rtmAPIAdapter_handleRTMPayload(t *testing.T) {
 	for i, input := range inputs {
 		var receivedType reflect.Type
 		fnc := func(i sarah.Input) error {
-			receivedType = reflect.ValueOf(i).Type()
+			receivedType = reflect.TypeOf(i)
 			return nil
 		}
 		DefaultRTMPayloadHandler(t.Context(), config, input.payload, fnc)
