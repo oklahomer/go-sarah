@@ -1,13 +1,13 @@
 package gitter
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
-	"strings"
 )
 
 const (
@@ -51,14 +51,12 @@ func (client *RestAPIClient) buildEndpoint(resourceFragments []string) *url.URL 
 func (client *RestAPIClient) Get(ctx context.Context, resourceFragments []string, intf any) error {
 	// Set up sending request
 	endpoint := client.buildEndpoint(resourceFragments)
-	req, err := http.NewRequest("GET", endpoint.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to construct HTTP request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+client.token)
 	req.Header.Set("Accept", "application/json")
-
-	req = req.WithContext(ctx)
 
 	// Do request
 	resp, err := http.DefaultClient.Do(req)
@@ -87,14 +85,13 @@ func (client *RestAPIClient) Post(ctx context.Context, resourceFragments []strin
 
 	// Set up sending request
 	endpoint := client.buildEndpoint(resourceFragments)
-	req, err := http.NewRequest("POST", endpoint.String(), strings.NewReader(string(reqBody)))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(reqBody))
 	if err != nil {
 		return fmt.Errorf("failed to construct HTTP request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+client.token)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(ctx)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

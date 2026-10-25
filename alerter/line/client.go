@@ -67,16 +67,15 @@ func New(config *Config, options ...Option) *Client {
 func (c *Client) Alert(ctx context.Context, botType sarah.BotType, err error) error {
 	msg := fmt.Sprintf("Error on %s: %s.", botType.String(), err.Error())
 	v := url.Values{"message": {msg}}
-	req, err := http.NewRequest(http.MethodPost, Endpoint, strings.NewReader(v.Encode()))
+
+	reqCtx, cancel := context.WithTimeout(ctx, c.config.RequestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, Endpoint, strings.NewReader(v.Encode()))
 	if err != nil {
 		return fmt.Errorf("failed to construct HTTP request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.config.Token)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	reqCtx, cancel := context.WithTimeout(ctx, c.config.RequestTimeout)
-	defer cancel()
-	req = req.WithContext(reqCtx)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
