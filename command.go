@@ -107,7 +107,7 @@ func buildCommand(ctx context.Context, props *CommandProps, watcher ConfigWatche
 		defer locker.Unlock()
 
 		rv := reflect.ValueOf(cfg)
-		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
+		if rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Map {
 			return watcher.Read(ctx, props.botType, props.identifier, cfg)
 		}
 

@@ -145,7 +145,7 @@ func buildScheduledTask(ctx context.Context, props *ScheduledTaskProps, watcher 
 		defer locker.Unlock()
 
 		rv := reflect.ValueOf(cfg)
-		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
+		if rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Map {
 			return watcher.Read(ctx, props.botType, props.identifier, cfg)
 		}
 
