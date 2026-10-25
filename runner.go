@@ -150,9 +150,9 @@ func RegisterWorker(worker worker.Worker) {
 // Bot and Adapter's implementation should be simple. It should not handle serious errors by itself.
 // Instead, they should simply escalate an error every time when a noteworthy error occurs and let Sarah judge how to react.
 // For example, if the bot should stop when three reconnection trial fails in ten seconds, the scenario could be somewhat like below:
-//	1. Bot escalates reconnection error, FooReconnectionFailureError, each time it fails to reconnect
-//	2. The supervising function counts the error and ignores the first two occurrence
-// 	3. When the third error comes within ten seconds from the initial error escalation, return *SupervisionDirective with StopBot value of true
+//  1. Bot escalates reconnection error, FooReconnectionFailureError, each time it fails to reconnect
+//  2. The supervising function counts the error and ignores the first two occurrence
+//  3. When the third error comes within ten seconds from the initial error escalation, return *SupervisionDirective with StopBot value of true
 //
 // Similarly, if there should be a rate limiter to limit the calls to Alerters, the supervising function should take care of this instead of the failing Bot.
 // Each Bot or Adapter's implementation can be kept simple in this way; Sarah should always supervise and control its belonging Bots.
@@ -291,17 +291,12 @@ func (r *runner) botScheduledTasks(botType BotType) []ScheduledTask {
 func (r *runner) run(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, bot := range r.bots {
-		wg.Add(1)
-
-		go func() {
-			defer func() {
-				wg.Done()
-				runnerStatus.stopBot(bot)
-			}()
+		wg.Go(func() {
+			defer runnerStatus.stopBot(bot)
 
 			runnerStatus.addBot(bot)
 			r.runBot(ctx, bot)
-		}()
+		})
 	}
 	wg.Wait()
 	runnerStatus.stop()

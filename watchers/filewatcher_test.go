@@ -23,9 +23,7 @@ func TestMain(m *testing.M) {
 	l := log.New(io.Discard, "dummyLog", 0)
 	logger.SetLogger(logger.NewWithStandardLogger(l))
 
-	code := m.Run()
-
-	os.Exit(code)
+	m.Run()
 }
 
 type dummyFsWatcher struct {
@@ -554,28 +552,27 @@ func TestFileWatcher_run(t *testing.T) {
 	var botType sarah.BotType = "dummyBotType"
 	for i, s := range subscriptions {
 		testCnt++
-		copied := s // Not to refer the last element in the loop
 		err := make(chan error, 1)
 		w.subscribe <- &subscription{
 			botType: botType,
-			id:      copied.id,
+			id:      s.id,
 			initErr: err,
-			absDir:  copied.absdir,
+			absDir:  s.absdir,
 			callback: func() {
-				copied.notify <- struct{}{}
+				s.notify <- struct{}{}
 			},
 		}
 
 		select {
 		case e := <-err:
-			if copied.watcherErr != nil {
-				if copied.watcherErr != e {
+			if s.watcherErr != nil {
+				if s.watcherErr != e {
 					t.Errorf("Unexpected error state on trial %d: %s", i, e)
 				}
 			}
 
-			if copied.err != nil {
-				if copied.err != e {
+			if s.err != nil {
+				if s.err != e {
 					t.Errorf("Unexpected error state on trial %d: %s", i, e)
 				}
 			}

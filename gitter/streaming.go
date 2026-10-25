@@ -48,13 +48,12 @@ func (client *StreamingAPIClient) Connect(ctx context.Context, room *Room) (Conn
 	requestURL := client.buildEndpoint(room)
 
 	// Set up a sending request
-	req, err := http.NewRequest("GET", requestURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+client.token)
 	req.Header.Set("Accept", "application/json")
-	req = req.WithContext(ctx)
 
 	// Do request
 	resp, err := http.DefaultClient.Do(req)

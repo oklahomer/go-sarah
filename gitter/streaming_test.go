@@ -49,7 +49,7 @@ func TestStreamingAPIClient_buildEndPoint(t *testing.T) {
 }
 
 func TestStreamingAPIClient_Connect(t *testing.T) {
-	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+	switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodGet {
 			t.Fatalf("Unexpected request method: %s.", req.Method)
 		}
@@ -59,7 +59,6 @@ func TestStreamingAPIClient_Connect(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader("https://stream.gitter.im/v1/rooms/foo/chatMessages")),
 		}, nil
 	})
-	defer resetClient()
 
 	client := &StreamingAPIClient{
 		apiVersion: "v1",

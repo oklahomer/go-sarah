@@ -107,7 +107,7 @@ func buildCommand(ctx context.Context, props *CommandProps, watcher ConfigWatche
 		defer locker.Unlock()
 
 		rv := reflect.ValueOf(cfg)
-		if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Map {
+		if rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Map {
 			return watcher.Read(ctx, props.botType, props.identifier, cfg)
 		}
 
@@ -128,8 +128,7 @@ func buildCommand(ctx context.Context, props *CommandProps, watcher ConfigWatche
 		return e
 	}()
 
-	var notFoundErr *ConfigNotFoundError
-	if err != nil && !errors.As(err, &notFoundErr) {
+	if _, ok := errors.AsType[*ConfigNotFoundError](err); err != nil && !ok {
 		// Unacceptable error
 		return nil, fmt.Errorf("failed to read config for %s:%s: %w", props.botType, props.identifier, err)
 	}

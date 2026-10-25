@@ -25,7 +25,7 @@ func TestSlackCommandFunc(t *testing.T) {
 		t.Fatalf("Test data could not be loaded: %s.", err.Error())
 	}
 
-	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+	switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			Status:     "200 OK",
 			StatusCode: http.StatusOK,
@@ -33,7 +33,6 @@ func TestSlackCommandFunc(t *testing.T) {
 			Body:       io.NopCloser(bytes.NewReader(buf)),
 		}, nil
 	})
-	defer resetClient()
 
 	input, _ := slack.EventToInput(&event.Message{
 		ChannelID: "dummy",
@@ -80,7 +79,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 		}
 		apiResponseBytes, _ := json.Marshal(apiResponse)
 
-		resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				Status:     "200 OK",
 				StatusCode: http.StatusOK,
@@ -88,7 +87,6 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewReader(apiResponseBytes)),
 			}, nil
 		})
-		defer resetClient()
 
 		input, _ := slack.EventToInput(
 			&event.Message{
@@ -126,7 +124,7 @@ func TestSlackCommandFunc_WithDataErrorAndSuccessiveAPIError(t *testing.T) {
 
 	// Check returned user context execution that makes another API call.
 	func() {
-		switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+		switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				Status:     "500 OK",
 				StatusCode: http.StatusInternalServerError,

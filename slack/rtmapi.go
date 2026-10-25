@@ -139,8 +139,8 @@ func (r *rtmAPIAdapter) superviseConnection(connCtx context.Context, payloadSend
 // DefaultRTMPayloadHandler receives incoming events, converts them to sarah.Input, and then passes them to enqueueInput.
 // To replace this default behavior, define a function with the same signature and replace this.
 //
-//   myHandler := func(_ context.Context, config *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {}
-//   slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithRTMPayloadHandler(myHandler))
+//	myHandler := func(_ context.Context, config *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {}
+//	slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithRTMPayloadHandler(myHandler))
 func DefaultRTMPayloadHandler(_ context.Context, config *Config, payload rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
 	switch p := payload.(type) {
 	case *rtmapi.OKReply:

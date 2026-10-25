@@ -10,49 +10,49 @@ import (
 
 // setStatusHandler sets an endpoint that returns current status of go-sarah, its belonging sarah.Bot implementations and sarah.Worker.
 //
-//	curl -s -XGET   "http://localhost:8080/status" | jq .
-//	{
-//    "worker": [
-//      {
-//        "report_time": "2018-06-23T15:22:37.274064679+09:00",
-//        "queue_size": 0
-//      },
-//      {
-//        "report_time": "2018-06-23T15:22:47.275251621+09:00",
-//        "queue_size": 0
-//      },
-//      {
-//        "report_time": "2018-06-23T15:22:57.272596709+09:00",
-//        "queue_size": 0
-//      },
-//      {
-//        "report_time": "2018-06-23T15:23:07.275004281+09:00",
-//        "queue_size": 0
-//      },
-//      {
-//        "report_time": "2018-06-23T15:23:17.276197523+09:00",
-//        "queue_size": 0
-//      }
-//    ],
-//	  "runtime": {
-//	    "goroutine_count": 115,
-//	    "cpu_count": 4,
-//	    "gc_count": 1
-//	  },
-//	  "bot_system": {
-//	    "running": true,
-//	    "bots": [
-//	      {
-//	        "type": "nullBot",
-//	        "running": true
-//	      },
-//	      {
-//	        "type": "slack",
-//	        "running": true
-//	      }
-//	    ]
-//	  }
-//	}
+//		curl -s -XGET   "http://localhost:8080/status" | jq .
+//		{
+//	   "worker": [
+//	     {
+//	       "report_time": "2018-06-23T15:22:37.274064679+09:00",
+//	       "queue_size": 0
+//	     },
+//	     {
+//	       "report_time": "2018-06-23T15:22:47.275251621+09:00",
+//	       "queue_size": 0
+//	     },
+//	     {
+//	       "report_time": "2018-06-23T15:22:57.272596709+09:00",
+//	       "queue_size": 0
+//	     },
+//	     {
+//	       "report_time": "2018-06-23T15:23:07.275004281+09:00",
+//	       "queue_size": 0
+//	     },
+//	     {
+//	       "report_time": "2018-06-23T15:23:17.276197523+09:00",
+//	       "queue_size": 0
+//	     }
+//	   ],
+//		  "runtime": {
+//		    "goroutine_count": 115,
+//		    "cpu_count": 4,
+//		    "gc_count": 1
+//		  },
+//		  "bot_system": {
+//		    "running": true,
+//		    "bots": [
+//		      {
+//		        "type": "nullBot",
+//		        "running": true
+//		      },
+//		      {
+//		        "type": "slack",
+//		        "running": true
+//		      }
+//		    ]
+//		  }
+//		}
 func setStatusHandler(mux *http.ServeMux, ws *workerStats) {
 	mux.HandleFunc("/status", func(writer http.ResponseWriter, request *http.Request) {
 		runnerStatus := sarah.CurrentStatus()

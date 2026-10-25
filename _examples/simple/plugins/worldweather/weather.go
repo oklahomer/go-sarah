@@ -8,21 +8,21 @@
 // The set up can be done by importing this package since sarah.RegisterCommandProps is called in its init function.
 // However, to read the configuration on the fly, sarah.ConfigWatcher's implementation must be set.
 //
-//  package main
+//	package main
 //
-//  import (
-//    _ "github.com/oklahomer/go-sarah/v4/examples/simple/plugins/worldweather"
-//    "github.com/oklahomer/go-sarah/v4/watchers"
-//  )
+//	import (
+//	  _ "github.com/oklahomer/go-sarah/v4/examples/simple/plugins/worldweather"
+//	  "github.com/oklahomer/go-sarah/v4/watchers"
+//	)
 //
-//  func main() {
-//    // setup watcher
-//    watcher, _ := watchers.NewFileWatcher(context.TODO(), "/path/to/config/dir/")
-//    sarah.RegisterConfigWatcher(watcher)
+//	func main() {
+//	  // setup watcher
+//	  watcher, _ := watchers.NewFileWatcher(context.TODO(), "/path/to/config/dir/")
+//	  sarah.RegisterConfigWatcher(watcher)
 //
-//    // Do the rest
+//	  // Do the rest
 //
-//  }
+//	}
 package worldweather
 
 import (
