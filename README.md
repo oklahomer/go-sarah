@@ -239,16 +239,16 @@ func (hello *command) Match(input sarah.Input) bool {
 ```
 
 # Supported Golang Versions
-Official [Release Policy](https://golang.org/doc/devel/release.html#policy) says "each major Go release is supported
-until there are two newer major releases." Following this policy would help this project enjoy the improvements
-introduced in the later versions. However, not all projects can immediately switch to a newer environment. 
-Migration could especially be difficult when this project cuts off the older version's support right after a new major Go
-release.
+This project follows the official [Release Policy](https://go.dev/doc/devel/release#policy):
+"each major Go release is supported until there are two newer major releases."
+Only the versions the Go project supports are supported here, so support for an older version ends
+as soon as a new major release makes it unsupported upstream.
+Following the policy as is lets this project adopt the improvements of newer releases without delay.
 
-As a transition period, this project includes support for one older version than the Go project does.
-Such a version is guaranteed to be listed in
-[the CI workflow](https://github.com/oklahomer/go-sarah/blob/master/.github/workflows/ci.yml).
-In other words, new features/interfaces introduced in 1.24 can be used in this project only after 1.26 is out.
+Every supported version is listed in
+[the CI workflow](https://github.com/oklahomer/go-sarah/blob/master/.github/workflows/ci.yml),
+which also runs the tests against the development version (tip) on a best-effort basis.
+In other words, new features/interfaces introduced in 1.26 can be used in this project as soon as 1.27 is out.
 
 # Further Readings
 - [Project wiki](https://github.com/oklahomer/go-sarah/wiki)
