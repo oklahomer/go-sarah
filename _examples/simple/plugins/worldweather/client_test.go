@@ -122,14 +122,13 @@ func TestClient_Get(t *testing.T) {
 		}
 
 		func(r *http.Response) {
-			resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+			switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodGet {
 					t.Fatalf("Unexpected request method: %s.", req.Method)
 				}
 
 				return r, nil
 			})
-			defer resetClient()
 
 			queryParams := &url.Values{}
 			queryParams.Add("q", "1600 Pennsylvania Avenue NW Washington, DC 20500")
@@ -167,14 +166,13 @@ func TestClient_GetRequestError(t *testing.T) {
 		Err: errors.New("dummy error"),
 	}
 
-	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+	switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodGet {
 			t.Fatalf("Unexpected request method: %s.", req.Method)
 		}
 
 		return nil, expectedErr
 	})
-	defer resetClient()
 
 	response := &CommonData{}
 	err := client.Get(t.Context(), "weather", nil, response)
@@ -220,7 +218,7 @@ func TestClient_LocalWeather(t *testing.T) {
 		testNo := i + 1
 
 		func(n int) {
-			resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+			switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodGet {
 					t.Fatalf("Unexpected request method: %s.", req.Method)
 				}
@@ -235,7 +233,6 @@ func TestClient_LocalWeather(t *testing.T) {
 					Body:       io.NopCloser(strings.NewReader(string(bytes))),
 				}, nil
 			})
-			defer resetClient()
 
 			response, err := client.LocalWeather(t.Context(), "1600 Pennsylvania Avenue NW Washington, DC 20500")
 
@@ -268,14 +265,13 @@ func (fnc roundTripFnc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return fnc(r)
 }
 
-func switchHTTPClient(fnc roundTripFnc) func() {
+func switchHTTPClient(t testing.TB, fnc roundTripFnc) {
 	oldClient := http.DefaultClient
-
 	http.DefaultClient = &http.Client{
 		Transport: fnc,
 	}
 
-	return func() {
+	t.Cleanup(func() {
 		http.DefaultClient = oldClient
-	}
+	})
 }

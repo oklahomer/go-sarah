@@ -61,7 +61,7 @@ func TestRestAPIClient_Get(t *testing.T) {
 	response := &GetResponseDummy{
 		Foo: "foo",
 	}
-	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+	switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodGet {
 			t.Fatalf("Unexpected request method: %s.", req.Method)
 		}
@@ -75,7 +75,6 @@ func TestRestAPIClient_Get(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(string(bytes))),
 		}, nil
 	})
-	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "buzz",
@@ -94,7 +93,7 @@ func TestRestAPIClient_Get(t *testing.T) {
 }
 
 func TestClient_Get_StatusError(t *testing.T) {
-	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+	switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodGet {
 			t.Fatalf("Unexpected request method: %s.", req.Method)
 		}
@@ -104,7 +103,6 @@ func TestClient_Get_StatusError(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader("foo bar")),
 		}, nil
 	})
-	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "buzz",
@@ -123,7 +121,7 @@ func TestRestAPIClient_Post(t *testing.T) {
 		OK bool
 	}
 
-	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+	switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodPost {
 			t.Fatalf("Unexpected request method: %s.", req.Method)
 		}
@@ -138,7 +136,6 @@ func TestRestAPIClient_Post(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(string(bytes))),
 		}, nil
 	})
-	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "bar",
@@ -157,7 +154,7 @@ func TestRestAPIClient_Post(t *testing.T) {
 }
 
 func TestRestAPIClient_Rooms(t *testing.T) {
-	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+	switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodGet {
 			t.Fatalf("Unexpected request method: %s.", req.Method)
 		}
@@ -180,7 +177,6 @@ func TestRestAPIClient_Rooms(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(string(bytes))),
 		}, nil
 	})
-	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "buzz",
@@ -198,7 +194,7 @@ func TestRestAPIClient_Rooms(t *testing.T) {
 }
 
 func TestRestAPIClient_PostMessage(t *testing.T) {
-	resetClient := switchHTTPClient(func(req *http.Request) (*http.Response, error) {
+	switchHTTPClient(t, func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodPost {
 			t.Fatalf("Unexpected request method: %s.", req.Method)
 		}
@@ -222,7 +218,6 @@ func TestRestAPIClient_PostMessage(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(string(bytes))),
 		}, nil
 	})
-	defer resetClient()
 
 	client := &RestAPIClient{
 		token:      "bar",
@@ -252,14 +247,13 @@ func (fnc roundTripFnc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return fnc(r)
 }
 
-func switchHTTPClient(fnc roundTripFnc) func() {
+func switchHTTPClient(t testing.TB, fnc roundTripFnc) {
 	oldClient := http.DefaultClient
-
 	http.DefaultClient = &http.Client{
 		Transport: fnc,
 	}
 
-	return func() {
+	t.Cleanup(func() {
 		http.DefaultClient = oldClient
-	}
+	})
 }
