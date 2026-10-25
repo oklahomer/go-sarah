@@ -36,7 +36,7 @@ func WithSlackClient(client SlackClient) AdapterOption {
 // WithEventsPayloadHandler creates an AdapterOption with the given function to handle incoming Events API payloads.
 // The simplest example to receive a message payload is to use a default payload handler as below:
 //
-//   slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithEventsPayloadHandler(slack.DefaultEventsPayloadHandler))
+//	slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithEventsPayloadHandler(slack.DefaultEventsPayloadHandler))
 //
 // See WithRTMPayloadHandler for the detailed usage. WithEventsPayloadHandler is just another form of payload handler to work with Events API.
 func WithEventsPayloadHandler(fnc func(context.Context, *Config, *eventsapi.EventWrapper, func(sarah.Input) error)) AdapterOption {
@@ -54,7 +54,7 @@ func WithEventsPayloadHandler(fnc func(context.Context, *Config, *eventsapi.Even
 // WithRTMPayloadHandler creates an AdapterOption with the given function to handle incoming RTM payloads.
 // The simplest example to receive message payloads is to use a default payload handler as below:
 //
-//   slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithRTMPayloadHandler(DefaultRTMPayloadHandler))
+//	slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithRTMPayloadHandler(DefaultRTMPayloadHandler))
 //
 // However, Slack's RTM API defines a relatively large amount of payload types.
 // To have a better user experience, developers may provide a customized callback function to handle different types of received payloads.
@@ -62,48 +62,48 @@ func WithEventsPayloadHandler(fnc func(context.Context, *Config, *eventsapi.Even
 // Inside the customized payload handler, a developer may wish to have direct access to SlackClient to post some sort of message to Slack via Web API.
 // To support such a scenario, wrap this function like below so the SlackClient can be accessed within its scope.
 //
-//  // Setup golack instance, which implements SlackClient interface.
-//  golackConfig := golack.NewConfig()
-//  golackConfig.Token = "XXXXXXX"
-//  slackClient := golack.New(golackConfig)
+//	 // Setup golack instance, which implements SlackClient interface.
+//	 golackConfig := golack.NewConfig()
+//	 golackConfig.Token = "XXXXXXX"
+//	 slackClient := golack.New(golackConfig)
 //
-//  rtmPayloadHandler := func(connCtx context.Context, config *Config, payload rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
-// 		switch p := payload.(type) {
-//  	case *event.PinAdded:
-//			// Do something with pre-defined SlackClient
-//    		// slackClient.PostMessage(connCtx, ...)
+//	 rtmPayloadHandler := func(connCtx context.Context, config *Config, payload rtmapi.DecodedPayload, enqueueInput func(sarah.Input) error) {
+//			switch p := payload.(type) {
+//	 	case *event.PinAdded:
+//				// Do something with pre-defined SlackClient
+//	   		// slackClient.PostMessage(connCtx, ...)
 //
-//    	default:
-//    		input, err := EventToInput(p)
-//    		if err == ErrNonSupportedEvent {
-//     			log.Debugf("Event given, but no corresponding action is defined. %#v", payload)
-//     			return
-//    		}
+//	   	default:
+//	   		input, err := EventToInput(p)
+//	   		if err == ErrNonSupportedEvent {
+//	    			log.Debugf("Event given, but no corresponding action is defined. %#v", payload)
+//	    			return
+//	   		}
 //
-//    		if err != nil {
-//     			log.Errorf("Failed to convert %T event: %s", p, err.Error())
-//     			return
-//    		}
+//	   		if err != nil {
+//	    			log.Errorf("Failed to convert %T event: %s", p, err.Error())
+//	    			return
+//	   		}
 //
-//    		trimmed := strings.TrimSpace(input.Message())
-//    		if config.HelpCommand != "" && trimmed == config.HelpCommand {
-//     			// Help command
-//     			help := sarah.NewHelpInput(input)
-//     			_ = enqueueInput(help)
-//    		} else if config.AbortCommand != "" && trimmed == config.AbortCommand {
-//     			// Abort command
-//     			abort := sarah.NewAbortInput(input)
-//     			_ = enqueueInput(abort)
-//    		} else {
-//     			// Regular input
-//     			_ = enqueueInput(input)
-//    		}
-//    	}
-//  }
+//	   		trimmed := strings.TrimSpace(input.Message())
+//	   		if config.HelpCommand != "" && trimmed == config.HelpCommand {
+//	    			// Help command
+//	    			help := sarah.NewHelpInput(input)
+//	    			_ = enqueueInput(help)
+//	   		} else if config.AbortCommand != "" && trimmed == config.AbortCommand {
+//	    			// Abort command
+//	    			abort := sarah.NewAbortInput(input)
+//	    			_ = enqueueInput(abort)
+//	   		} else {
+//	    			// Regular input
+//	    			_ = enqueueInput(input)
+//	   		}
+//	   	}
+//	 }
 //
-//  slackConfig := slack.NewConfig()
-//  slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithSlackClient(slackClient), slack.WithRTMPayloadHandler(rtmPayloadHandler))
-//  slackBot, _ := sarah.NewBot(slackAdapter)
+//	 slackConfig := slack.NewConfig()
+//	 slackAdapter, _ := slack.NewAdapter(slackConfig, slack.WithSlackClient(slackClient), slack.WithRTMPayloadHandler(rtmPayloadHandler))
+//	 slackBot, _ := sarah.NewBot(slackAdapter)
 func WithRTMPayloadHandler(fnc func(context.Context, *Config, rtmapi.DecodedPayload, func(sarah.Input) error)) AdapterOption {
 	return func(adapter *Adapter) {
 		adapter.apiSpecificAdapterBuilder = func(config *Config, client SlackClient) apiSpecificAdapter {
@@ -188,8 +188,9 @@ func (adapter *Adapter) Run(ctx context.Context, enqueueInput func(sarah.Input) 
 //
 // For a signaling purposes, an empty struct{} should be used.
 // http://peter.bourgon.org/go-in-production/
-//  "Use struct{} as a sentinel value, rather than bool or interface{}. For example, (snip) a signal channel is chan struct{}.
-//  It unambiguously signals an explicit lack of information."
+//
+//	"Use struct{} as a sentinel value, rather than bool or interface{}. For example, (snip) a signal channel is chan struct{}.
+//	It unambiguously signals an explicit lack of information."
 func nonBlockSignal(id string, target chan<- struct{}) {
 	select {
 	case target <- struct{}{}:

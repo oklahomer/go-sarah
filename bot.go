@@ -68,19 +68,20 @@ type defaultBot struct {
 // defaultBot takes care of some common tasks including:
 //   - receive an Input
 //   - see if sending user is in the middle of conversational context
-//     - if so, execute the next step with the given Input
-//     - if not, find a corresponding Command for the given Input and execute it
+//   - if so, execute the next step with the given Input
+//   - if not, find a corresponding Command for the given Input and execute it
 //   - call Adapter.SendMessage to send an output
+//
 // The purpose of defaultBot is to lessen the tasks of Adapter developers by providing some common tasks' implementations
 // and ease the creation of Bot implementation.
 // Instead of passing an Adapter implementation to NewBot, Developers can also develop a Bot implementation from scratch to highly customize the behavior.
 //
 // Some optional settings can be supplied by passing DefaultBotOption values returned by functions including BotWithStorage.
 //
-//  // Use a storage.
-//  storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
-//  opt := sarah.BotWithStorage(storage)
-//  bot, err := sarah.NewBot(myAdapter, opt)
+//	// Use a storage.
+//	storage := sarah.NewUserContextStorage(sarah.NewCacheConfig())
+//	opt := sarah.BotWithStorage(storage)
+//	bot, err := sarah.NewBot(myAdapter, opt)
 //
 // It is highly recommended to provide an implementation of UserContextStorage, so the users' conversational context can be stored and executed on the next message reception.
 // A reference implementation of UserContextStorage can be initialized with NewUserContextStorage.
@@ -107,10 +108,10 @@ type DefaultBotOption func(bot *defaultBot)
 // BotWithStorage creates and returns a DefaultBotOption to register a preferred UserContextStorage implementation.
 // The below example utilizes pre-defined in-memory storage.
 //
-//  config := sarah.NewCacheConfig()
-//  configBuf, _ := os.ReadFile("/path/to/storage/config.yaml")
-//  yaml.Unmarshal(configBuf, config)
-//  bot, err := sarah.NewBot(myAdapter, storage)
+//	config := sarah.NewCacheConfig()
+//	configBuf, _ := os.ReadFile("/path/to/storage/config.yaml")
+//	yaml.Unmarshal(configBuf, config)
+//	bot, err := sarah.NewBot(myAdapter, storage)
 func BotWithStorage(storage UserContextStorage) DefaultBotOption {
 	return func(bot *defaultBot) {
 		bot.userContextStorage = storage
