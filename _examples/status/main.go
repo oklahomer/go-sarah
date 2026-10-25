@@ -16,6 +16,7 @@ import (
 	"github.com/oklahomer/go-sarah/v4/slack"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 )
 
@@ -62,14 +63,18 @@ func main() {
 
 	// Run HTTP server that reports current status
 	server := newServer(workerReporter)
-	go server.Run(ctx)
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		server.Run(ctx)
+	})
 
 	// Wait til signal reception
 	<-ctx.Done()
 
 	// Stop
 	logger.Infof("Stopping due to signal reception: %v.", context.Cause(ctx))
-	time.Sleep(1 * time.Second) // Wait a bit til things finish
+	wg.Wait()                   // The HTTP server has shut down.
+	time.Sleep(1 * time.Second) // Wait a bit til bots and worker finish
 }
 
 func setupSlackBot(cfg *config) (sarah.Bot, error) {
