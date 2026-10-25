@@ -116,8 +116,7 @@ func Test_rtmAPIAdapter_run(t *testing.T) {
 		// Connection error should return sarah.BotNonContinuableError.
 		select {
 		case err := <-errCh:
-			var target *sarah.BotNonContinuableError
-			if !errors.As(err, &target) {
+			if _, ok := errors.AsType[*sarah.BotNonContinuableError](err); !ok {
 				t.Errorf("Expected error is not returned: %#v", err)
 			}
 

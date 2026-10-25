@@ -123,7 +123,6 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 	for {
 		message, err := messageReceiver.Receive()
 
-		var malformedErr *MalformedPayloadError
 		if errors.Is(err, ErrEmptyPayload) {
 			// https://developer.gitter.im/docs/streaming-api
 			// Parsers must be tolerant of extra newline characters occasionally placed in between messages.
@@ -131,7 +130,7 @@ func receiveMessageRecursive(messageReceiver MessageReceiver, enqueueInput func(
 			// that the connection is still alive during low message volume periods.
 			continue
 
-		} else if errors.As(err, &malformedErr) {
+		} else if _, ok := errors.AsType[*MalformedPayloadError](err); ok {
 			logger.Warnf("Skipping malformed input: %+v", err)
 			continue
 

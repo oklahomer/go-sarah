@@ -183,8 +183,7 @@ func TestClient_GetRequestError(t *testing.T) {
 		t.Fatal("Expected error is not returned.")
 	}
 
-	var urlErr *url.Error
-	if !errors.As(err, &urlErr) {
+	if _, ok := errors.AsType[*url.Error](err); !ok {
 		t.Errorf("Unexpected error is returned: %#v.", err)
 	}
 }
