@@ -38,59 +38,66 @@ func (conn *DummyConnection) Close() error {
 
 func Test_rtmAPIAdapter_run(t *testing.T) {
 	t.Run("Successful case", func(t *testing.T) {
-		// Prepare an adapter that always success to establish a connection.
-		closed := make(chan struct{}, 1)
-		r := &rtmAPIAdapter{
-			config: &Config{
-				PingInterval: 30 * time.Second,
-				RetryPolicy: &retry.Policy{
-					Trial: 1,
+		synctest.Test(t, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+
+			// Prepare an adapter that always success to establish a connection.
+			closed := make(chan struct{}, 1)
+			r := &rtmAPIAdapter{
+				config: &Config{
+					PingInterval: 30 * time.Second,
+					RetryPolicy: &retry.Policy{
+						Trial: 1,
+					},
 				},
-			},
-			client: &DummyClient{
-				ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
-					return &DummyConnection{
-						PingFunc: func() error {
-							return nil
-						},
-						ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
-							return nil, nil
-						},
-						CloseFunc: func() error {
-							closed <- struct{}{}
-							return nil
-						},
-					}, nil
+				client: &DummyClient{
+					ConnectRTMFunc: func(_ context.Context) (rtmapi.Connection, error) {
+						return &DummyConnection{
+							PingFunc: func() error {
+								return nil
+							},
+							ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
+								// Stay connected and idle until the context is canceled instead of spinning on empty payloads.
+								<-ctx.Done()
+								return nil, ctx.Err()
+							},
+							CloseFunc: func() error {
+								closed <- struct{}{}
+								return nil
+							},
+						}, nil
+					},
 				},
-			},
-		}
+			}
 
-		// Run in background
-		ctx, cancel := context.WithCancel(t.Context())
-		errCh := make(chan error, 1)
-		go r.run(ctx, func(_ sarah.Input) error { return nil }, func(err error) { errCh <- err })
+			// Run in background
+			errCh := make(chan error, 1)
+			go r.run(ctx, func(_ sarah.Input) error { return nil }, func(err error) { errCh <- err })
 
-		// Context cancellation should stop adapter and its internal goroutines.
-		cancel()
+			// Let the connection be established, then cancel.
+			// Context cancellation should stop adapter and its internal goroutines.
+			synctest.Wait()
+			cancel()
+			synctest.Wait()
 
-		// Context cancellation should not cause an error state.
-		select {
-		case err := <-errCh:
-			t.Errorf("Unexlected error is returned: %s", err.Error())
+			// Context cancellation should not cause an error state.
+			select {
+			case err := <-errCh:
+				t.Errorf("Unexpected error is returned: %s", err.Error())
 
-		case <-time.NewTimer(10 * time.Millisecond).C:
-			// O.K.
-		}
+			default:
+				// O.K.
+			}
 
-		// Connection.Close must be called when context is canceled.
-		select {
-		case <-closed:
-		// O.K.
+			// Connection.Close must be called when context is canceled.
+			select {
+			case <-closed:
+				// O.K.
 
-		case <-time.NewTimer(10 * time.Millisecond).C:
-			t.Error("Connection close is not called even though the parent context is canceled.")
-
-		}
+			default:
+				t.Error("Connection close is not called even though the parent context is canceled.")
+			}
+		})
 	})
 
 	t.Run("Connection error", func(t *testing.T) {
@@ -193,35 +200,45 @@ func Test_rtmAPIAdapter_connect(t *testing.T) {
 
 func Test_rtmAPIAdapter_receivePayload(t *testing.T) {
 	t.Run("Successful case", func(t *testing.T) {
-		// Prepare an apiSpecificAdapter that notifies payload reception event.
-		payloadGiven := make(chan struct{})
-		r := &rtmAPIAdapter{
-			handlePayload: func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {
-				// Notify that a payload is given.
-				payloadGiven <- struct{}{}
-			},
-		}
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
 
-		// Prepare a dummy connection that receives empty struct as a payload.
-		dummyPayload := struct{}{}
-		conn := &DummyConnection{
-			ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
-				return dummyPayload, nil
-			},
-		}
+			// Prepare an apiSpecificAdapter that notifies payload reception event.
+			payloadGiven := make(chan struct{})
+			r := &rtmAPIAdapter{
+				handlePayload: func(_ context.Context, _ *Config, _ rtmapi.DecodedPayload, _ func(sarah.Input) error) {
+					// Notify that a payload is given.
+					payloadGiven <- struct{}{}
+				},
+			}
 
-		// Run payload reception function in background.
-		ctx := t.Context()
-		go r.receivePayload(ctx, conn, make(chan struct{}), func(_ sarah.Input) error { return nil })
+			// Prepare a dummy connection that receives empty struct as a payload once,
+			// then stays idle until the context is canceled so the receiving goroutine neither spins nor leaks.
+			dummyPayload := struct{}{}
+			delivered := false
+			conn := &DummyConnection{
+				ReceiveFunc: func() (rtmapi.DecodedPayload, error) {
+					if !delivered {
+						delivered = true
+						return dummyPayload, nil
+					}
+					<-ctx.Done()
+					return nil, ctx.Err()
+				},
+			}
 
-		// Check payload reception.
-		select {
-		case <-payloadGiven:
-			// Payload is passed successfully. O.K.
+			// Run payload reception function in background.
+			go r.receivePayload(ctx, conn, make(chan struct{}), func(_ sarah.Input) error { return nil })
 
-		case <-time.NewTimer(10 * time.Second).C:
-			t.Error("PayloadHandler is not called.")
-		}
+			// Check payload reception.
+			select {
+			case <-payloadGiven:
+				// Payload is passed successfully. O.K.
+
+			case <-time.NewTimer(10 * time.Second).C:
+				t.Error("PayloadHandler is not called.")
+			}
+		})
 	})
 
 	t.Run("Reception error", func(t *testing.T) {
