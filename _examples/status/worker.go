@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"github.com/oklahomer/go-kasumi/worker"
+	"slices"
 	"sync"
 	"time"
 )
@@ -16,7 +17,7 @@ func (ws *workerStats) Report(_ context.Context, s *worker.Stats) {
 	defer workerMutex.Unlock()
 
 	if len(*ws) >= 50 {
-		_, *ws = (*ws)[0], (*ws)[1:]
+		*ws = (*ws)[1:]
 	}
 
 	val := workerStatsElem{
@@ -28,9 +29,10 @@ func (ws *workerStats) Report(_ context.Context, s *worker.Stats) {
 }
 
 func (ws *workerStats) history() []workerStatsElem {
-	stats := make([]workerStatsElem, len(*ws))
-	copy(stats, *ws)
-	return stats
+	workerMutex.RLock()
+	defer workerMutex.RUnlock()
+
+	return slices.Clone(*ws)
 }
 
 type workerStatsElem struct {
