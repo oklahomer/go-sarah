@@ -291,17 +291,12 @@ func (r *runner) botScheduledTasks(botType BotType) []ScheduledTask {
 func (r *runner) run(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, bot := range r.bots {
-		wg.Add(1)
-
-		go func() {
-			defer func() {
-				wg.Done()
-				runnerStatus.stopBot(bot)
-			}()
+		wg.Go(func() {
+			defer runnerStatus.stopBot(bot)
 
 			runnerStatus.addBot(bot)
 			r.runBot(ctx, bot)
-		}()
+		})
 	}
 	wg.Wait()
 	runnerStatus.stop()
